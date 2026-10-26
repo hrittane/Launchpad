@@ -1,0 +1,40 @@
+{
+  "source": "/Users/soufiane/Desktop/Launchpad/Launchpad/Views/SearchBar.swift",
+  "tables": {
+    "Localizable": [
+      {
+        "comment": "Clear search button",
+        "key": "Clear search",
+        "location": {
+          "startingColumn": 42,
+          "startingLine": 53
+        }
+      },
+      {
+        "comment": "Search field placeholder",
+        "key": "Search",
+        "location": {
+          "startingColumn": 26,
+          "startingLine": 26
+        }
+      },
+      {
+        "comment": "Search field accessibility label",
+        "key": "Search apps",
+        "location": {
+          "startingColumn": 46,
+          "startingLine": 41
+        }
+      },
+      {
+        "comment": "",
+        "key": "",
+        "location": {
+          "startingColumn": 27,
+          "startingLine": 32
+        }
+      }
+    ]
+  },
+  "version": 1
+}

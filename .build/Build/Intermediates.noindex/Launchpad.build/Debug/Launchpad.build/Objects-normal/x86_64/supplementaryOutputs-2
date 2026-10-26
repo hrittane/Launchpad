@@ -1,0 +1,37 @@
+{
+  "/Users/soufiane/Desktop/Launchpad/Launchpad/Input/HotKeyManager.swift" : {
+    "const-values" : "/Users/soufiane/Desktop/Launchpad/.build/Build/Intermediates.noindex/Launchpad.build/Debug/Launchpad.build/Objects-normal/x86_64/HotKeyManager.swiftconstvalues",
+    "dependencies" : "/Users/soufiane/Desktop/Launchpad/.build/Build/Intermediates.noindex/Launchpad.build/Debug/Launchpad.build/Objects-normal/x86_64/HotKeyManager.d",
+    "diagnostics" : "/Users/soufiane/Desktop/Launchpad/.build/Build/Intermediates.noindex/Launchpad.build/Debug/Launchpad.build/Objects-normal/x86_64/HotKeyManager.dia",
+    "object" : "/Users/soufiane/Desktop/Launchpad/.build/Build/Intermediates.noindex/Launchpad.build/Debug/Launchpad.build/Objects-normal/x86_64/HotKeyManager.o",
+    "swift-dependencies" : "/Users/soufiane/Desktop/Launchpad/.build/Build/Intermediates.noindex/Launchpad.build/Debug/Launchpad.build/Objects-normal/x86_64/HotKeyManager.swiftdeps"
+  },
+  "/Users/soufiane/Desktop/Launchpad/Launchpad/Models/AppItem.swift" : {
+    "const-values" : "/Users/soufiane/Desktop/Launchpad/.build/Build/Intermediates.noindex/Launchpad.build/Debug/Launchpad.build/Objects-normal/x86_64/AppItem.swiftconstvalues",
+    "dependencies" : "/Users/soufiane/Desktop/Launchpad/.build/Build/Intermediates.noindex/Launchpad.build/Debug/Launchpad.build/Objects-normal/x86_64/AppItem.d",
+    "diagnostics" : "/Users/soufiane/Desktop/Launchpad/.build/Build/Intermediates.noindex/Launchpad.build/Debug/Launchpad.build/Objects-normal/x86_64/AppItem.dia",
+    "object" : "/Users/soufiane/Desktop/Launchpad/.build/Build/Intermediates.noindex/Launchpad.build/Debug/Launchpad.build/Objects-normal/x86_64/AppItem.o",
+    "swift-dependencies" : "/Users/soufiane/Desktop/Launchpad/.build/Build/Intermediates.noindex/Launchpad.build/Debug/Launchpad.build/Objects-normal/x86_64/AppItem.swiftdeps"
+  },
+  "/Users/soufiane/Desktop/Launchpad/Launchpad/Models/AppSettings.swift" : {
+    "const-values" : "/Users/soufiane/Desktop/Launchpad/.build/Build/Intermediates.noindex/Launchpad.build/Debug/Launchpad.build/Objects-normal/x86_64/AppSettings.swiftconstvalues",
+    "dependencies" : "/Users/soufiane/Desktop/Launchpad/.build/Build/Intermediates.noindex/Launchpad.build/Debug/Launchpad.build/Objects-normal/x86_64/AppSettings.d",
+    "diagnostics" : "/Users/soufiane/Desktop/Launchpad/.build/Build/Intermediates.noindex/Launchpad.build/Debug/Launchpad.build/Objects-normal/x86_64/AppSettings.dia",
+    "object" : "/Users/soufiane/Desktop/Launchpad/.build/Build/Intermediates.noindex/Launchpad.build/Debug/Launchpad.build/Objects-normal/x86_64/AppSettings.o",
+    "swift-dependencies" : "/Users/soufiane/Desktop/Launchpad/.build/Build/Intermediates.noindex/Launchpad.build/Debug/Launchpad.build/Objects-normal/x86_64/AppSettings.swiftdeps"
+  },
+  "/Users/soufiane/Desktop/Launchpad/Launchpad/Models/FolderItem.swift" : {
+    "const-values" : "/Users/soufiane/Desktop/Launchpad/.build/Build/Intermediates.noindex/Launchpad.build/Debug/Launchpad.build/Objects-normal/x86_64/FolderItem.swiftconstvalues",
+    "dependencies" : "/Users/soufiane/Desktop/Launchpad/.build/Build/Intermediates.noindex/Launchpad.build/Debug/Launchpad.build/Objects-normal/x86_64/FolderItem.d",
+    "diagnostics" : "/Users/soufiane/Desktop/Launchpad/.build/Build/Intermediates.noindex/Launchpad.build/Debug/Launchpad.build/Objects-normal/x86_64/FolderItem.dia",
+    "object" : "/Users/soufiane/Desktop/Launchpad/.build/Build/Intermediates.noindex/Launchpad.build/Debug/Launchpad.build/Objects-normal/x86_64/FolderItem.o",
+    "swift-dependencies" : "/Users/soufiane/Desktop/Launchpad/.build/Build/Intermediates.noindex/Launchpad.build/Debug/Launchpad.build/Objects-normal/x86_64/FolderItem.swiftdeps"
+  },
+  "/Users/soufiane/Desktop/Launchpad/Launchpad/Services/AppDirectoryMonitor.swift" : {
+    "const-values" : "/Users/soufiane/Desktop/Launchpad/.build/Build/Intermediates.noindex/Launchpad.build/Debug/Launchpad.build/Objects-normal/x86_64/AppDirectoryMonitor.swiftconstvalues",
+    "dependencies" : "/Users/soufiane/Desktop/Launchpad/.build/Build/Intermediates.noindex/Launchpad.build/Debug/Launchpad.build/Objects-normal/x86_64/AppDirectoryMonitor.d",
+    "diagnostics" : "/Users/soufiane/Desktop/Launchpad/.build/Build/Intermediates.noindex/Launchpad.build/Debug/Launchpad.build/Objects-normal/x86_64/AppDirectoryMonitor.dia",
+    "object" : "/Users/soufiane/Desktop/Launchpad/.build/Build/Intermediates.noindex/Launchpad.build/Debug/Launchpad.build/Objects-normal/x86_64/AppDirectoryMonitor.o",
+    "swift-dependencies" : "/Users/soufiane/Desktop/Launchpad/.build/Build/Intermediates.noindex/Launchpad.build/Debug/Launchpad.build/Objects-normal/x86_64/AppDirectoryMonitor.swiftdeps"
+  }
+}

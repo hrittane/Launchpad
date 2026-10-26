@@ -1,0 +1,4 @@
+Target dependency graph (2 targets)
+Target 'LaunchpadTests' in project 'Launchpad'
+➜ Explicit dependency on target 'Launchpad' in project 'Launchpad'
+Target 'Launchpad' in project 'Launchpad' (no dependencies)

@@ -1,0 +1,32 @@
+{
+  "source": "/Users/soufiane/Desktop/Launchpad/Launchpad/Views/ShortcutRecorder.swift",
+  "tables": {
+    "Localizable": [
+      {
+        "comment": "Shortcut recorder accessibility label",
+        "key": "Global shortcut",
+        "location": {
+          "startingColumn": 53,
+          "startingLine": 56
+        }
+      },
+      {
+        "comment": "Shortcut recorder prompt",
+        "key": "Type shortcut…",
+        "location": {
+          "startingColumn": 41,
+          "startingLine": 148
+        }
+      },
+      {
+        "comment": "Shortcut recorder accessibility value",
+        "key": "Recording",
+        "location": {
+          "startingColumn": 37,
+          "startingLine": 174
+        }
+      }
+    ]
+  },
+  "version": 1
+}

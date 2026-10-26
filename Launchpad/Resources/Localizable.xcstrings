@@ -1,0 +1,676 @@
+{
+  "sourceLanguage" : "en",
+  "strings" : {
+    "Activation" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Activation"
+          }
+        }
+      }
+    },
+    "Appearance" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apparence"
+          }
+        }
+      }
+    },
+    "AppKit exposes blur materials rather than a Gaussian radius, so this control adjusts the backdrop's tint and dimming." : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AppKit expose des matériaux de flou plutôt qu’un rayon gaussien ; ce réglage ajuste donc la teinte et l’assombrissement de l’arrière-plan."
+          }
+        }
+      }
+    },
+    "Application" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Application"
+          }
+        }
+      }
+    },
+    "Application launcher" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lanceur d’applications"
+          }
+        }
+      }
+    },
+    "Blur intensity" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Intensité du flou"
+          }
+        }
+      }
+    },
+    "Bottom Left" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "En bas à gauche"
+          }
+        }
+      }
+    },
+    "Bottom Right" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "En bas à droite"
+          }
+        }
+      }
+    },
+    "Bundle Identifier" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Identifiant de bundle"
+          }
+        }
+      }
+    },
+    "Cancel" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Annuler"
+          }
+        }
+      }
+    },
+    "Changes are saved automatically." : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Les modifications sont enregistrées automatiquement."
+          }
+        }
+      }
+    },
+    "Clear Icon Cache" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vider le cache d’icônes"
+          }
+        }
+      }
+    },
+    "Clear search" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Effacer la recherche"
+          }
+        }
+      }
+    },
+    "Click to rename" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cliquer pour renommer"
+          }
+        }
+      }
+    },
+    "Close" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fermer"
+          }
+        }
+      }
+    },
+    "Columns" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Colonnes"
+          }
+        }
+      }
+    },
+    "Data" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Données"
+          }
+        }
+      }
+    },
+    "Folder name" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nom du dossier"
+          }
+        }
+      }
+    },
+    "Full Path" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Chemin complet"
+          }
+        }
+      }
+    },
+    "Get Info" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lire les informations"
+          }
+        }
+      }
+    },
+    "Global shortcut" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Raccourci global"
+          }
+        }
+      }
+    },
+    "Grid" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Grille"
+          }
+        }
+      }
+    },
+    "Grid capacity: %lld items per page" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Capacité de la grille : %lld éléments par page"
+          }
+        }
+      }
+    },
+    "Hot corner" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Coin actif"
+          }
+        }
+      }
+    },
+    "Icon size" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Taille des icônes"
+          }
+        }
+      }
+    },
+    "Label size" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Taille des étiquettes"
+          }
+        }
+      }
+    },
+    "Launch at login" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ouvrir à l’ouverture de session"
+          }
+        }
+      }
+    },
+    "Launchpad" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Launchpad"
+          }
+        }
+      }
+    },
+    "Launchpad Preferences" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Préférences de Launchpad"
+          }
+        }
+      }
+    },
+    "Location" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Emplacement"
+          }
+        }
+      }
+    },
+    "Move to Trash" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Placer dans la corbeille"
+          }
+        }
+      }
+    },
+    "New Folder" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nouveau dossier"
+          }
+        }
+      }
+    },
+    "No" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Non"
+          }
+        }
+      }
+    },
+    "No Results" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aucun résultat"
+          }
+        }
+      }
+    },
+    "Off" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Désactivé"
+          }
+        }
+      }
+    },
+    "Only the display under the cursor accepts input; other displays show a mirrored, non-interactive copy." : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Seul l’écran sous le curseur accepte les interactions ; les autres écrans affichent une copie miroir non interactive."
+          }
+        }
+      }
+    },
+    "Open" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ouvrir"
+          }
+        }
+      }
+    },
+    "Opens the application" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ouvre l’application"
+          }
+        }
+      }
+    },
+    "Opens the folder" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ouvre le dossier"
+          }
+        }
+      }
+    },
+    "Page %lld of %lld" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Page %lld sur %lld"
+          }
+        }
+      }
+    },
+    "Pages" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pages"
+          }
+        }
+      }
+    },
+    "Preferences…" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Préférences…"
+          }
+        }
+      }
+    },
+    "Quit Launchpad" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Quitter Launchpad"
+          }
+        }
+      }
+    },
+    "Recording" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Enregistrement"
+          }
+        }
+      }
+    },
+    "Remove %@?" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Supprimer %@ ?"
+          }
+        }
+      }
+    },
+    "Remove from Launchpad" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Retirer de Launchpad"
+          }
+        }
+      }
+    },
+    "Rename Folder" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Renommer le dossier"
+          }
+        }
+      }
+    },
+    "Reset" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Réinitialiser"
+          }
+        }
+      }
+    },
+    "Reset Layout" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Réinitialiser la disposition"
+          }
+        }
+      }
+    },
+    "Reset layout?" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Réinitialiser la disposition ?"
+          }
+        }
+      }
+    },
+    "Rows" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lignes"
+          }
+        }
+      }
+    },
+    "Search" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rechercher"
+          }
+        }
+      }
+    },
+    "Search apps" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rechercher des apps"
+          }
+        }
+      }
+    },
+    "Show Data Folder" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Afficher le dossier de données"
+          }
+        }
+      }
+    },
+    "Show Launchpad" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Afficher Launchpad"
+          }
+        }
+      }
+    },
+    "Show in Finder" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Afficher dans le Finder"
+          }
+        }
+      }
+    },
+    "Show on all displays" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Afficher sur tous les écrans"
+          }
+        }
+      }
+    },
+    "System App" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "App système"
+          }
+        }
+      }
+    },
+    "System Application" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Application système"
+          }
+        }
+      }
+    },
+    "The application will be moved to the Trash. App files are not deleted immediately." : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "L’application sera placée dans la corbeille. Les fichiers de l’app ne sont pas supprimés immédiatement."
+          }
+        }
+      }
+    },
+    "This restores alphabetical order and removes all folders. App files are not affected." : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cela rétablit l’ordre alphabétique et supprime tous les dossiers. Les fichiers des apps ne sont pas modifiés."
+          }
+        }
+      }
+    },
+    "Top Left" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "En haut à gauche"
+          }
+        }
+      }
+    },
+    "Top Right" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "En haut à droite"
+          }
+        }
+      }
+    },
+    "Type shortcut…" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Saisir un raccourci…"
+          }
+        }
+      }
+    },
+    "Unknown" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Inconnu"
+          }
+        }
+      }
+    },
+    "Version" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Version"
+          }
+        }
+      }
+    },
+    "Yes" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Oui"
+          }
+        }
+      }
+    }
+  },
+  "version" : "1.0"
+}

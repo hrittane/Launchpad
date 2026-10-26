@@ -1,0 +1,16 @@
+{
+  "source": "/Users/soufiane/Desktop/Launchpad/Launchpad/Models/FolderItem.swift",
+  "tables": {
+    "Localizable": [
+      {
+        "comment": "Default name for a newly created folder",
+        "key": "New Folder",
+        "location": {
+          "startingColumn": 48,
+          "startingLine": 10
+        }
+      }
+    ]
+  },
+  "version": 1
+}

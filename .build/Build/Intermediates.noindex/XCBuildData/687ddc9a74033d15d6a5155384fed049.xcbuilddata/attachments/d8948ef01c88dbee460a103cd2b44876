@@ -1,0 +1,29 @@
+{
+  "" : {
+    "diagnostics" : "/Users/soufiane/Desktop/Launchpad/.build/Build/Intermediates.noindex/Launchpad.build/Debug/LaunchpadTests.build/Objects-normal/x86_64/LaunchpadTests-primary.dia",
+    "emit-module-dependencies" : "/Users/soufiane/Desktop/Launchpad/.build/Build/Intermediates.noindex/Launchpad.build/Debug/LaunchpadTests.build/Objects-normal/x86_64/LaunchpadTests-primary-emit-module.d",
+    "emit-module-diagnostics" : "/Users/soufiane/Desktop/Launchpad/.build/Build/Intermediates.noindex/Launchpad.build/Debug/LaunchpadTests.build/Objects-normal/x86_64/LaunchpadTests-primary-emit-module.dia",
+    "pch" : "/Users/soufiane/Desktop/Launchpad/.build/Build/Intermediates.noindex/Launchpad.build/Debug/LaunchpadTests.build/Objects-normal/x86_64/LaunchpadTests-primary-Bridging-header.pch",
+    "swift-dependencies" : "/Users/soufiane/Desktop/Launchpad/.build/Build/Intermediates.noindex/Launchpad.build/Debug/LaunchpadTests.build/Objects-normal/x86_64/LaunchpadTests-primary.swiftdeps"
+  },
+  "/Users/soufiane/Desktop/Launchpad/LaunchpadTests/CoreTests.swift" : {
+    "const-values" : "/Users/soufiane/Desktop/Launchpad/.build/Build/Intermediates.noindex/Launchpad.build/Debug/LaunchpadTests.build/Objects-normal/x86_64/CoreTests.swiftconstvalues",
+    "dependencies" : "/Users/soufiane/Desktop/Launchpad/.build/Build/Intermediates.noindex/Launchpad.build/Debug/LaunchpadTests.build/Objects-normal/x86_64/CoreTests.d",
+    "diagnostics" : "/Users/soufiane/Desktop/Launchpad/.build/Build/Intermediates.noindex/Launchpad.build/Debug/LaunchpadTests.build/Objects-normal/x86_64/CoreTests.dia",
+    "index-unit-output-path" : "/Launchpad.build/Debug/LaunchpadTests.build/Objects-normal/x86_64/CoreTests.o",
+    "llvm-bc" : "/Users/soufiane/Desktop/Launchpad/.build/Build/Intermediates.noindex/Launchpad.build/Debug/LaunchpadTests.build/Objects-normal/x86_64/CoreTests.bc",
+    "object" : "/Users/soufiane/Desktop/Launchpad/.build/Build/Intermediates.noindex/Launchpad.build/Debug/LaunchpadTests.build/Objects-normal/x86_64/CoreTests.o",
+    "swift-dependencies" : "/Users/soufiane/Desktop/Launchpad/.build/Build/Intermediates.noindex/Launchpad.build/Debug/LaunchpadTests.build/Objects-normal/x86_64/CoreTests.swiftdeps",
+    "swiftmodule" : "/Users/soufiane/Desktop/Launchpad/.build/Build/Intermediates.noindex/Launchpad.build/Debug/LaunchpadTests.build/Objects-normal/x86_64/CoreTests~partial.swiftmodule"
+  },
+  "/Users/soufiane/Desktop/Launchpad/LaunchpadTests/SmokeTests.swift" : {
+    "const-values" : "/Users/soufiane/Desktop/Launchpad/.build/Build/Intermediates.noindex/Launchpad.build/Debug/LaunchpadTests.build/Objects-normal/x86_64/SmokeTests.swiftconstvalues",
+    "dependencies" : "/Users/soufiane/Desktop/Launchpad/.build/Build/Intermediates.noindex/Launchpad.build/Debug/LaunchpadTests.build/Objects-normal/x86_64/SmokeTests.d",
+    "diagnostics" : "/Users/soufiane/Desktop/Launchpad/.build/Build/Intermediates.noindex/Launchpad.build/Debug/LaunchpadTests.build/Objects-normal/x86_64/SmokeTests.dia",
+    "index-unit-output-path" : "/Launchpad.build/Debug/LaunchpadTests.build/Objects-normal/x86_64/SmokeTests.o",
+    "llvm-bc" : "/Users/soufiane/Desktop/Launchpad/.build/Build/Intermediates.noindex/Launchpad.build/Debug/LaunchpadTests.build/Objects-normal/x86_64/SmokeTests.bc",
+    "object" : "/Users/soufiane/Desktop/Launchpad/.build/Build/Intermediates.noindex/Launchpad.build/Debug/LaunchpadTests.build/Objects-normal/x86_64/SmokeTests.o",
+    "swift-dependencies" : "/Users/soufiane/Desktop/Launchpad/.build/Build/Intermediates.noindex/Launchpad.build/Debug/LaunchpadTests.build/Objects-normal/x86_64/SmokeTests.swiftdeps",
+    "swiftmodule" : "/Users/soufiane/Desktop/Launchpad/.build/Build/Intermediates.noindex/Launchpad.build/Debug/LaunchpadTests.build/Objects-normal/x86_64/SmokeTests~partial.swiftmodule"
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "source": "/Users/soufiane/Desktop/Launchpad/Launchpad/Window/PreferencesWindowController.swift",
+  "tables": {
+    "Localizable": [
+      {
+        "comment": "Preferences window title",
+        "key": "Launchpad Preferences",
+        "location": {
+          "startingColumn": 42,
+          "startingLine": 14
+        }
+      }
+    ]
+  },
+  "version": 1
+}

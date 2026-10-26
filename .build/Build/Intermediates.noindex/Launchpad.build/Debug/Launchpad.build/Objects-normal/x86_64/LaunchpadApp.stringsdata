@@ -1,0 +1,56 @@
+{
+  "source": "/Users/soufiane/Desktop/Launchpad/Launchpad/App/LaunchpadApp.swift",
+  "tables": {
+    "Localizable": [
+      {
+        "comment": "",
+        "key": "Launchpad",
+        "location": {
+          "startingColumn": 22,
+          "startingLine": 14
+        }
+      },
+      {
+        "comment": "Status menu item",
+        "key": "Show Launchpad",
+        "location": {
+          "startingColumn": 22,
+          "startingLine": 18
+        }
+      },
+      {
+        "comment": "Status menu item",
+        "key": "Preferences…",
+        "location": {
+          "startingColumn": 26,
+          "startingLine": 24
+        }
+      },
+      {
+        "comment": "Status menu item",
+        "key": "Preferences…",
+        "location": {
+          "startingColumn": 26,
+          "startingLine": 30
+        }
+      },
+      {
+        "comment": "Status menu item",
+        "key": "Reset Layout",
+        "location": {
+          "startingColumn": 22,
+          "startingLine": 39
+        }
+      },
+      {
+        "comment": "Status menu item",
+        "key": "Quit Launchpad",
+        "location": {
+          "startingColumn": 22,
+          "startingLine": 47
+        }
+      }
+    ]
+  },
+  "version": 1
+}

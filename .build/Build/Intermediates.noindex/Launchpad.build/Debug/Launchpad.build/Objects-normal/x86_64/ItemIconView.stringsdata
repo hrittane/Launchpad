@@ -1,0 +1,88 @@
+{
+  "source": "/Users/soufiane/Desktop/Launchpad/Launchpad/Views/ItemIconView.swift",
+  "tables": {
+    "Localizable": [
+      {
+        "comment": "Accessibility action",
+        "key": "Open",
+        "location": {
+          "startingColumn": 42,
+          "startingLine": 69
+        }
+      },
+      {
+        "comment": "Accessibility hint",
+        "key": "Opens the folder",
+        "location": {
+          "startingColumn": 38,
+          "startingLine": 78
+        }
+      },
+      {
+        "comment": "Accessibility hint",
+        "key": "Opens the application",
+        "location": {
+          "startingColumn": 34,
+          "startingLine": 80
+        }
+      },
+      {
+        "comment": "Delete badge accessibility label",
+        "key": "Remove from Launchpad",
+        "location": {
+          "startingColumn": 47,
+          "startingLine": 175
+        }
+      },
+      {
+        "comment": "Context menu",
+        "key": "Open",
+        "location": {
+          "startingColumn": 18,
+          "startingLine": 229
+        }
+      },
+      {
+        "comment": "Context menu",
+        "key": "Show in Finder",
+        "location": {
+          "startingColumn": 22,
+          "startingLine": 236
+        }
+      },
+      {
+        "comment": "Context menu",
+        "key": "Get Info",
+        "location": {
+          "startingColumn": 22,
+          "startingLine": 241
+        }
+      },
+      {
+        "comment": "Context menu",
+        "key": "Remove from Launchpad",
+        "location": {
+          "startingColumn": 26,
+          "startingLine": 248
+        }
+      },
+      {
+        "comment": "Context menu",
+        "key": "Rename Folder",
+        "location": {
+          "startingColumn": 22,
+          "startingLine": 257
+        }
+      },
+      {
+        "comment": "Context menu",
+        "key": "Remove from Launchpad",
+        "location": {
+          "startingColumn": 22,
+          "startingLine": 263
+        }
+      }
+    ]
+  },
+  "version": 1
+}
