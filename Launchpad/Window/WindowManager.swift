@@ -55,6 +55,8 @@ final class WindowManager {
         primary.setInteractive(true)
 
         NSApp.activate(ignoringOtherApps: true)
+        // `orderFront` also raises the non-interactive Dock backdrop and the
+        // side-Dock corner patch, which `makeKeyAndOrderFront` would leave out.
         primary.orderFront()
 
         updateMirrors()

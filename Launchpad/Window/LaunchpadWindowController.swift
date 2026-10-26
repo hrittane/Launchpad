@@ -45,7 +45,7 @@ final class LaunchpadWindowController: NSWindowController {
         super.init(window: window)
 
         let root = LaunchpadRootView(viewModel: viewModel, isInteractive: interactive)
-        let hostingView = NSHostingView(rootView: root)
+        let hostingView = OverlayHostingView(rootView: root)
         hostingView.translatesAutoresizingMaskIntoConstraints = true
         hostingView.autoresizingMask = [.width, .height]
         hostingView.frame = window.contentView?.bounds ?? .zero
@@ -150,4 +150,11 @@ final class LaunchpadWindowController: NSWindowController {
             return event
         }
     }
+}
+
+/// Accepts the click that activates the overlay. Without this, the first click
+/// after Launchpad is shown from another app can be consumed by AppKit window
+/// activation and never reach SwiftUI's tap gestures.
+private final class OverlayHostingView<Content: View>: NSHostingView<Content> {
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
 }

@@ -72,6 +72,7 @@ final class AppEnvironment {
             NSApp.terminate(nil)
         }
     }
+
 #endif
 
     func openPreferences() {

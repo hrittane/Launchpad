@@ -53,14 +53,8 @@ struct ItemIconView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .contentShape(Rectangle())
         .onHover { isHovered = $0 }
-        .simultaneousGesture(pressGesture)
+        .gesture(pointerGesture)
         .simultaneousGesture(longPressGesture)
-        .onTapGesture {
-            guard !isDraggingGestureActive else { return }
-            onTap()
-        }
-        .modifier(FolderDoubleTap(enabled: isFolder, action: { onDoubleTap?() }))
-        .gesture(dragGesture)
         .contextMenu { contextMenu }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(entry.displayName)
@@ -190,33 +184,79 @@ struct ItemIconView: View {
     }
 
     @State private var isDraggingGestureActive = false
+    @State private var didLongPress = false
+    @State private var pendingFolderClick: DispatchWorkItem?
 
-    private var dragGesture: some Gesture {
-        DragGesture(minimumDistance: 5, coordinateSpace: .named("launchpad"))
+    /// A single pointer gesture handles press feedback, dragging, and clicks.
+    ///
+    /// Competing gesture recognizers are the classic reason a macOS SwiftUI
+    /// tile "ignores" clicks: a `DragGesture(minimumDistance: 0)` attached for
+    /// pressed-state feedback wins the arbitration and the tap never fires. One
+    /// gesture that measures travel itself cannot lose that race.
+    private var pointerGesture: some Gesture {
+        DragGesture(minimumDistance: 0, coordinateSpace: .named("launchpad"))
             .onChanged { value in
+                if !isPressed {
+                    isPressed = true
+                    didLongPress = false
+                }
+
                 if !isDraggingGestureActive {
+                    let distance = hypot(value.translation.width, value.translation.height)
+                    guard distance >= Metrics.itemDragThreshold else { return }
                     isDraggingGestureActive = true
                     onDragBegan()
                 }
                 onDragChanged(value.location)
             }
-            .onEnded { _ in
-                guard isDraggingGestureActive else { return }
-                isDraggingGestureActive = false
-                onDragEnded()
+            .onEnded { value in
+                isPressed = false
+                if isDraggingGestureActive {
+                    isDraggingGestureActive = false
+                    onDragEnded()
+                    return
+                }
+                if didLongPress {
+                    didLongPress = false
+                    return
+                }
+                let distance = hypot(value.translation.width, value.translation.height)
+                guard distance < Metrics.itemDragThreshold else { return }
+                handleClick()
             }
     }
 
-    private var pressGesture: some Gesture {
-        DragGesture(minimumDistance: 0, coordinateSpace: .named("launchpad"))
-            .onChanged { _ in isPressed = true }
-            .onEnded { _ in isPressed = false }
+    /// Folders open on a single click, but the first click is held for the
+    /// double-click interval so a second click can edit the title instead.
+    private func handleClick() {
+        guard isFolder, let onDoubleTap else {
+            onTap()
+            return
+        }
+
+        if let pending = pendingFolderClick {
+            pending.cancel()
+            pendingFolderClick = nil
+            onDoubleTap()
+            return
+        }
+
+        let work = DispatchWorkItem {
+            pendingFolderClick = nil
+            onTap()
+        }
+        pendingFolderClick = work
+        DispatchQueue.main.asyncAfter(
+            deadline: .now() + Metrics.Durations.folderDoubleClick,
+            execute: work
+        )
     }
 
     private var longPressGesture: some Gesture {
         LongPressGesture(minimumDuration: Metrics.Durations.longPress)
             .onEnded { _ in
                 guard !isDraggingGestureActive else { return }
+                didLongPress = true
                 onLongPress()
             }
     }
@@ -262,23 +302,6 @@ struct ItemIconView: View {
             } label: {
                 Text("Remove from Launchpad", comment: "Context menu")
             }
-        }
-    }
-}
-
-/// Attaches a double-click recognizer only to folder tiles. Keeping it off app
-/// tiles avoids delaying their single-click launch while SwiftUI waits for a
-/// possible second click.
-private struct FolderDoubleTap: ViewModifier {
-    let enabled: Bool
-    let action: () -> Void
-
-    @ViewBuilder
-    func body(content: Content) -> some View {
-        if enabled {
-            content.onTapGesture(count: 2, perform: action)
-        } else {
-            content
         }
     }
 }

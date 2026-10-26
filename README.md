@@ -234,6 +234,8 @@ an XCTest environment and skips runtime startup).
 - [ ] Show the overlay; all apps from `/Applications`, `/System/Applications`,
       `/System/Applications/Utilities`, and `~/Applications` appear once each.
 - [ ] Launchpad itself never appears in the grid.
+- [ ] Single-click an app: it launches and the overlay closes. The very first
+      click works even when another app was active when Launchpad appeared.
 - [ ] Install or remove an app while the app is running; after the debounced
       rescan the grid updates without losing the custom order.
 - [ ] Reorder apps, quit, relaunch; the order is restored from

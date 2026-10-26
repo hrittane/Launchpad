@@ -453,6 +453,7 @@ final class LaunchpadViewModel: ObservableObject {
     }
 
     func launch(_ app: AppItem) {
+        NSLog("Launchpad: opening %@ at %@", app.name, app.url.path)
         let configuration = NSWorkspace.OpenConfiguration()
         configuration.activates = true
         workspace.openApplication(at: app.url, configuration: configuration) { _, error in

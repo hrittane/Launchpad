@@ -109,6 +109,7 @@ enum Metrics {
         static let pageSnapBuffer: Double = 0.02
         static let hotCornerDwell: Double = 0.3
         static let longPress: Double = 0.5
+        static let folderDoubleClick: Double = 0.24
         static let searchDebounce: Double = 0.08
     }
 
@@ -117,6 +118,10 @@ enum Metrics {
     static let pageCommitDistanceRatio: CGFloat = 0.25
     static let pageCommitVelocity: CGFloat = 500
     static let rubberBandResistance: CGFloat = 0.35
+    /// Pointer travel before an icon press becomes a drag. A lower threshold
+    /// turns ordinary clicks into drags, which swallows the click and enters
+    /// edit mode instead of launching the app.
+    static let itemDragThreshold: CGFloat = 8
     static let folderMergeDistanceRatio: CGFloat = 0.4
     static let edgeFlipThreshold: CGFloat = 60
     static let hotCornerMargin: CGFloat = 3

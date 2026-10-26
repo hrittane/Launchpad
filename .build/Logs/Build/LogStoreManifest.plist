@@ -6,7 +6,7 @@
 	<integer>12</integer>
 	<key>logs</key>
 	<dict>
-		<key>1DAE4823-6C7F-4E67-9376-809B3BCC0F4C</key>
+		<key>584E194F-0D06-4240-B0AF-1FA63B3E59BA</key>
 		<dict>
 			<key>className</key>
 			<string>IDECommandLineBuildLog</string>
@@ -15,7 +15,7 @@
 			<key>domainType</key>
 			<string>Xcode.IDEActivityLogDomainType.BuildLog</string>
 			<key>fileName</key>
-			<string>1DAE4823-6C7F-4E67-9376-809B3BCC0F4C.xcactivitylog</string>
+			<string>584E194F-0D06-4240-B0AF-1FA63B3E59BA.xcactivitylog</string>
 			<key>hasPrimaryLog</key>
 			<true/>
 			<key>primaryObservable</key>
@@ -40,15 +40,15 @@
 			<key>signature</key>
 			<string>Testing project Launchpad with scheme Launchpad</string>
 			<key>timeStartedRecording</key>
-			<real>814747215.21090901</real>
+			<real>814749132.28828299</real>
 			<key>timeStoppedRecording</key>
-			<real>814747221.32655799</real>
+			<real>814749137.47380996</real>
 			<key>title</key>
 			<string>Testing project Launchpad with scheme Launchpad</string>
 			<key>uniqueIdentifier</key>
-			<string>1DAE4823-6C7F-4E67-9376-809B3BCC0F4C</string>
+			<string>584E194F-0D06-4240-B0AF-1FA63B3E59BA</string>
 		</dict>
-		<key>2842DDFD-DD00-43DB-A74C-2F59F2120B88</key>
+		<key>BA033289-57AE-4132-8EC2-B864B6DF7D13</key>
 		<dict>
 			<key>className</key>
 			<string>IDECommandLineBuildLog</string>
@@ -57,7 +57,7 @@
 			<key>domainType</key>
 			<string>Xcode.IDEActivityLogDomainType.BuildLog</string>
 			<key>fileName</key>
-			<string>2842DDFD-DD00-43DB-A74C-2F59F2120B88.xcactivitylog</string>
+			<string>BA033289-57AE-4132-8EC2-B864B6DF7D13.xcactivitylog</string>
 			<key>hasPrimaryLog</key>
 			<true/>
 			<key>primaryObservable</key>
@@ -82,15 +82,15 @@
 			<key>signature</key>
 			<string>Testing project Launchpad with scheme Launchpad</string>
 			<key>timeStartedRecording</key>
-			<real>814747480.56749499</real>
+			<real>814749199.39019704</real>
 			<key>timeStoppedRecording</key>
-			<real>814747486.84402597</real>
+			<real>814749203.93763101</real>
 			<key>title</key>
 			<string>Testing project Launchpad with scheme Launchpad</string>
 			<key>uniqueIdentifier</key>
-			<string>2842DDFD-DD00-43DB-A74C-2F59F2120B88</string>
+			<string>BA033289-57AE-4132-8EC2-B864B6DF7D13</string>
 		</dict>
-		<key>E02F718E-6C86-4FC1-A439-B9B0D9FAE893</key>
+		<key>D0D7B103-3402-442F-A530-D88B41A5767F</key>
 		<dict>
 			<key>className</key>
 			<string>IDECommandLineBuildLog</string>
@@ -99,7 +99,7 @@
 			<key>domainType</key>
 			<string>Xcode.IDEActivityLogDomainType.BuildLog</string>
 			<key>fileName</key>
-			<string>E02F718E-6C86-4FC1-A439-B9B0D9FAE893.xcactivitylog</string>
+			<string>D0D7B103-3402-442F-A530-D88B41A5767F.xcactivitylog</string>
 			<key>hasPrimaryLog</key>
 			<true/>
 			<key>primaryObservable</key>
@@ -124,13 +124,13 @@
 			<key>signature</key>
 			<string>Testing project Launchpad with scheme Launchpad</string>
 			<key>timeStartedRecording</key>
-			<real>814747696.66685796</real>
+			<real>814748891.20785499</real>
 			<key>timeStoppedRecording</key>
-			<real>814747709.59695303</real>
+			<real>814748897.15702701</real>
 			<key>title</key>
 			<string>Testing project Launchpad with scheme Launchpad</string>
 			<key>uniqueIdentifier</key>
-			<string>E02F718E-6C86-4FC1-A439-B9B0D9FAE893</string>
+			<string>D0D7B103-3402-442F-A530-D88B41A5767F</string>
 		</dict>
 	</dict>
 </dict>
