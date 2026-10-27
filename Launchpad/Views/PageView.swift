@@ -80,29 +80,19 @@ struct PageView: View {
                 )
                 .frame(width: metrics.cellWidth, height: metrics.cellHeight)
                 .position(x: cell.midX, y: cell.midY)
-                .opacity(opacity(for: isDragSource))
-                .scaleEffect(tileScale)
-                .opacity(tileOpacity)
+                .opacity(1.0)
+                .scaleEffect(isDragSource ? 1.12 : (viewModel.dragSession?.armedMergeTargetID == entry.id ? 1.15 : tileScale))
+                .shadow(color: .black.opacity(isDragSource ? 0.4 : 0), radius: isDragSource ? 14 : 0)
+                .animation(.easeOut(duration: 0.12), value: isDragSource)
+                .animation(.easeOut(duration: 0.18), value: viewModel.dragSession?.armedMergeTargetID)
                 .animation(visibilityAnimation(row: slot / max(1, metrics.columns)), value: viewModel.isVisible)
                 .animation(reorderAnimation, value: slot)
                 .animation(Metrics.Motion.hover, value: isDragSource)
+                .animation(.easeInOut(duration: 0.15), value: viewModel.dragSession?.hoveredEntryID)
             }
 
             if let preview = dragPreview, let insertion = preview.insertionSlot {
-                let frame = metrics.iconFrame(at: insertion)
-                RoundedRectangle(cornerRadius: Metrics.iconCornerRadius * metrics.scale, style: .continuous)
-                    .fill(Color.white.opacity(0.10))
-                    .overlay {
-                        RoundedRectangle(cornerRadius: Metrics.iconCornerRadius * metrics.scale, style: .continuous)
-                            .stroke(
-                                Color.white.opacity(0.45),
-                                style: StrokeStyle(lineWidth: 1.5, dash: [5, 4])
-                            )
-                    }
-                    .frame(width: metrics.iconSize, height: metrics.iconSize)
-                    .position(x: frame.midX, y: frame.midY)
-                    .allowsHitTesting(false)
-                    .transition(.opacity)
+                // Removed drag placeholder highlight per user request
             }
         }
         .onAppear {
@@ -121,7 +111,7 @@ struct PageView: View {
 
     private func opacity(for isDragSource: Bool) -> Double {
         guard viewModel.isVisible else { return 0 }
-        return isDragSource ? 0 : 1
+        return 1 // keep others visible for tight packing
     }
 
     private var tileOpacity: Double {
@@ -131,7 +121,11 @@ struct PageView: View {
     }
 
     private var reorderAnimation: Animation? {
-        viewModel.reduceMotion ? Metrics.Motion.reduced : Metrics.Motion.reorder
+        guard let session = viewModel.dragSession else { return viewModel.reduceMotion ? Metrics.Motion.reduced : .spring(response: 0.22, dampingFraction: 0.9) }
+        if session.armedMergeTargetID != nil { return nil }
+        if session.mergeCandidateID != nil { return nil }
+        // Keep layout tight with no gaps
+        return viewModel.reduceMotion ? Metrics.Motion.reduced : .spring(response: 0.22, dampingFraction: 0.92)
     }
 
     private func visibilityAnimation(row: Int) -> Animation? {
@@ -151,27 +145,26 @@ struct PageView: View {
               let session = viewModel.dragSession,
               pageIndex == viewModel.currentDisplayedPage,
               session.isOverFolder == false,
-              session.armedMergeTargetID == nil else { return nil }
+              session.armedMergeTargetID == nil,
+              session.mergeCandidateID == nil else { return nil }
 
         let remaining = entries.filter { $0.id != session.entry.id }
         let capacity = max(1, metrics.columns * metrics.rows)
         guard remaining.count < capacity else { return nil }
 
-        let insertion: Int
+        var insertion: Int = remaining.count
         if let hoveredID = session.hoveredEntryID,
            let hoveredIndex = remaining.firstIndex(where: { $0.id == hoveredID }) {
             insertion = hoveredIndex
         } else if let slot = metrics.slot(at: session.location) {
             insertion = min(max(slot, 0), remaining.count)
-        } else {
-            return nil
         }
 
         var slots: [String: Int] = [:]
         for (index, entry) in remaining.enumerated() {
-            slots[entry.id] = index < insertion ? index : index + 1
+            slots[entry.id] = index < insertion ? index : index
         }
-        return DragPreviewLayout(slots: slots, insertionSlot: insertion)
+        return DragPreviewLayout(slots: slots, insertionSlot: nil)
     }
 
     private func handle(_ action: ItemContextAction, for entry: LaunchpadEntry) {

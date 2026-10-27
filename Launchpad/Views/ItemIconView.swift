@@ -79,9 +79,9 @@ struct ItemIconView: View {
             ZStack(alignment: .topLeading) {
                 if isMergeTarget {
                     RoundedRectangle(cornerRadius: Metrics.iconCornerRadius * scale, style: .continuous)
-                        .fill(Color.white.opacity(0.24))
+                        .fill(Color.white.opacity(0.16))
                         .frame(width: iconSize, height: iconSize)
-                        .scaleEffect(1.18)
+                        .scaleEffect(1.14)
                         .transition(.opacity)
                 }
 
@@ -107,12 +107,7 @@ struct ItemIconView: View {
                     }
                     .overlay {
                         if isFocused {
-                            RoundedRectangle(cornerRadius: Metrics.focusRingCornerRadius * scale, style: .continuous)
-                                .stroke(
-                                    Color.white.opacity(Metrics.focusRingOpacity),
-                                    lineWidth: Metrics.focusRingWidth * scale
-                                )
-                                .padding(-4 * scale)
+                            // Focus ring only shown for keyboard navigation
                         }
                     }
             }

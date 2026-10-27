@@ -11,6 +11,11 @@ struct DragSession: Equatable {
     var hoveredEntryID: String?
     var armedMergeTargetID: String?
     var isOverFolder: Bool = false
+    /// Frames captured at drag start so hit-testing doesn't chase animated
+    /// reflow positions.
+    var baseFrames: [String: CGRect] = [:]
+    /// Candidate target for merge (hysteresis)
+    var mergeCandidateID: String?
 }
 
 /// A drag that starts inside an opened folder. Keeping it separate from the
@@ -895,7 +900,8 @@ final class LaunchpadViewModel: ObservableObject {
             entry: entry,
             sourcePage: page,
             sourceIndex: index,
-            location: .zero
+            location: .zero,
+            baseFrames: iconFrames
         )
     }
 
@@ -903,13 +909,14 @@ final class LaunchpadViewModel: ObservableObject {
         guard var session = dragSession else { return }
         session.location = location
 
+        let frames = session.baseFrames.isEmpty ? iconFrames : session.baseFrames
         var bestID: String?
         var bestDistance = CGFloat.greatestFiniteMagnitude
         var overFolder = false
-        for (id, frame) in iconFrames where id != session.entry.id {
+        for (id, frame) in frames where id != session.entry.id {
             let center = CGPoint(x: frame.midX, y: frame.midY)
             let distance = hypot(center.x - location.x, center.y - location.y)
-            let hitRadius = max(frame.width, frame.height) * 0.55
+            let hitRadius = max(frame.width, frame.height) * 0.6
             if distance < hitRadius, distance < bestDistance {
                 bestDistance = distance
                 bestID = id
@@ -919,30 +926,54 @@ final class LaunchpadViewModel: ObservableObject {
         session.hoveredEntryID = bestID
         session.isOverFolder = overFolder
 
-        // Folder creation is armed only after 0.6 s over another app.
         if let bestID,
            !overFolder,
            session.entry.app != nil,
            let targetEntry = entry(withID: bestID),
            targetEntry.app != nil,
-           let targetFrame = iconFrames[bestID] {
+           let targetFrame = frames[bestID] {
             let center = CGPoint(x: targetFrame.midX, y: targetFrame.midY)
             let distance = hypot(center.x - location.x, center.y - location.y)
-            if distance < targetFrame.width * Metrics.folderMergeDistanceRatio {
+            let mergeRadius = targetFrame.width * 0.5
+            let reorderExit = targetFrame.width * 0.65
+
+            if session.armedMergeTargetID == bestID {
+                if distance > targetFrame.width * 0.7 {
+                    cancelMergeArm()
+                    session.mergeCandidateID = nil
+                }
+            } else if distance <= mergeRadius {
+                // Directly over - start merge, suppress reorder
+                session.mergeCandidateID = bestID
                 if mergeArmTask == nil {
                     mergeArmTask = Task { [weak self] in
                         try? await Task.sleep(nanoseconds: UInt64(Metrics.Durations.dragHoverFolder * 1_000_000_000))
                         guard !Task.isCancelled else { return }
-                        if self?.dragSession?.hoveredEntryID == bestID {
-                            self?.dragSession?.armedMergeTargetID = bestID
+                        await MainActor.run {
+                            if let self, var sess = self.dragSession,
+                               sess.mergeCandidateID == bestID,
+                               sess.hoveredEntryID == bestID,
+                               sess.entry.app != nil {
+                                withAnimation(.easeOut(duration: 0.16)) {
+                                    sess.armedMergeTargetID = bestID
+                                }
+                                self.dragSession = sess
+                            }
                         }
                         self?.mergeArmTask = nil
                     }
                 }
+            } else if distance > reorderExit {
+                // Past the merge zone - allow reordering
+                cancelMergeArm()
+                session.mergeCandidateID = nil
             } else {
+                // In between - prefer merge if still close
+                session.mergeCandidateID = bestID
                 cancelMergeArm()
             }
         } else {
+            session.mergeCandidateID = nil
             cancelMergeArm()
         }
 
@@ -960,6 +991,7 @@ final class LaunchpadViewModel: ObservableObject {
         let targetID = session.hoveredEntryID
         let armedMergeID = session.armedMergeTargetID
         let draggedEntry = session.entry
+        let baseFrames = session.baseFrames
 
         // Remove the dragged entry first so insertion indices describe the
         // post-removal layout.
@@ -972,7 +1004,7 @@ final class LaunchpadViewModel: ObservableObject {
 
         var didCreateFolder = false
         var createdFolderID: UUID?
-        var createdAnchor: CGRect = .zero
+        var createdAnchor: CGRect = baseFrames[armedMergeID ?? targetID ?? ""] ?? .zero
 
         if let targetID,
            let draggedApp = draggedEntry.app,
@@ -995,7 +1027,7 @@ final class LaunchpadViewModel: ObservableObject {
                 )
                 didCreateFolder = true
                 createdFolderID = newFolder.id
-                createdAnchor = iconFrames[targetID] ?? .zero
+                createdAnchor = baseFrames[targetID] ?? iconFrames[targetID] ?? .zero
             } else {
                 LayoutEngine.insert(
                     draggedEntry,
@@ -1045,8 +1077,12 @@ final class LaunchpadViewModel: ObservableObject {
         persist()
 
         if didCreateFolder, let createdFolderID {
-            openFolder(folderID: createdFolderID, anchor: createdAnchor)
-            beginFolderRename()
+            // Small delay so layout settles before animating folder open
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak self] in
+                guard let self else { return }
+                self.openFolder(folderID: createdFolderID, anchor: createdAnchor)
+                self.beginFolderRename()
+            }
         }
     }
 
@@ -1055,6 +1091,13 @@ final class LaunchpadViewModel: ObservableObject {
         mergeArmTask = nil
         edgeFlipTask?.cancel()
         edgeFlipTask = nil
+        withAnimation(.easeOut(duration: 0.15)) {
+            if var s = dragSession {
+                s.armedMergeTargetID = nil
+                s.mergeCandidateID = nil
+                dragSession = s
+            }
+        }
         dragSession = nil
     }
 
@@ -1205,7 +1248,12 @@ final class LaunchpadViewModel: ObservableObject {
         mergeArmTask?.cancel()
         mergeArmTask = nil
         if dragSession?.armedMergeTargetID != nil {
-            dragSession?.armedMergeTargetID = nil
+            withAnimation(.easeOut(duration: 0.15)) {
+                dragSession?.armedMergeTargetID = nil
+            }
+        }
+        if dragSession?.mergeCandidateID != nil {
+            dragSession?.mergeCandidateID = nil
         }
     }
 
@@ -1700,6 +1748,10 @@ final class LaunchpadViewModel: ObservableObject {
     private func clampPagesAfterMutation() {
         pages.removeAll { $0.isEmpty }
         if pages.isEmpty { pages = [[]] }
+        // Compact: move items up to fill gaps (no empty slots)
+        var flat = LayoutEngine.flatten(pages)
+        let capacity = max(1, settings.pageCapacity)
+        pages = LayoutEngine.paginate(flat, capacity: capacity)
         currentPage = min(max(currentPage, 0), pages.count - 1)
     }
 

@@ -31,7 +31,7 @@
         "key": "Remove from Launchpad",
         "location": {
           "startingColumn": 47,
-          "startingLine": 169
+          "startingLine": 164
         }
       },
       {
@@ -39,7 +39,7 @@
         "key": "Open",
         "location": {
           "startingColumn": 18,
-          "startingLine": 269
+          "startingLine": 264
         }
       },
       {
@@ -47,7 +47,7 @@
         "key": "Show in Finder",
         "location": {
           "startingColumn": 22,
-          "startingLine": 276
+          "startingLine": 271
         }
       },
       {
@@ -55,7 +55,7 @@
         "key": "Get Info",
         "location": {
           "startingColumn": 22,
-          "startingLine": 281
+          "startingLine": 276
         }
       },
       {
@@ -63,7 +63,7 @@
         "key": "Remove from Launchpad",
         "location": {
           "startingColumn": 26,
-          "startingLine": 288
+          "startingLine": 283
         }
       },
       {
@@ -71,7 +71,7 @@
         "key": "Rename Folder",
         "location": {
           "startingColumn": 22,
-          "startingLine": 297
+          "startingLine": 292
         }
       },
       {
@@ -79,7 +79,7 @@
         "key": "Remove from Launchpad",
         "location": {
           "startingColumn": 22,
-          "startingLine": 303
+          "startingLine": 298
         }
       }
     ]

@@ -13,57 +13,57 @@
 				<key>testFolderDissolvesWhenFewerThanTwoAppsRemain</key>
 				<dict>
 					<key>mrnet</key>
-					<real>0.0034140348434448242</real>
+					<real>0.004528045654296875</real>
 				</dict>
 				<key>testFolderHonorsMaximumAppCount</key>
 				<dict>
 					<key>mrnet</key>
-					<real>0.0058989524841308594</real>
+					<real>0.011583089828491211</real>
 				</dict>
 				<key>testFolderMergeRules</key>
 				<dict>
 					<key>mrnet</key>
-					<real>0.001665949821472168</real>
+					<real>0.0035370588302612305</real>
 				</dict>
 				<key>testInsertAndRemoveMaintainOrder</key>
 				<dict>
 					<key>mrnet</key>
-					<real>0.0019199848175048828</real>
+					<real>0.0051800012588500977</real>
 				</dict>
 				<key>testInsertOverflowCreatesNextPage</key>
 				<dict>
 					<key>mrnet</key>
-					<real>0.0018110275268554688</real>
+					<real>0.0032600164413452148</real>
 				</dict>
 				<key>testNormalizeDissolvesSingleAppFolderAndReleasesApp</key>
 				<dict>
 					<key>mrnet</key>
-					<real>0.0019559860229492188</real>
+					<real>0.0028669834136962891</real>
 				</dict>
 				<key>testNormalizeDropsRemovedAppsAndAppendsNewAppsAlphabetically</key>
 				<dict>
 					<key>mrnet</key>
-					<real>0.022607922554016113</real>
+					<real>0.040975093841552734</real>
 				</dict>
 				<key>testNormalizeKeepsFolderWithTwoSurvivingApps</key>
 				<dict>
 					<key>mrnet</key>
-					<real>0.0023990869522094727</real>
+					<real>0.002285003662109375</real>
 				</dict>
 				<key>testNormalizeRepaginatesWhenCapacityShrinks</key>
 				<dict>
 					<key>mrnet</key>
-					<real>0.0018700361251831055</real>
+					<real>0.0023099184036254883</real>
 				</dict>
 				<key>testPageCountAndIndexMath</key>
 				<dict>
 					<key>mrnet</key>
-					<real>0.001649022102355957</real>
+					<real>0.0021879673004150391</real>
 				</dict>
 				<key>testPaginateAlwaysReturnsAtLeastOnePage</key>
 				<dict>
 					<key>mrnet</key>
-					<real>0.0017359256744384766</real>
+					<real>0.0034489631652832031</real>
 				</dict>
 			</dict>
 			<key>LayoutStoreTests</key>
@@ -71,27 +71,27 @@
 				<key>testCorruptFileLoadsAsEmptyLayout</key>
 				<dict>
 					<key>mrnet</key>
-					<real>0.0079779624938964844</real>
+					<real>0.021147012710571289</real>
 				</dict>
 				<key>testDebouncedSaveWritesEventually</key>
 				<dict>
 					<key>mrnet</key>
-					<real>0.80530893802642822</real>
+					<real>0.80939304828643799</real>
 				</dict>
 				<key>testJSONRoundTripIncludesFolders</key>
 				<dict>
 					<key>mrnet</key>
-					<real>0.0079140663146972656</real>
+					<real>0.011559963226318359</real>
 				</dict>
 				<key>testLayoutDocumentUsesStableJSONShape</key>
 				<dict>
 					<key>mrnet</key>
-					<real>0.0062459707260131836</real>
+					<real>0.0079690217971801758</real>
 				</dict>
 				<key>testMissingFileLoadsAsEmptyLayout</key>
 				<dict>
 					<key>mrnet</key>
-					<real>0.0033000707626342773</real>
+					<real>0.0046689510345458984</real>
 				</dict>
 			</dict>
 			<key>PageDragGeometryTests</key>
@@ -99,27 +99,27 @@
 				<key>testCommitStopsAtFirstAndLastPage</key>
 				<dict>
 					<key>mrnet</key>
-					<real>0.0017579793930053711</real>
+					<real>0.0045340061187744141</real>
 				</dict>
 				<key>testDistanceCommitMovesOnePage</key>
 				<dict>
 					<key>mrnet</key>
-					<real>0.0015630722045898438</real>
+					<real>0.0030289888381958008</real>
 				</dict>
 				<key>testDragIsClampedToOnePageWidth</key>
 				<dict>
 					<key>mrnet</key>
-					<real>0.0015990734100341797</real>
+					<real>0.0045320987701416016</real>
 				</dict>
 				<key>testFirstAndLastPageApplyRubberBandResistance</key>
 				<dict>
 					<key>mrnet</key>
-					<real>0.0016580820083618164</real>
+					<real>0.0043739080429077148</real>
 				</dict>
 				<key>testVelocityCommitMovesOnePage</key>
 				<dict>
 					<key>mrnet</key>
-					<real>0.0015230178833007812</real>
+					<real>0.0025190114974975586</real>
 				</dict>
 			</dict>
 			<key>SearchEngineTests</key>
@@ -127,37 +127,37 @@
 				<key>testDuplicateNamesAreDeterministicallyOrderedByID</key>
 				<dict>
 					<key>mrnet</key>
-					<real>0.0020140409469604492</real>
+					<real>0.0065859556198120117</real>
 				</dict>
 				<key>testEmptyQueryReturnsNoResults</key>
 				<dict>
 					<key>mrnet</key>
-					<real>0.0019069910049438477</real>
+					<real>0.0031510591506958008</real>
 				</dict>
 				<key>testFuzzyDistanceThresholdIsOne</key>
 				<dict>
 					<key>mrnet</key>
-					<real>0.0018659830093383789</real>
+					<real>0.0036720037460327148</real>
 				</dict>
 				<key>testFuzzyMatchingRequiresFourCharacters</key>
 				<dict>
 					<key>mrnet</key>
-					<real>0.0018800497055053711</real>
+					<real>0.0052009820938110352</real>
 				</dict>
 				<key>testPrefixBeatsSubstringAndAlphabetizesTies</key>
 				<dict>
 					<key>mrnet</key>
-					<real>0.0017629861831665039</real>
+					<real>0.0030190944671630859</real>
 				</dict>
 				<key>testRankingPrioritizesPrefixThenWordPrefixThenSubstring</key>
 				<dict>
 					<key>mrnet</key>
-					<real>0.001793980598449707</real>
+					<real>0.0030139684677124023</real>
 				</dict>
 				<key>testSearchIsCaseAndDiacriticInsensitive</key>
 				<dict>
 					<key>mrnet</key>
-					<real>0.0020560026168823242</real>
+					<real>0.0032171010971069336</real>
 				</dict>
 			</dict>
 			<key>SmokeTests</key>
@@ -165,7 +165,7 @@
 				<key>testSmoke</key>
 				<dict>
 					<key>mrnet</key>
-					<real>0.001690983772277832</real>
+					<real>0.0024110078811645508</real>
 				</dict>
 			</dict>
 		</dict>
