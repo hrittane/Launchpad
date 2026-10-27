@@ -6,7 +6,7 @@
 	<integer>12</integer>
 	<key>logs</key>
 	<dict>
-		<key>584E194F-0D06-4240-B0AF-1FA63B3E59BA</key>
+		<key>64EAC8D3-280D-4BE1-A6E2-5A52EFB53BC4</key>
 		<dict>
 			<key>className</key>
 			<string>IDECommandLineBuildLog</string>
@@ -15,7 +15,7 @@
 			<key>domainType</key>
 			<string>Xcode.IDEActivityLogDomainType.BuildLog</string>
 			<key>fileName</key>
-			<string>584E194F-0D06-4240-B0AF-1FA63B3E59BA.xcactivitylog</string>
+			<string>64EAC8D3-280D-4BE1-A6E2-5A52EFB53BC4.xcactivitylog</string>
 			<key>hasPrimaryLog</key>
 			<true/>
 			<key>primaryObservable</key>
@@ -40,13 +40,13 @@
 			<key>signature</key>
 			<string>Testing project Launchpad with scheme Launchpad</string>
 			<key>timeStartedRecording</key>
-			<real>814749132.28828299</real>
+			<real>814819955.99749506</real>
 			<key>timeStoppedRecording</key>
-			<real>814749137.47380996</real>
+			<real>814819962.55686498</real>
 			<key>title</key>
 			<string>Testing project Launchpad with scheme Launchpad</string>
 			<key>uniqueIdentifier</key>
-			<string>584E194F-0D06-4240-B0AF-1FA63B3E59BA</string>
+			<string>64EAC8D3-280D-4BE1-A6E2-5A52EFB53BC4</string>
 		</dict>
 		<key>BA033289-57AE-4132-8EC2-B864B6DF7D13</key>
 		<dict>
@@ -89,48 +89,6 @@
 			<string>Testing project Launchpad with scheme Launchpad</string>
 			<key>uniqueIdentifier</key>
 			<string>BA033289-57AE-4132-8EC2-B864B6DF7D13</string>
-		</dict>
-		<key>D0D7B103-3402-442F-A530-D88B41A5767F</key>
-		<dict>
-			<key>className</key>
-			<string>IDECommandLineBuildLog</string>
-			<key>documentTypeString</key>
-			<string>&lt;nil&gt;</string>
-			<key>domainType</key>
-			<string>Xcode.IDEActivityLogDomainType.BuildLog</string>
-			<key>fileName</key>
-			<string>D0D7B103-3402-442F-A530-D88B41A5767F.xcactivitylog</string>
-			<key>hasPrimaryLog</key>
-			<true/>
-			<key>primaryObservable</key>
-			<dict>
-				<key>highLevelStatus</key>
-				<string>W</string>
-				<key>totalNumberOfAnalyzerIssues</key>
-				<integer>0</integer>
-				<key>totalNumberOfErrors</key>
-				<integer>0</integer>
-				<key>totalNumberOfTestFailures</key>
-				<integer>0</integer>
-				<key>totalNumberOfWarnings</key>
-				<integer>2</integer>
-			</dict>
-			<key>schemeIdentifier-containerName</key>
-			<string>Launchpad project</string>
-			<key>schemeIdentifier-schemeName</key>
-			<string>Launchpad</string>
-			<key>schemeIdentifier-sharedScheme</key>
-			<integer>1</integer>
-			<key>signature</key>
-			<string>Testing project Launchpad with scheme Launchpad</string>
-			<key>timeStartedRecording</key>
-			<real>814748891.20785499</real>
-			<key>timeStoppedRecording</key>
-			<real>814748897.15702701</real>
-			<key>title</key>
-			<string>Testing project Launchpad with scheme Launchpad</string>
-			<key>uniqueIdentifier</key>
-			<string>D0D7B103-3402-442F-A530-D88B41A5767F</string>
 		</dict>
 	</dict>
 </dict>

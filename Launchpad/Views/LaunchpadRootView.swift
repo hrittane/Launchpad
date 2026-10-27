@@ -40,8 +40,12 @@ struct LaunchpadRootView: View {
             LaunchpadBackgroundView(viewModel: viewModel)
 
             mainContent(size: size, metrics: metrics)
+                .scaleEffect(scaleForShow)
+                .opacity(viewModel.isVisible ? 1 : 0)
+                .blur(radius: blurForShow)
                 .blur(radius: folderOpen ? 12 * metrics.scale : 0)
                 .opacity(folderOpen ? 0.55 : 1)
+                .animation(showContentAnimation, value: viewModel.isVisible)
                 .animation(folderAnimation, value: folderOpen)
 
             if folderOpen {
@@ -110,6 +114,24 @@ struct LaunchpadRootView: View {
                     .accessibilityAddTraits(.isStaticText)
             }
         }
+    }
+
+    private var scaleForShow: CGFloat {
+        if viewModel.reduceMotion { return 1 }
+        return viewModel.isVisible ? 1 : 1.12
+    }
+
+    private var blurForShow: CGFloat {
+        if viewModel.reduceMotion { return 0 }
+        return viewModel.isVisible ? 0 : 10
+    }
+
+    private var showContentAnimation: Animation? {
+        if viewModel.reduceMotion { return Metrics.Motion.reduced }
+        if viewModel.isVisible {
+            return Metrics.Motion.showZoom
+        }
+        return .easeIn(duration: Metrics.Durations.hideBackground)
     }
 
     private func pageContainer(size: CGSize, metrics: LayoutMetrics) -> some View {

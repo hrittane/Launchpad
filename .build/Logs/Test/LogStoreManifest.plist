@@ -6,10 +6,10 @@
 	<integer>12</integer>
 	<key>logs</key>
 	<dict>
-		<key>03F9EE70-4923-4C92-B998-416D4228B70B</key>
+		<key>0489908A-50D1-40E2-A527-968E7363A68A</key>
 		<dict>
 			<key>auxiliaryLogUniqueIdentifier</key>
-			<string>D0D7B103-3402-442F-A530-D88B41A5767F</string>
+			<string>64EAC8D3-280D-4BE1-A6E2-5A52EFB53BC4</string>
 			<key>auxiliaryObservable</key>
 			<dict>
 				<key>highLevelStatus</key>
@@ -30,7 +30,7 @@
 			<key>domainType</key>
 			<string>com.apple.dt.unit.cocoaUnitTest</string>
 			<key>fileName</key>
-			<string>Test-Launchpad-2026.10.26_23-08-11-+0000.xcresult</string>
+			<string>Test-Launchpad-2026.10.27_18-52-35-+0000.xcresult</string>
 			<key>hasAuxiliaryLog</key>
 			<true/>
 			<key>hasPrimaryLog</key>
@@ -57,72 +57,13 @@
 			<key>signature</key>
 			<string>Test Launchpad</string>
 			<key>timeStartedRecording</key>
-			<real>814748891.20899296</real>
+			<real>814819955.99949205</real>
 			<key>timeStoppedRecording</key>
-			<real>814748901.03635395</real>
+			<real>814819967.65622306</real>
 			<key>title</key>
 			<string>Test Launchpad</string>
 			<key>uniqueIdentifier</key>
-			<string>03F9EE70-4923-4C92-B998-416D4228B70B</string>
-		</dict>
-		<key>3130DA9B-D8A1-48E5-A9DE-E3A866989A25</key>
-		<dict>
-			<key>auxiliaryLogUniqueIdentifier</key>
-			<string>584E194F-0D06-4240-B0AF-1FA63B3E59BA</string>
-			<key>auxiliaryObservable</key>
-			<dict>
-				<key>highLevelStatus</key>
-				<string>W</string>
-				<key>totalNumberOfAnalyzerIssues</key>
-				<integer>0</integer>
-				<key>totalNumberOfErrors</key>
-				<integer>0</integer>
-				<key>totalNumberOfTestFailures</key>
-				<integer>0</integer>
-				<key>totalNumberOfWarnings</key>
-				<integer>2</integer>
-			</dict>
-			<key>className</key>
-			<string>IDESchemeActionsInvocationRecord</string>
-			<key>documentTypeString</key>
-			<string>&lt;nil&gt;</string>
-			<key>domainType</key>
-			<string>com.apple.dt.unit.cocoaUnitTest</string>
-			<key>fileName</key>
-			<string>Test-Launchpad-2026.10.26_23-12-12-+0000.xcresult</string>
-			<key>hasAuxiliaryLog</key>
-			<true/>
-			<key>hasPrimaryLog</key>
-			<true/>
-			<key>primaryObservable</key>
-			<dict>
-				<key>highLevelStatus</key>
-				<string>W</string>
-				<key>totalNumberOfAnalyzerIssues</key>
-				<integer>0</integer>
-				<key>totalNumberOfErrors</key>
-				<integer>0</integer>
-				<key>totalNumberOfTestFailures</key>
-				<integer>0</integer>
-				<key>totalNumberOfWarnings</key>
-				<integer>2</integer>
-			</dict>
-			<key>schemeIdentifier-containerName</key>
-			<string>Launchpad project</string>
-			<key>schemeIdentifier-schemeName</key>
-			<string>Launchpad</string>
-			<key>schemeIdentifier-sharedScheme</key>
-			<integer>1</integer>
-			<key>signature</key>
-			<string>Test Launchpad</string>
-			<key>timeStartedRecording</key>
-			<real>814749132.28940701</real>
-			<key>timeStoppedRecording</key>
-			<real>814749141.27337098</real>
-			<key>title</key>
-			<string>Test Launchpad</string>
-			<key>uniqueIdentifier</key>
-			<string>3130DA9B-D8A1-48E5-A9DE-E3A866989A25</string>
+			<string>0489908A-50D1-40E2-A527-968E7363A68A</string>
 		</dict>
 		<key>DEFDCE8D-B760-4C00-AEC5-D22CDAC88B40</key>
 		<dict>

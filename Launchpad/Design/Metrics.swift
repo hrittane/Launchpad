@@ -86,12 +86,12 @@ enum Metrics {
     // MARK: Timing
 
     enum Durations {
-        static let showBackground: Double = 0.25
-        static let showIcons: Double = 0.30
-        static let showStagger: Double = 0.02
-        static let showStaggerMax: Double = 0.10
-        static let hideIcons: Double = 0.22
-        static let hideBackground: Double = 0.15
+        static let showBackground: Double = 0.18
+        static let showIcons: Double = 0.26
+        static let showStagger: Double = 0.012
+        static let showStaggerMax: Double = 0.07
+        static let hideIcons: Double = 0.18
+        static let hideBackground: Double = 0.14
         static let hover: Double = 0.15
         static let pressed: Double = 0.10
         static let searchCrossFade: Double = 0.2
@@ -135,7 +135,7 @@ enum Metrics {
 
     enum Motion {
         static let show = Animation.easeOut(duration: Durations.showBackground)
-        static let showIcons = Animation.easeOut(duration: Durations.showIcons)
+        static let showIcons = Animation.spring(response: 0.34, dampingFraction: 0.8)
         static let hideIcons = Animation.easeIn(duration: Durations.hideIcons)
         static let hideBackground = Animation.easeIn(duration: Durations.hideBackground)
         static let page = Animation.timingCurve(0.22, 0.90, 0.25, 1.0, duration: Durations.pageSlide)
@@ -144,6 +144,7 @@ enum Metrics {
         static let hover = Animation.easeInOut(duration: Durations.hover)
         static let pressed = Animation.easeOut(duration: Durations.pressed)
         static let reduced = Animation.easeInOut(duration: Durations.reducedMotion)
+        static let showZoom = Animation.spring(response: 0.38, dampingFraction: 0.84)
     }
 }
 

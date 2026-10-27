@@ -17,13 +17,17 @@ struct PageView: View {
     }
 
     @State private var hasShownOnce = false
+    /// Trigger the first appearance transition when the app shows and the view
+    /// is first laid out. Without this, the first show can skip the zoom if the
+    /// view appeared before `isVisible` changed.
+    @State private var readyForShow = false
 
     private var tileScale: CGFloat {
-        guard !viewModel.isVisible else { return 1 }
-        // Launchpad's show animation starts slightly larger (1.12) than the
-        // hide animation ends (1.08), so track whether this page has been
-        // shown once to pick the right resting scale.
-        return hasShownOnce ? 1.08 : 1.12
+        if viewModel.reduceMotion { return 1 }
+        if viewModel.isVisible {
+            return 1
+        }
+        return hasShownOnce ? 1.06 : 1.14
     }
 
     var body: some View {
@@ -78,6 +82,7 @@ struct PageView: View {
                 .position(x: cell.midX, y: cell.midY)
                 .opacity(opacity(for: isDragSource))
                 .scaleEffect(tileScale)
+                .opacity(tileOpacity)
                 .animation(visibilityAnimation(row: slot / max(1, metrics.columns)), value: viewModel.isVisible)
                 .animation(reorderAnimation, value: slot)
                 .animation(Metrics.Motion.hover, value: isDragSource)
@@ -101,16 +106,28 @@ struct PageView: View {
             }
         }
         .onAppear {
-            if viewModel.isVisible { hasShownOnce = true }
+            if viewModel.isVisible {
+                hasShownOnce = true
+                readyForShow = true
+            }
         }
         .onChange(of: viewModel.isVisible) { visible in
-            if visible { hasShownOnce = true }
+            if visible {
+                hasShownOnce = true
+                readyForShow = true
+            }
         }
     }
 
     private func opacity(for isDragSource: Bool) -> Double {
         guard viewModel.isVisible else { return 0 }
         return isDragSource ? 0 : 1
+    }
+
+    private var tileOpacity: Double {
+        if viewModel.reduceMotion { return 1 }
+        guard !viewModel.isVisible else { return 1 }
+        return hasShownOnce ? 0.7 : 0.4
     }
 
     private var reorderAnimation: Animation? {
@@ -121,7 +138,7 @@ struct PageView: View {
         if viewModel.reduceMotion { return Metrics.Motion.reduced }
         if viewModel.isVisible {
             let delay = min(Double(row) * Metrics.Durations.showStagger, Metrics.Durations.showStaggerMax)
-            return .easeOut(duration: Metrics.Durations.showIcons).delay(delay)
+            return Metrics.Motion.showIcons.delay(delay)
         }
         return .easeIn(duration: Metrics.Durations.hideIcons)
     }

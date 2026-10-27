@@ -7,7 +7,7 @@
         "key": "No Results",
         "location": {
           "startingColumn": 22,
-          "startingLine": 105
+          "startingLine": 109
         }
       },
       {
@@ -15,7 +15,7 @@
         "key": "Pages",
         "location": {
           "startingColumn": 34,
-          "startingLine": 143
+          "startingLine": 165
         }
       },
       {
@@ -23,7 +23,7 @@
         "key": "Page %lld of %lld",
         "location": {
           "startingColumn": 25,
-          "startingLine": 147
+          "startingLine": 169
         }
       },
       {
@@ -31,7 +31,7 @@
         "key": "Remove %@?",
         "location": {
           "startingColumn": 25,
-          "startingLine": 237
+          "startingLine": 259
         }
       },
       {
@@ -39,7 +39,7 @@
         "key": "Move to Trash",
         "location": {
           "startingColumn": 30,
-          "startingLine": 245
+          "startingLine": 267
         }
       },
       {
@@ -47,7 +47,7 @@
         "key": "Cancel",
         "location": {
           "startingColumn": 30,
-          "startingLine": 250
+          "startingLine": 272
         }
       },
       {
@@ -55,7 +55,7 @@
         "key": "The application will be moved to the Trash. App files are not deleted immediately.",
         "location": {
           "startingColumn": 25,
-          "startingLine": 254
+          "startingLine": 276
         }
       }
     ]
