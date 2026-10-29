@@ -193,7 +193,10 @@ final class LaunchpadDragCommitTests: XCTestCase {
         viewModel.beginDrag(entry: dragged, page: 0, index: 0)
 
         let metrics = LayoutMetrics(screenSize: viewModel.screenSize, settings: viewModel.settings)
-        viewModel.updateDrag(location: metrics.iconCenter(at: 1))
+        // Aim at the cell, not the icon: dropping directly on an app now
+        // merges into a folder, so a reorder drop targets the surrounding gap.
+        let cell = metrics.cellRect(at: 1)
+        viewModel.updateDrag(location: CGPoint(x: cell.minX + 4, y: cell.midY))
 
         let expected = GridReorder.preview(
             moving: dragged.id,
@@ -260,8 +263,11 @@ final class LaunchpadDragCommitTests: XCTestCase {
         XCTAssertEqual(publishes, afterFirstMove, "same-cell moves should not re-render the grid")
         XCTAssertEqual(viewModel.itemDrag.location, CGPoint(x: point.x + 2, y: point.y))
 
-        // Crossing into another cell still updates the projected layout.
-        viewModel.updateDrag(location: metrics.iconCenter(at: 7))
+        // Crossing into another cell still updates the projected layout. Aim
+        // at the cell rather than the icon, since hovering an icon suppresses
+        // the reorder preview in favour of a folder merge.
+        let targetCell = metrics.cellRect(at: 7)
+        viewModel.updateDrag(location: CGPoint(x: targetCell.minX + 4, y: targetCell.midY))
         XCTAssertGreaterThan(publishes, afterFirstMove)
         XCTAssertEqual(viewModel.reorderPreview?.locations[viewModel.dragSession!.entry.id], .init(page: 0, index: 7))
     }
@@ -285,5 +291,77 @@ final class LaunchpadDragCommitTests: XCTestCase {
         viewModel.updateDrag(location: metrics.iconCenter(at: 5))
         viewModel.cancelDrag()
         XCTAssertEqual(viewModel.itemDrag.location, .zero)
+    }
+
+    func testDroppingAnAppOnAFolderMovesItInsideWithoutDuplicatingIt() {
+        let viewModel = makeViewModel()
+        let alpha = app("Alpha")
+        let bravo = app("Bravo")
+        let charlie = app("Charlie")
+        let folder = FolderItem(name: "Tools", apps: [alpha, bravo])
+        viewModel.seedLayoutForTesting([[.folder(folder), .app(charlie)]], page: 0)
+
+        viewModel.beginDrag(entry: .app(charlie), page: 0, index: 1)
+        let metrics = LayoutMetrics(screenSize: viewModel.screenSize, settings: viewModel.settings)
+        viewModel.updateDrag(location: metrics.iconCenter(at: 0))
+
+        XCTAssertEqual(viewModel.dragSession?.hoveredEntryID, LaunchpadEntry.folder(folder).id)
+        XCTAssertNil(viewModel.reorderPreview, "a merge target hides the reflow preview")
+
+        viewModel.endDrag()
+
+        XCTAssertEqual(viewModel.pages.count, 1)
+        XCTAssertEqual(viewModel.pages[0].count, 1)
+        guard case .folder(let updated) = viewModel.pages[0][0] else {
+            return XCTFail("Expected the folder to remain")
+        }
+        XCTAssertEqual(updated.apps.map(\.name), ["Alpha", "Bravo", "Charlie"])
+        XCTAssertFalse(
+            LayoutEngine.flatten(viewModel.pages).contains(.app(charlie)),
+            "the dragged app must not also remain on the grid"
+        )
+    }
+
+    func testDroppingAnAppOnAnotherCreatesAndOpensAFolder() {
+        let viewModel = makeViewModel()
+        let alpha = app("Alpha")
+        let bravo = app("Bravo")
+        let charlie = app("Charlie")
+        viewModel.seedLayoutForTesting([[.app(alpha), .app(bravo), .app(charlie)]], page: 0)
+
+        viewModel.beginDrag(entry: .app(alpha), page: 0, index: 0)
+        let metrics = LayoutMetrics(screenSize: viewModel.screenSize, settings: viewModel.settings)
+        // Drop immediately, without waiting for the dwell arm: macOS creates
+        // the folder as soon as an app is released over another app.
+        viewModel.updateDrag(location: metrics.iconCenter(at: 1))
+
+        XCTAssertEqual(viewModel.dragSession?.hoveredEntryID, LaunchpadEntry.app(bravo).id)
+        XCTAssertNil(viewModel.reorderPreview, "the merge target stays under the cursor")
+
+        viewModel.endDrag()
+
+        XCTAssertEqual(viewModel.pages.count, 1)
+        XCTAssertEqual(viewModel.pages[0].count, 2)
+        guard case .folder(let folder) = viewModel.pages[0][0] else {
+            return XCTFail("Expected a folder in the target slot")
+        }
+        XCTAssertEqual(folder.name, FolderItem.defaultName)
+        XCTAssertEqual(Set(folder.apps.map(\.name)), ["Alpha", "Bravo"])
+        XCTAssertEqual(viewModel.pages[0][1], .app(charlie))
+
+        let topLevel = LayoutEngine.flatten(viewModel.pages)
+        XCTAssertFalse(topLevel.contains(.app(alpha)))
+        XCTAssertFalse(topLevel.contains(.app(bravo)))
+
+        // The new folder zooms open and its name field starts editing on the
+        // next run-loop turn.
+        let presented = expectation(description: "created folder presented")
+        DispatchQueue.main.async { presented.fulfill() }
+        wait(for: [presented], timeout: 1)
+
+        XCTAssertEqual(viewModel.openFolderID, folder.id)
+        XCTAssertTrue(viewModel.folderIsPresented)
+        XCTAssertTrue(viewModel.folderTitleEditing)
+        XCTAssertEqual(viewModel.folderTitleDraft, FolderItem.defaultName)
     }
 }

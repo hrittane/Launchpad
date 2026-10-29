@@ -311,16 +311,6 @@
         }
       }
     },
-    "New Folder" : {
-      "localizations" : {
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Nouveau dossier"
-          }
-        }
-      }
-    },
     "No" : {
       "localizations" : {
         "fr" : {
@@ -647,6 +637,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Inconnu"
+          }
+        }
+      }
+    },
+    "Untitled Folder" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dossier sans titre"
           }
         }
       }

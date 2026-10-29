@@ -210,6 +210,34 @@ final class LayoutEngineTests: XCTestCase {
         XCTAssertEqual(pages[0].map(\.displayName), ["Alpha", "Bravo"])
     }
 
+    /// A moved app is either placed somewhere by the caller or consumed by a
+    /// folder. Returning it here made callers append a second copy after a
+    /// folder merge or creation.
+    func testRemoveAppDoesNotReturnTheTopLevelAppItRemoved() {
+        let a = app("Alpha")
+        let b = app("Bravo")
+        var pages: [[LaunchpadEntry]] = [[.app(a), .app(b)]]
+
+        let released = LayoutEngine.removeApp(appID: a.id, from: &pages)
+
+        XCTAssertTrue(released.isEmpty)
+        XCTAssertEqual(pages[0].map(\.displayName), ["Bravo"])
+    }
+
+    /// Dissolving a folder is the one case that does return apps: the survivor
+    /// must be re-inserted into the grid by the caller.
+    func testRemoveAppFromFolderReturnsOnlyDissolvedSurvivors() {
+        let a = app("Alpha")
+        let b = app("Bravo")
+        let folder = FolderItem(name: "Tools", apps: [a, b])
+        var pages: [[LaunchpadEntry]] = [[.folder(folder)]]
+
+        let released = LayoutEngine.removeApp(appID: a.id, from: &pages)
+
+        XCTAssertEqual(released, [.app(b)])
+        XCTAssertTrue(pages[0].isEmpty)
+    }
+
     func testInsertOverflowCreatesNextPage() {
         let apps = (0..<4).map { app("App\($0)") }
         let extra = app("Extra")

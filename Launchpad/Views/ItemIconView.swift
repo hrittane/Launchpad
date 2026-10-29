@@ -18,7 +18,12 @@ struct ItemIconView: View {
     let scale: CGFloat
     let isEditing: Bool
     let isFocused: Bool
+    /// Any item currently under the pointer during a drag. Shows a light
+    /// highlight so the user can see what a drop would land on.
     let isMergeTarget: Bool
+    /// The hovered target after the dwell delay. Turns the tile into the
+    /// folder-creation affordance (shrink / folder glass).
+    var isMergeArmed: Bool = false
     let reduceMotion: Bool
     let showDeleteBadge: Bool
     let recordsFrame: Bool
@@ -77,20 +82,21 @@ struct ItemIconView: View {
     private var content: some View {
         VStack(spacing: Metrics.labelSpacing * scale) {
             ZStack(alignment: .center) {
-                if isMergeTarget {
+                if isMergeArmed {
                     if isFolder {
                         RoundedRectangle(cornerRadius: Metrics.iconCornerRadius * scale, style: .continuous)
-                            .stroke(Color.white.opacity(0.7), lineWidth: 2.5 * scale)
+                            .stroke(Color.white.opacity(0.75), lineWidth: 2.5 * scale)
                             .frame(width: iconSize * 1.08, height: iconSize * 1.08)
                             .transition(.scale.combined(with: .opacity))
                     } else {
+                        // The glass plate the dragged tile folds into.
                         ZStack {
                             RoundedRectangle(cornerRadius: Metrics.iconCornerRadius * scale, style: .continuous)
                                 .fill(.ultraThinMaterial)
                             RoundedRectangle(cornerRadius: Metrics.iconCornerRadius * scale, style: .continuous)
                                 .fill(Color.white.opacity(0.24))
                             RoundedRectangle(cornerRadius: Metrics.iconCornerRadius * scale, style: .continuous)
-                                .stroke(Color.white.opacity(0.35), lineWidth: 1)
+                                .stroke(Color.white.opacity(0.38), lineWidth: 1)
                         }
                         .frame(width: iconSize, height: iconSize)
                         .shadow(color: .black.opacity(0.35), radius: 8 * scale, y: 4 * scale)
@@ -104,7 +110,7 @@ struct ItemIconView: View {
                     .scaleEffect(tileScale)
                     .brightness(isPressed ? Metrics.iconPressedBrightness : 0)
                     .shadow(
-                        color: .black.opacity(isPressed ? 0.25 : (isMergeTarget && !isFolder ? 0 : Metrics.iconShadowOpacity)),
+                        color: .black.opacity(isPressed ? 0.25 : (isMergeArmed && !isFolder ? 0 : Metrics.iconShadowOpacity)),
                         radius: Metrics.iconShadowRadius * scale,
                         x: 0,
                         y: Metrics.iconShadowY * scale
@@ -116,6 +122,16 @@ struct ItemIconView: View {
                                     x: -Metrics.deleteBadgeOffset * scale,
                                     y: -Metrics.deleteBadgeOffset * scale
                                 )
+                        }
+                    }
+                    .overlay {
+                        if isMergeTarget && !isMergeArmed {
+                            // Light ring while the pointer is over a target,
+                            // before the dwell delay arms the folder gesture.
+                            RoundedRectangle(cornerRadius: Metrics.iconCornerRadius * scale, style: .continuous)
+                                .stroke(Color.white.opacity(0.5), lineWidth: 2 * scale)
+                                .frame(width: iconSize * 1.04, height: iconSize * 1.04)
+                                .transition(.opacity)
                         }
                     }
                     .overlay {
@@ -139,9 +155,10 @@ struct ItemIconView: View {
                 )
                 .frame(maxWidth: labelMaxWidth, alignment: .center)
                 .fixedSize(horizontal: false, vertical: true)
-                .opacity(isMergeTarget && !isFolder ? 0 : 1)
+                .opacity(isMergeArmed && !isFolder ? 0 : 1)
         }
         .animation(.spring(response: 0.32, dampingFraction: 0.78), value: isMergeTarget)
+        .animation(.spring(response: 0.32, dampingFraction: 0.78), value: isMergeArmed)
         .animation(Metrics.Motion.hover, value: isHovered)
         .animation(Metrics.Motion.pressed, value: isPressed)
     }
@@ -156,12 +173,12 @@ struct ItemIconView: View {
     }
 
     private var tileScale: CGFloat {
+        if isMergeArmed {
+            return isFolder ? 1.08 : 0.40
+        }
         if isMergeTarget {
-            if isFolder {
-                return 1.08
-            } else {
-                return 0.40
-            }
+            // Subtle acknowledgement before the dwell timer arms the merge.
+            return isFolder ? 1.04 : 0.94
         }
         let hover: CGFloat = isHovered && !isEditing ? Metrics.iconHoverScale : 1
         let pressed: CGFloat = isPressed ? Metrics.iconPressedScale : 1
@@ -331,22 +348,46 @@ struct IconFramePreferenceKey: PreferenceKey {
     }
 }
 
-/// The 3 × 3 miniature preview drawn inside a folder tile.
+/// The 3 × 3 miniature preview drawn inside a folder tile. Styled after the
+/// frosted glass square macOS uses for Launchpad folders.
 struct FolderIconContent: View {
     let folder: FolderItem
     let iconSize: CGFloat
     let scale: CGFloat
 
+    private var cornerRadius: CGFloat { Metrics.iconCornerRadius * scale }
+
     var body: some View {
         ZStack {
-            RoundedRectangle(cornerRadius: Metrics.iconCornerRadius * scale, style: .continuous)
+            RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
                 .fill(.ultraThinMaterial)
-            RoundedRectangle(cornerRadius: Metrics.iconCornerRadius * scale, style: .continuous)
-                .fill(Color.white.opacity(0.22))
+            RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                .fill(
+                    LinearGradient(
+                        colors: [
+                            Color.white.opacity(0.36),
+                            Color.white.opacity(0.14)
+                        ],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
             preview
                 .padding(Metrics.folderPreviewPadding * scale)
         }
-        .clipShape(RoundedRectangle(cornerRadius: Metrics.iconCornerRadius * scale, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                .stroke(
+                    LinearGradient(
+                        colors: [Color.white.opacity(0.55), Color.white.opacity(0.12)],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    ),
+                    lineWidth: max(1, scale)
+                )
+        }
+        .animation(Metrics.Motion.folder, value: folder.apps.count)
     }
 
     private var preview: some View {
@@ -354,6 +395,7 @@ struct FolderIconContent: View {
         let available = max(1, iconSize - padding * 2)
         let gap = max(1, 3 * scale)
         let mini = max(6, (available - gap * 2) / 3)
+        let miniRadius = mini * 0.22
         let apps = Array(folder.apps.prefix(9))
 
         return VStack(spacing: gap) {
@@ -368,6 +410,9 @@ struct FolderIconContent: View {
                                 fallbackName: apps[index].name
                             )
                             .frame(width: mini, height: mini)
+                            .clipShape(RoundedRectangle(cornerRadius: miniRadius, style: .continuous))
+                            .shadow(color: .black.opacity(0.18), radius: 0.6 * scale, y: 0.5 * scale)
+                            .transition(.scale(scale: 0.6).combined(with: .opacity))
                         } else {
                             Color.clear.frame(width: mini, height: mini)
                         }

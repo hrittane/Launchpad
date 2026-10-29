@@ -196,9 +196,12 @@ enum LayoutEngine {
         if pages.isEmpty { pages = [[]] }
     }
 
-    /// Removes an app wherever it is and returns the entry that was removed.
-    /// When the app was inside a folder, the folder is dissolved if fewer than
-    /// two apps remain; the surviving app is returned as a released entry.
+    /// Removes an app wherever it is.
+    ///
+    /// The removed app is *not* returned: it is either gone (top-level or
+    /// deleted) or now lives inside a folder. Only apps released because their
+    /// folder dissolved are returned, so callers can re-insert those into the
+    /// grid without duplicating the app they just moved.
     @discardableResult
     static func removeApp(appID: String, from pages: inout [PageLayout]) -> [LaunchpadEntry] {
         for pageIndex in pages.indices {
@@ -206,9 +209,7 @@ enum LayoutEngine {
                 if let app = entry.app { return app.id == appID }
                 return false
             }) {
-                if let removed = pages[pageIndex].remove(at: index).app {
-                    return [.app(removed)]
-                }
+                pages[pageIndex].remove(at: index)
                 return []
             }
         }

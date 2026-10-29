@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 /// The opened-folder panel. It expands from the folder tile's frame, blurs the
@@ -110,22 +111,24 @@ struct FolderPanelView: View {
                 .multilineTextAlignment(.center)
                 .font(.system(size: Metrics.folderTitleFontSize * metrics.scale, weight: .regular))
                 .foregroundStyle(.white)
-                .tint(.white)
                 .padding(.horizontal, 16 * metrics.scale)
                 .padding(.vertical, 4 * metrics.scale)
-                .background(
-                    RoundedRectangle(cornerRadius: 8 * metrics.scale, style: .continuous)
-                        .fill(Color.white.opacity(0.18))
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: 8 * metrics.scale, style: .continuous)
-                        .stroke(Color.white.opacity(0.35), lineWidth: 1)
-                )
                 .focused($titleIsFocused)
                 .onAppear {
-                    titleIsFocused = true
+                    focusAndSelectTitle()
                 }
                 .onSubmit {
+                    viewModel.commitFolderRename()
+                }
+                .onExitCommand {
+                    // Escape abandons the edit and restores the old name.
+                    titleIsFocused = false
+                    viewModel.cancelFolderRename()
+                }
+                .onChange(of: titleIsFocused) { focused in
+                    // Clicking anywhere else commits, like Launchpad's folder
+                    // title field.
+                    guard !focused, viewModel.folderTitleEditing else { return }
                     viewModel.commitFolderRename()
                 }
                 .accessibilityLabel(Text("Folder name", comment: "Folder title field accessibility label"))
@@ -188,6 +191,7 @@ struct FolderPanelView: View {
                     isEditing: false,
                     isFocused: viewModel.focusedEntryID == entry.id,
                     isMergeTarget: false,
+                    isMergeArmed: false,
                     reduceMotion: viewModel.reduceMotion,
                     showDeleteBadge: false,
                     recordsFrame: false,
@@ -284,6 +288,15 @@ struct FolderPanelView: View {
     private func visiblePageIndices(current: Int, count: Int) -> [Int] {
         guard count > 0 else { return [] }
         return ((current - 1)...(current + 1)).filter { (0..<count).contains($0) }
+    }
+
+    /// Focus the title field and select the whole current name, so a new folder
+    /// can be renamed by simply typing and an old name replaced in one keystroke.
+    private func focusAndSelectTitle() {
+        titleIsFocused = true
+        DispatchQueue.main.async {
+            NSApp.sendAction(#selector(NSText.selectAll(_:)), to: nil, from: nil)
+        }
     }
 
     private func handle(_ action: ItemContextAction, for entry: LaunchpadEntry) {

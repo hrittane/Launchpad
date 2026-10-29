@@ -7,7 +7,7 @@ struct FolderItem: Identifiable, Codable, Hashable, Sendable {
     var apps: [AppItem]
 
     static let maximumAppCount = 100
-    static let defaultName = String(localized: "New Folder", comment: "Default name for a newly created folder")
+    static let defaultName = String(localized: "Untitled Folder", comment: "Default name for a newly created folder")
 
     init(id: UUID = UUID(), name: String = FolderItem.defaultName, apps: [AppItem] = []) {
         self.id = id

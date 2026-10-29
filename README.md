@@ -81,8 +81,8 @@ Launchpad/
 │   │   ├── WindowLevels.swift         # Above status bar / below Dock levels
 │   │   └── WindowManager.swift        # Show/hide, mirrors, screen changes
 ├── LaunchpadTests/
-│   ├── CoreTests.swift                # 28 unit tests
-│   ├── GridReorderTests.swift         # 12 reorder preview/commit tests
+│   ├── CoreTests.swift                # 30 unit tests
+│   ├── GridReorderTests.swift         # 14 reorder/folder-drop tests
 │   └── SmokeTests.swift               # Hosted-app smoke test
 ├── README.md
 └── spec.md                            # Requirements + agreed clarifications
@@ -157,7 +157,7 @@ xcodebuild -project Launchpad.xcodeproj -scheme Launchpad \
 # Run the built app
 open .build/Build/Products/Debug/Launchpad.app
 
-# Test suite (40 unit tests + 1 hosted smoke test = 41 total)
+# Test suite (44 unit tests + 1 hosted smoke test = 45 total)
 xcodebuild -project Launchpad.xcodeproj -scheme Launchpad \
   -configuration Debug -derivedDataPath .build test \
   CODE_SIGNING_ALLOWED=NO
@@ -215,10 +215,14 @@ an XCTest environment and skips runtime startup).
 - **Open:** click an app, press Return on a focused app, or use the context menu.
 - **Search:** type anywhere. Search matches names and app names inside folders.
 - **Pages:** trackpad swipe, mouse wheel, page dots, ⌘1…⌘9, Tab / Shift-Tab.
-- **Folders:** drop an app on another app; wait for the target pulse. Click a
-  folder to open it. Double-click a folder tile to open it and edit its name.
-  Drag apps out of an open folder to return them to the main grid. A folder with
-  fewer than two apps dissolves.
+- **Folders:** drop an app on another app to create a folder immediately. The
+  target highlights under the pointer; holding briefly shrinks it into the
+  folder-glass preview first. The new folder zooms open from its tile named
+  “Untitled Folder”, with the name selected so typing replaces it; Return or a
+  click outside commits, Escape restores the name. Click a folder to open it.
+  Double-click a folder tile to open it and edit its name. Drag apps out of an
+  open folder to return them to the main grid. A folder with fewer than two apps
+  dissolves.
 - **Edit mode:** long-press an icon (0.5 s), hold Option, or use the context
   menu's delete action prerequisites. In edit mode, deletable user apps show an
   “×” badge. A blank click exits edit mode; a second blank click closes the
@@ -302,11 +306,13 @@ an XCTest environment and skips runtime startup).
 
 ### Folders
 
-- [ ] Drag an app onto another and hold for 0.6 s: target pulses, folder
-      background fades in, drop merges both and auto-opens the new folder with
-      its name selected.
-- [ ] Dropping an app onto a folder appends it (maximum 100 apps; merging stops
-      at the limit).
+- [ ] Drag an app onto another: the target gets a light ring, and after a short
+      dwell it shrinks into the folder glass. Releasing immediately creates and
+      opens the new folder named “Untitled Folder” with its name selected.
+- [ ] Drop an app onto an existing folder to append it (maximum 100 apps; a full
+      folder is not treated as a drop target, so the app is not lost).
+- [ ] In the open-folder name field, typing replaces the selection; Return or a
+      click outside commits, Escape restores the previous name.
 - [ ] Single-click a folder in the grid opens it. Double-click the folder tile
       opens it and focuses the title field. Return confirms a rename.
 - [ ] Drag within an open folder to reorder with the reflow preview; swipe or
@@ -435,9 +441,10 @@ an XCTest environment and skips runtime startup).
 - **Launch at login:** uses `SMAppService.mainApp`; registration may fail for
   ad-hoc builds outside `/Applications`. The toggle reflects the actual system
   status after the attempt.
-- **Tests:** 40 unit tests cover search ranking, pagination math, reorder
-  preview/commit parity, drag-state isolation, folder merge/dissolve rules,
-  normalization, JSON persistence, and page-snap geometry.
+- **Tests:** 44 unit tests cover search ranking, pagination math, reorder
+  preview/commit parity, drag-state isolation, folder creation/merge/dissolve
+  rules, app-removal return semantics, normalization, JSON persistence, and
+  page-snap geometry.
   A hosted smoke test plus the `--smoke-test` debug hook verify that the overlay
   window is created and shown.
 
@@ -447,7 +454,7 @@ an XCTest environment and skips runtime startup).
 
 ```text
 xcodebuild ... build      → BUILD SUCCEEDED
-xcodebuild ... test       → TEST SUCCEEDED, 41 tests, 0 failures
+xcodebuild ... test       → TEST SUCCEEDED, 45 tests, 0 failures
 Launchpad --smoke-test    → SMOKE overlayWindows=1 pages=3 items=75 frame=(0.0, 82.0, 1920.0, 1118.0)
 window levels (debug)     → overlay 26 at (0, 82, 1920, 1118); Dock backdrop 19 at (0, 0, 1920, 83); Dock 20
 graceful quit             → process exited after layout.json was flushed
