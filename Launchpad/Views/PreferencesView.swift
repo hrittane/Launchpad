@@ -47,11 +47,18 @@ struct PreferencesView: View {
                 section(Text("Appearance", comment: "Preferences section")) {
                     sliderRow(
                         title: Text("Icon size", comment: "Preferences label"),
-                        value: binding(\.iconSize),
-                        range: 64...128,
+                        value: iconSizeBinding,
+                        range: iconSizeRange,
                         step: 2,
-                        valueText: "\(Int(viewModel.settings.iconSize)) pt"
+                        valueText: "\(Int(iconSizeValue)) pt"
                     )
+                    Text(
+                        "The grid fits icons up to \(Int(iconSizeRange.upperBound)) pt at this label size and grid size.",
+                        comment: "Icon size limit caption"
+                    )
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
                     sliderRow(
                         title: Text("Label size", comment: "Preferences label"),
                         value: binding(\.labelFontSize),
@@ -155,6 +162,21 @@ struct PreferencesView: View {
             .padding(20)
         }
         .frame(minWidth: 520, idealWidth: 520)
+        .onAppear {
+            clampIconSize()
+        }
+        .onChange(of: viewModel.settings.labelFontSize) { _ in
+            clampIconSize()
+        }
+        .onChange(of: viewModel.settings.columns) { _ in
+            clampIconSize()
+        }
+        .onChange(of: viewModel.settings.rows) { _ in
+            clampIconSize()
+        }
+        .onChange(of: viewModel.screenSize) { _ in
+            clampIconSize()
+        }
         .alert(
             Text("Reset layout?", comment: "Reset confirmation title"),
             isPresented: $showResetConfirmation
@@ -190,6 +212,45 @@ struct PreferencesView: View {
             }
             Spacer()
         }
+    }
+
+    /// Current grid math, used to keep the icon-size slider inside the range
+    /// that actually changes the rendered icons.
+    private var layoutMetrics: LayoutMetrics {
+        LayoutMetrics(screenSize: viewModel.screenSize, settings: viewModel.settings)
+    }
+
+    private var iconSizeRange: ClosedRange<Double> {
+        let raw = Double(layoutMetrics.maximumIconSize)
+        // Round up to the next 2 pt step so the top of the slider still reaches
+        // the largest icon the grid can draw; every step below it is effective.
+        let stepped = (raw / 2).rounded(.up) * 2
+        return 64...min(128, max(64, stepped))
+    }
+
+    private var iconSizeValue: Double {
+        min(max(viewModel.settings.iconSize, iconSizeRange.lowerBound), iconSizeRange.upperBound)
+    }
+
+    private var iconSizeBinding: Binding<Double> {
+        Binding(
+            get: { iconSizeValue },
+            set: { newValue in
+                var settings = viewModel.settings
+                settings.iconSize = newValue
+                viewModel.settings = settings
+            }
+        )
+    }
+
+    /// Keeps the stored value in the effective range after the label size or
+    /// grid dimensions change the available icon space.
+    private func clampIconSize() {
+        let upper = iconSizeRange.upperBound
+        guard viewModel.settings.iconSize > upper else { return }
+        var settings = viewModel.settings
+        settings.iconSize = upper
+        viewModel.settings = settings
     }
 
     private func section<Content: View>(

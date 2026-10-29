@@ -30,46 +30,55 @@ struct FolderPanelView: View {
         CGPoint(x: panelFrame.midX, y: panelFrame.midY)
     }
 
+    private var panelCornerRadius: CGFloat {
+        Metrics.folderPanelCornerRadius * metrics.scale
+    }
+
+    private var panelShape: RoundedRectangle {
+        RoundedRectangle(cornerRadius: panelCornerRadius, style: .continuous)
+    }
+
     var body: some View {
-        panelContent
-            .frame(width: panelFrame.width, height: panelFrame.height)
-            .background(panelBackground)
-            .clipShape(RoundedRectangle(
-                cornerRadius: Metrics.folderPanelCornerRadius * metrics.scale,
-                style: .continuous
-            ))
-            .shadow(
-                color: .black.opacity(Metrics.folderPanelShadowOpacity),
-                radius: Metrics.folderPanelShadowRadius * metrics.scale,
-                x: 0,
-                y: 12 * metrics.scale
-            )
-            .scaleEffect(isPresented ? 1 : startScale)
-            .position(isPresented ? endPoint : startPoint)
-            .opacity(isPresented ? 1 : 0)
-            .animation(panelAnimation, value: isPresented)
-            .onAppear {
-                if !viewModel.folderIsPresented {
-                    viewModel.presentFolder()
+        LiquidGlassHost {
+            panelContent
+                .frame(width: panelFrame.width, height: panelFrame.height)
+                .background {
+                    // The clear interaction layer sits behind the panel content, so
+                    // swiping empty space pages the folder without stealing drags
+                    // from icons or the title field.
+                    Color.clear
+                        .contentShape(Rectangle())
+                        .gesture(folderSwipeGesture)
                 }
+                .liquidGlass(
+                    .regular,
+                    tint: Color.black.opacity(0.14),
+                    in: panelShape
+                )
+        }
+        .shadow(
+            color: .black.opacity(Metrics.folderPanelShadowOpacity),
+            radius: Metrics.folderPanelShadowRadius * metrics.scale,
+            x: 0,
+            y: 12 * metrics.scale
+        )
+        .scaleEffect(isPresented ? 1 : startScale)
+        .position(isPresented ? endPoint : startPoint)
+        .opacity(isPresented ? 1 : 0)
+        .animation(panelAnimation, value: isPresented)
+        .onAppear {
+            if !viewModel.folderIsPresented {
+                viewModel.presentFolder()
             }
-            .accessibilityElement(children: .contain)
-            .accessibilityLabel(folder.name)
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel(folder.name)
     }
 
     private var panelAnimation: Animation {
         viewModel.reduceMotion
             ? Metrics.Motion.reduced
             : .spring(response: 0.35, dampingFraction: 0.82)
-    }
-
-    private var panelBackground: some View {
-        ZStack {
-            VisualEffectBackground(material: .hudWindow, blendingMode: .behindWindow, state: .active)
-            Color.white.opacity(Metrics.folderPanelOverlayOpacity)
-        }
-        .contentShape(Rectangle())
-        .gesture(folderSwipeGesture)
     }
 
     private var panelContent: some View {

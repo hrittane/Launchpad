@@ -43,13 +43,13 @@ struct LaunchpadRootView: View {
                 .scaleEffect(scaleForShow)
                 .opacity(viewModel.isVisible ? 1 : 0)
                 .blur(radius: blurForShow)
-                .blur(radius: folderOpen ? 12 * metrics.scale : 0)
-                .opacity(folderOpen ? 0.55 : 1)
+                .blur(radius: folderOpen ? 5 * metrics.scale : 0)
+                .opacity(folderOpen ? 0.72 : 1)
                 .animation(showContentAnimation, value: viewModel.isVisible)
                 .animation(folderAnimation, value: folderOpen)
 
             if folderOpen {
-                Color.black.opacity(0.12)
+                Color.black.opacity(0.10)
                     .contentShape(Rectangle())
                     .onTapGesture {
                         viewModel.closeFolder()

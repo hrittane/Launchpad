@@ -392,3 +392,50 @@ final class LayoutStoreTests: XCTestCase {
         XCTAssertFalse(data.isEmpty)
     }
 }
+
+final class LayoutMetricsTests: XCTestCase {
+    private let screen = CGSize(width: 1440, height: 900)
+
+    private func settings(iconSize: Double = 100, labelFontSize: Double = 12) -> AppSettings {
+        AppSettings(
+            columns: 7,
+            rows: 5,
+            iconSize: iconSize,
+            labelFontSize: labelFontSize,
+            blurIntensity: 0.5,
+            showOnAllDisplays: false,
+            hotCorner: .bottomRight,
+            shortcut: .launchpadDefault,
+            launchAtLogin: false
+        )
+    }
+
+    /// The preferences slider caps at `maximumIconSize`; at that value the
+    /// rendered icon is already as large as the cell and label allow, so a
+    /// larger request must not change the result.
+    func testMaximumIconSizeIsWhereTheRenderedIconStopsGrowing() {
+        let atMax = LayoutMetrics(screenSize: screen, settings: settings(iconSize: 100))
+        let aboveMax = LayoutMetrics(screenSize: screen, settings: settings(iconSize: 128))
+
+        XCTAssertEqual(atMax.maximumIconSize, 100, accuracy: 0.001)
+        XCTAssertEqual(atMax.iconSize, 100, accuracy: 0.001)
+        XCTAssertEqual(aboveMax.iconSize, atMax.iconSize, accuracy: 0.001)
+    }
+
+    func testRequestedSizesBelowTheMaximumStillChangeTheIcon() {
+        let atMax = LayoutMetrics(screenSize: screen, settings: settings(iconSize: 100))
+        let smaller = LayoutMetrics(screenSize: screen, settings: settings(iconSize: 80))
+
+        XCTAssertEqual(smaller.iconSize, 80, accuracy: 0.001)
+        XCTAssertLessThan(smaller.iconSize, atMax.iconSize)
+    }
+
+    /// A larger label block leaves less room for the icon, so the maximum has
+    /// to shrink and the preferences range follows it.
+    func testMaximumIconSizeTracksLabelSize() {
+        let normal = LayoutMetrics(screenSize: screen, settings: settings(labelFontSize: 12))
+        let large = LayoutMetrics(screenSize: screen, settings: settings(labelFontSize: 15))
+
+        XCTAssertLessThan(large.maximumIconSize, normal.maximumIconSize)
+    }
+}

@@ -28,7 +28,7 @@ final class DockBackgroundWindowController: NSWindowController {
 
         super.init(window: window)
 
-        let background = LaunchpadBackgroundView(viewModel: viewModel)
+        let background = LaunchpadBackgroundView(viewModel: viewModel, role: .dockStrip)
         let hostingView = NSHostingView(rootView: background)
         hostingView.translatesAutoresizingMaskIntoConstraints = true
         hostingView.autoresizingMask = [.width, .height]

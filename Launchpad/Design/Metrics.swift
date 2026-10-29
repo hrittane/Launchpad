@@ -39,8 +39,6 @@ enum Metrics {
     static let searchTop: CGFloat = 36
     static let searchCornerRadius: CGFloat = 8
     static let searchFontSize: CGFloat = 14
-    static let searchFieldOpacity: Double = 0.15
-    static let searchBorderOpacity: Double = 0.25
     static let searchPlaceholderOpacity: Double = 0.55
 
     // MARK: Page dots
@@ -57,7 +55,6 @@ enum Metrics {
     static let folderPanelWidth: CGFloat = 560
     static let folderPanelHeight: CGFloat = 460
     static let folderPanelCornerRadius: CGFloat = 32
-    static let folderPanelOverlayOpacity: Double = 0.18
     static let folderPanelShadowOpacity: Double = 0.4
     static let folderPanelShadowRadius: CGFloat = 30
     static let folderColumns = 4
@@ -252,6 +249,19 @@ struct LayoutMetrics {
             width: iconSize,
             height: iconSize
         )
+    }
+
+    /// Largest requested icon size (in settings points) this grid can show.
+    ///
+    /// `iconSize` clamps requests to the cell and label block, so a preferences
+    /// slider must not offer values above this cap: dragging into that range
+    /// would change the setting without changing the rendered grid.
+    var maximumIconSize: CGFloat {
+        let maxByWidth = cellWidth - Metrics.minimumHorizontalGap * scale
+        let maxByHeightGap = cellHeight - Metrics.minimumVerticalGap * scale
+        let maxByLabel = cellHeight - Metrics.labelSpacing * scale - labelBlockHeight
+        let cap = max(28, min(maxByWidth, maxByHeightGap, maxByLabel))
+        return cap / scale
     }
 
     func iconCenter(at index: Int) -> CGPoint {

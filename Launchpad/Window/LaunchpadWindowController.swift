@@ -72,7 +72,13 @@ final class LaunchpadWindowController: NSWindowController {
 
     func updateFrame(_ screen: NSScreen) {
         let reservation = DockReservation.current(for: screen)
-        window?.setFrame(reservation.interactiveFrame(for: screen), display: true)
+        let frame = reservation.interactiveFrame(for: screen)
+        window?.setFrame(frame, display: true)
+        // Preferences derives the usable icon-size range from this size, so
+        // keep it accurate even when the overlay has not been shown yet.
+        if isInteractive {
+            viewModel.setScreenSize(frame.size)
+        }
         updateDockBackground(reservation: reservation, screen: screen)
         updateMenuBarPatch(reservation: reservation, screen: screen)
     }

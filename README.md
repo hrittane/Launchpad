@@ -66,6 +66,7 @@ Launchpad/
 │   │   ├── InfoSheet.swift            # Native Get Info sheet
 │   │   ├── ItemIconView.swift         # App/folder tile, jiggle, badge, menu
 │   │   ├── LaunchpadRootView.swift    # Root layout, search, pages, drag layer
+│   │   ├── LiquidGlass.swift          # System Liquid Glass + fallback material
 │   │   ├── PageDots.swift             # Clickable page indicators
 │   │   ├── PageView.swift             # One paged grid with reorder preview
 │   │   ├── PreferencesView.swift      # SwiftUI Settings content
@@ -170,11 +171,11 @@ xcodebuild -project Launchpad.xcodeproj -scheme Launchpad \
 The smoke test prints a line such as:
 
 ```text
-SMOKE overlayWindows=1 pages=3 items=75 frame=(0.0, 82.0, 1920.0, 1118.0)
+SMOKE overlayWindows=1 pages=3 items=75 frame=(0.0, 83.0, 1920.0, 1117.0)
 ```
 
 The frame excludes the Dock strip on the current display (1920×1200 with an
-82 pt bottom Dock). If `overlayWindows=0`, the app did not create/show its
+83 pt bottom Dock). If `overlayWindows=0`, the app did not create/show its
 window correctly.
 
 ### First launch and permissions
@@ -265,8 +266,9 @@ an XCTest environment and skips runtime startup).
       covered, and the Dock remains usable.
 - [ ] Move the pointer to the top edge: no menu titles appear and clicking there
       opens no macOS menu.
-- [ ] Background is a blurred desktop with a dark/light tint; increasing **Blur
-      intensity** deepens the tint.
+- [ ] Background is a vibrant blurred desktop with a cool ambient wash, a
+      specular highlight, and a dark/light tint; moving **Blur intensity** from
+      0% to 100% visibly deepens the tint and ambient cast.
 - [ ] Enable **Reduce Transparency** in System Settings → Accessibility →
       Display; the background becomes a solid dark gray fallback.
 - [ ] With **Show on all displays** enabled, every display mirrors the UI, but
@@ -358,9 +360,10 @@ an XCTest environment and skips runtime startup).
 ### Preferences, hot key, hot corner
 
 - [ ] ⌘, and the status menu both open Preferences.
-- [ ] Columns/rows, icon size (64–128), label size (11–15), blur intensity, hot
-      corner, global shortcut, **Launch at login**, and **Show on all displays**
-      all persist across relaunch.
+- [ ] Columns/rows, icon size (64 pt up to the largest size the current grid
+      fits), label size (11–15), blur intensity, hot corner, global shortcut,
+      **Launch at login**, and **Show on all displays** all persist across
+      relaunch.
 - [ ] The shortcut recorder captures a chord and the new global shortcut toggles
       the overlay; **Reset** restores F4.
 - [ ] Selecting a hot corner shows the overlay after a 0.3 s dwell at that
@@ -392,10 +395,26 @@ an XCTest environment and skips runtime startup).
 
 ## Implementation notes and known limitations
 
-- **Blur radius:** AppKit does not expose a public continuous 40–60 pt Gaussian
-  radius. The background uses `NSVisualEffectView` (`.fullScreenUI`) plus a
-  tint/dimming overlay; the **Blur intensity** slider adjusts that tint. This is
-  documented in Preferences and is an intentional platform limitation.
+- **Blur radius and Liquid Glass:** AppKit does not expose a public continuous
+  40–60 pt Gaussian radius, so the full-screen backdrop uses
+  `NSVisualEffectView` (`.fullScreenUI`, emphasized) plus a cool ambient wash
+  and specular highlight. Per Apple's HIG, Liquid Glass belongs to the floating
+  control/navigation layer, not the app background. On macOS 26 and later the
+  folder panel, search field, and folder-drop plate use the real system material
+  through SwiftUI's `glassEffect(_:in:)` (regular variant, with a dark tint for
+  legibility); the material blurs/refracts the grid behind the panel and reacts
+  to the pointer where appropriate. Earlier systems get a layered ultra-thin
+  material with the same silhouette. The **Blur intensity** slider adjusts the
+  backdrop tint and ambient cast, as before. Its range is deliberately wide so
+  both ends of the slider look different.
+- **Icon-size range:** `LayoutMetrics.iconSize` caps a request to the cell and
+  label block, so the Preferences slider ends at `maximumIconSize` for the
+  current grid instead of offering inert values above the cap. Changing label
+  size, columns, rows, or display clamps the stored value into the new range.
+- **Seamless backdrop:** the main overlay, Dock strip, and side-Dock corner
+  patch share identical flat tint and ambient layers. Directional highlights
+  fade to clear before the Dock edge, so the separate backdrop windows join
+  without a visible seam.
 - **Window layering:** the Dock (level 20) and the menu bar (level 24, status
   items 25) sit at different system levels, so no single window can be both
   above the menu bar and below the Dock. The main overlay is at
@@ -454,13 +473,14 @@ an XCTest environment and skips runtime startup).
 
 ```text
 xcodebuild ... build      → BUILD SUCCEEDED
-xcodebuild ... test       → TEST SUCCEEDED, 45 tests, 0 failures
-Launchpad --smoke-test    → SMOKE overlayWindows=1 pages=3 items=75 frame=(0.0, 82.0, 1920.0, 1118.0)
-window levels (debug)     → overlay 26 at (0, 82, 1920, 1118); Dock backdrop 19 at (0, 0, 1920, 83); Dock 20
+xcodebuild ... test       → TEST SUCCEEDED, 48 tests, 0 failures
+Launchpad --smoke-test    → SMOKE overlayWindows=1 pages=3 items=75 frame=(0.0, 83.0, 1920.0, 1117.0)
+window levels (debug)     → overlay 26 at (0, 83, 1920, 1117); Dock backdrop 19 at (0, 0, 1920, 84); Dock 20
 graceful quit             → process exited after layout.json was flushed
 ```
 
 The local machine used Xcode 26.5 on macOS 26.7.1 with deployment target 13.0.
+The macOS 26 Liquid Glass code path was built and exercised at runtime.
 Pixel-level visual inspection requires Screen Recording permission, which was
 unavailable in this environment; window levels, frames, visibility, build, and
 tests were verified programmatically.

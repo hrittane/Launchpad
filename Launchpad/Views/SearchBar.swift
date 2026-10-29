@@ -15,54 +15,54 @@ struct SearchBar: View {
     private var height: CGFloat { Metrics.searchHeight * scale }
 
     var body: some View {
-        HStack(spacing: 8 * scale) {
-            Image(systemName: "magnifyingglass")
-                .font(.system(size: 13 * scale, weight: .medium))
-                .foregroundStyle(.white.opacity(Metrics.searchPlaceholderOpacity))
-                .accessibilityHidden(true)
+        LiquidGlassHost {
+            HStack(spacing: 8 * scale) {
+                Image(systemName: "magnifyingglass")
+                    .font(.system(size: 13 * scale, weight: .medium))
+                    .foregroundStyle(.white.opacity(Metrics.searchPlaceholderOpacity))
+                    .accessibilityHidden(true)
 
-            ZStack(alignment: .leading) {
-                if viewModel.searchText.isEmpty {
-                    Text("Search", comment: "Search field placeholder")
-                        .font(.system(size: Metrics.searchFontSize * scale))
-                        .foregroundStyle(.white.opacity(Metrics.searchPlaceholderOpacity))
-                        .allowsHitTesting(false)
-                }
-
-                TextField("", text: $viewModel.searchText)
-                    .textFieldStyle(.plain)
-                    .font(.system(size: Metrics.searchFontSize * scale))
-                    .foregroundStyle(.white)
-                    .tint(.white)
-                    .focused($isFocused)
-                    .onSubmit {
-                        viewModel.handleReturn()
+                ZStack(alignment: .leading) {
+                    if viewModel.searchText.isEmpty {
+                        Text("Search", comment: "Search field placeholder")
+                            .font(.system(size: Metrics.searchFontSize * scale))
+                            .foregroundStyle(.white.opacity(Metrics.searchPlaceholderOpacity))
+                            .allowsHitTesting(false)
                     }
-                    .accessibilityLabel(Text("Search apps", comment: "Search field accessibility label"))
-            }
 
-            if !viewModel.searchText.isEmpty {
-                Button {
-                    viewModel.clearSearch()
-                } label: {
-                    Image(systemName: "xmark.circle.fill")
-                        .font(.system(size: 13 * scale))
-                        .foregroundStyle(.white.opacity(0.65))
+                    TextField("", text: $viewModel.searchText)
+                        .textFieldStyle(.plain)
+                        .font(.system(size: Metrics.searchFontSize * scale))
+                        .foregroundStyle(.white)
+                        .tint(.white)
+                        .focused($isFocused)
+                        .onSubmit {
+                            viewModel.handleReturn()
+                        }
+                        .accessibilityLabel(Text("Search apps", comment: "Search field accessibility label"))
                 }
-                .buttonStyle(.plain)
-                .accessibilityLabel(Text("Clear search", comment: "Clear search button"))
-                .transition(.opacity)
+
+                if !viewModel.searchText.isEmpty {
+                    Button {
+                        viewModel.clearSearch()
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .font(.system(size: 13 * scale))
+                            .foregroundStyle(.white.opacity(0.65))
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(Text("Clear search", comment: "Clear search button"))
+                    .transition(.opacity)
+                }
             }
-        }
-        .padding(.horizontal, 10 * scale)
-        .frame(width: width, height: height)
-        .background {
-            RoundedRectangle(cornerRadius: Metrics.searchCornerRadius * scale, style: .continuous)
-                .fill(Color.white.opacity(Metrics.searchFieldOpacity))
-        }
-        .overlay {
-            RoundedRectangle(cornerRadius: Metrics.searchCornerRadius * scale, style: .continuous)
-                .stroke(Color.white.opacity(Metrics.searchBorderOpacity), lineWidth: 0.5)
+            .padding(.horizontal, 10 * scale)
+            .frame(width: width, height: height)
+            .liquidGlass(
+                .regular,
+                tint: Color.black.opacity(0.18),
+                interactive: true,
+                in: RoundedRectangle(cornerRadius: Metrics.searchCornerRadius * scale, style: .continuous)
+            )
         }
         .opacity(viewModel.isVisible ? 1 : 0)
         .animation(widthAnimation, value: width)

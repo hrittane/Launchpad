@@ -90,17 +90,18 @@ struct ItemIconView: View {
                             .transition(.scale.combined(with: .opacity))
                     } else {
                         // The glass plate the dragged tile folds into.
-                        ZStack {
-                            RoundedRectangle(cornerRadius: Metrics.iconCornerRadius * scale, style: .continuous)
-                                .fill(.ultraThinMaterial)
-                            RoundedRectangle(cornerRadius: Metrics.iconCornerRadius * scale, style: .continuous)
-                                .fill(Color.white.opacity(0.24))
-                            RoundedRectangle(cornerRadius: Metrics.iconCornerRadius * scale, style: .continuous)
-                                .stroke(Color.white.opacity(0.38), lineWidth: 1)
-                        }
-                        .frame(width: iconSize, height: iconSize)
-                        .shadow(color: .black.opacity(0.35), radius: 8 * scale, y: 4 * scale)
-                        .transition(.scale(scale: 0.9).combined(with: .opacity))
+                        Color.clear
+                            .frame(width: iconSize, height: iconSize)
+                            .liquidGlass(
+                                .regular,
+                                tint: Color.white.opacity(0.10),
+                                in: RoundedRectangle(
+                                    cornerRadius: Metrics.iconCornerRadius * scale,
+                                    style: .continuous
+                                )
+                            )
+                            .shadow(color: .black.opacity(0.35), radius: 8 * scale, y: 4 * scale)
+                            .transition(.scale(scale: 0.9).combined(with: .opacity))
                     }
                 }
 
@@ -365,13 +366,29 @@ struct FolderIconContent: View {
                 .fill(
                     LinearGradient(
                         colors: [
-                            Color.white.opacity(0.36),
-                            Color.white.opacity(0.14)
+                            Color.white.opacity(0.18),
+                            Color.white.opacity(0.05),
+                            Color.black.opacity(0.04)
                         ],
                         startPoint: .topLeading,
                         endPoint: .bottomTrailing
                     )
                 )
+            // A narrow specular band along the top-left edge. This is what
+            // separates a glass tile from a uniformly milky material.
+            RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                .fill(
+                    LinearGradient(
+                        colors: [
+                            Color.white.opacity(0.40),
+                            Color.white.opacity(0.06),
+                            Color.clear
+                        ],
+                        startPoint: .topLeading,
+                        endPoint: UnitPoint(x: 0.55, y: 0.55)
+                    )
+                )
+                .blendMode(.plusLighter)
             preview
                 .padding(Metrics.folderPreviewPadding * scale)
         }
@@ -380,7 +397,23 @@ struct FolderIconContent: View {
             RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
                 .stroke(
                     LinearGradient(
-                        colors: [Color.white.opacity(0.55), Color.white.opacity(0.12)],
+                        colors: [
+                            Color.white.opacity(0.62),
+                            Color.white.opacity(0.08),
+                            Color.white.opacity(0.20)
+                        ],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    ),
+                    lineWidth: max(1, scale)
+                )
+        }
+        .overlay(alignment: .bottom) {
+            // Inner bottom edge shadow gives the pane a sense of thickness.
+            RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                .stroke(
+                    LinearGradient(
+                        colors: [Color.clear, Color.black.opacity(0.12)],
                         startPoint: .top,
                         endPoint: .bottom
                     ),
