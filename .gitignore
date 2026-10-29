@@ -1,0 +1,18 @@
+# Build artifacts — never commit these. A stale committed app bundle will
+# silently override a fresh build when you launch the .app directly.
+.build/
+build/
+DerivedData/
+*.xcarchive
+
+# Xcode user state
+xcuserdata/
+*.xcuserstate
+*.xcscmblueprint
+
+# macOS
+.DS_Store
+
+# Editor/tool scratch
+.idea/
+*.swp

@@ -1,1 +1,0 @@
-@rpath/Launchpad.debug.dylib

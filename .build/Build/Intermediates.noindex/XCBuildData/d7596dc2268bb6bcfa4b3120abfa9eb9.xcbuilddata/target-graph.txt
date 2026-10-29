@@ -1,2 +1,0 @@
-Target dependency graph (1 target)
-Target 'Launchpad' in project 'Launchpad' (no dependencies)
