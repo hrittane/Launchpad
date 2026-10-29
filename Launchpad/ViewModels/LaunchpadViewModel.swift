@@ -7,7 +7,6 @@ struct DragSession: Equatable {
     var entry: LaunchpadEntry
     var sourcePage: Int
     var sourceIndex: Int
-    var location: CGPoint
     var targetInsertionSlot: Int?
     var hoveredEntryID: String?
     var armedMergeTargetID: String?
@@ -97,6 +96,9 @@ final class LaunchpadViewModel: ObservableObject {
     /// invalidates the small offset modifier, not the whole grid.
     let folderDrag = PageDragState()
     let pageDrag = PageDragState()
+    /// Cursor position for a grid drag, isolated so mouse-move events do not
+    /// invalidate the grid. Only the floating drag preview observes it.
+    let itemDrag = ItemDragState()
     private var isDraggingPage = false
     @Published private(set) var dragSession: DragSession?
     /// The exact layout a drop would commit, rendered while dragging. Nil when
@@ -926,11 +928,11 @@ final class LaunchpadViewModel: ObservableObject {
         finishPageSnap()
         isEditing = true
         focusedEntryID = entry.id
+        itemDrag.location = .zero
         dragSession = DragSession(
             entry: entry,
             sourcePage: page,
             sourceIndex: index,
-            location: .zero,
             targetInsertionSlot: index
         )
         // The initial preview is the untouched layout; the first pointer update
@@ -946,7 +948,10 @@ final class LaunchpadViewModel: ObservableObject {
 
     func updateDrag(location: CGPoint) {
         guard var session = dragSession else { return }
-        session.location = location
+        // Cursor tracking is isolated from the grid: only the floating preview
+        // observes this value, so moving inside one cell does not re-render any
+        // tiles.
+        itemDrag.location = location
 
         let metrics = LayoutMetrics(screenSize: screenSize, settings: settings)
         // Use the page the user actually sees. A transient trailing page is
@@ -1069,12 +1074,20 @@ final class LaunchpadViewModel: ObservableObject {
                 )
             }
             // Hovering a folder means the drop merges rather than reorders.
-            reorderPreview = session.isOverFolder ? nil : preview
-        } else {
+            let projectedPreview: GridReorderPreview? = session.isOverFolder ? nil : preview
+            if reorderPreview != projectedPreview {
+                reorderPreview = projectedPreview
+            }
+        } else if reorderPreview != nil {
             reorderPreview = nil
         }
 
-        dragSession = session
+        // Publish only when something visible actually changed. A drag used to
+        // assign a new session on every mouse-moved event, re-rendering every
+        // tile even while the cursor stayed inside one cell.
+        if dragSession != session {
+            dragSession = session
+        }
         updateEdgeFlip(location: location)
     }
 
@@ -1202,6 +1215,7 @@ final class LaunchpadViewModel: ObservableObject {
 
         dragSession = nil
         reorderPreview = nil
+        itemDrag.location = .zero
         pageDrag.offset = 0
         isDraggingPage = false
         cleanupAfterLayoutChange()
@@ -1224,6 +1238,7 @@ final class LaunchpadViewModel: ObservableObject {
         edgeFlipTask = nil
         dragSession = nil
         reorderPreview = nil
+        itemDrag.location = .zero
     }
 
     // MARK: Folder drag
@@ -1401,9 +1416,7 @@ final class LaunchpadViewModel: ObservableObject {
             guard !Task.isCancelled, let self else { return }
             self.flipPageWhileDragging(right: right)
             self.edgeFlipTask = nil
-            if let location = self.dragSession?.location {
-                self.updateEdgeFlip(location: location)
-            }
+            self.updateEdgeFlip(location: self.itemDrag.location)
         }
     }
 
@@ -1421,8 +1434,8 @@ final class LaunchpadViewModel: ObservableObject {
         } else if currentPage > 0 {
             withAnimation(animation(.page)) { currentPage -= 1 }
         }
-        if let loc = dragSession?.location {
-            updateDrag(location: loc)
+        if dragSession != nil {
+            updateDrag(location: itemDrag.location)
         }
     }
 

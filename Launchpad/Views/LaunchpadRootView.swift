@@ -179,11 +179,13 @@ struct LaunchpadRootView: View {
     @ViewBuilder
     private func dragLayer(metrics: LayoutMetrics) -> some View {
         if let session = viewModel.dragSession {
-            DragPreview(
+            // Observes only the isolated cursor position, so moving the pointer
+            // does not re-render the grid behind the floating icon.
+            ItemDragPreviewLayer(
+                dragState: viewModel.itemDrag,
                 entry: session.entry,
                 iconSize: metrics.iconSize,
-                scale: metrics.scale,
-                location: session.location
+                scale: metrics.scale
             )
         } else if let session = viewModel.folderDragSession {
             DragPreview(
@@ -245,6 +247,24 @@ struct LaunchpadRootView: View {
 
     private var visibilityAnimation: Animation? {
         viewModel.reduceMotion ? Metrics.Motion.reduced : .easeInOut(duration: 0.2)
+    }
+}
+
+/// Floating icon for a grid drag. Reads the drag position from its own
+/// observable so only this small view updates as the cursor moves.
+private struct ItemDragPreviewLayer: View {
+    @ObservedObject var dragState: ItemDragState
+    let entry: LaunchpadEntry
+    let iconSize: CGFloat
+    let scale: CGFloat
+
+    var body: some View {
+        DragPreview(
+            entry: entry,
+            iconSize: iconSize,
+            scale: scale,
+            location: dragState.location
+        )
     }
 }
 

@@ -82,7 +82,7 @@ Launchpad/
 │   │   └── WindowManager.swift        # Show/hide, mirrors, screen changes
 ├── LaunchpadTests/
 │   ├── CoreTests.swift                # 28 unit tests
-│   ├── GridReorderTests.swift         # 10 reorder preview/commit tests
+│   ├── GridReorderTests.swift         # 12 reorder preview/commit tests
 │   └── SmokeTests.swift               # Hosted-app smoke test
 ├── README.md
 └── spec.md                            # Requirements + agreed clarifications
@@ -157,7 +157,7 @@ xcodebuild -project Launchpad.xcodeproj -scheme Launchpad \
 # Run the built app
 open .build/Build/Products/Debug/Launchpad.app
 
-# Test suite (38 unit tests + 1 hosted smoke test = 39 total)
+# Test suite (40 unit tests + 1 hosted smoke test = 41 total)
 xcodebuild -project Launchpad.xcodeproj -scheme Launchpad \
   -configuration Debug -derivedDataPath .build test \
   CODE_SIGNING_ALLOWED=NO
@@ -377,7 +377,10 @@ an XCTest environment and skips runtime startup).
       scroll event only re-evaluates the offset modifier instead of every icon
       on the three visible pages. A committed page slides for 0.30 s with its
       base positions fixed; the page index is swapped in once the slide ends,
-      so icon bodies never re-render on the animation's first frame.
+      so icon bodies never re-render on the animation's first frame. Item
+      drags follow the same rule: the cursor lives in `ItemDragState` and the
+      reorder preview is only published when the cursor crosses into another
+      cell, so mouse movement never re-renders the grid.
 
 ---
 
@@ -432,9 +435,9 @@ an XCTest environment and skips runtime startup).
 - **Launch at login:** uses `SMAppService.mainApp`; registration may fail for
   ad-hoc builds outside `/Applications`. The toggle reflects the actual system
   status after the attempt.
-- **Tests:** 38 unit tests cover search ranking, pagination math, reorder
-  preview/commit parity, folder merge/dissolve rules, normalization, JSON
-  persistence, and page-snap geometry.
+- **Tests:** 40 unit tests cover search ranking, pagination math, reorder
+  preview/commit parity, drag-state isolation, folder merge/dissolve rules,
+  normalization, JSON persistence, and page-snap geometry.
   A hosted smoke test plus the `--smoke-test` debug hook verify that the overlay
   window is created and shown.
 
@@ -444,7 +447,7 @@ an XCTest environment and skips runtime startup).
 
 ```text
 xcodebuild ... build      → BUILD SUCCEEDED
-xcodebuild ... test       → TEST SUCCEEDED, 39 tests, 0 failures
+xcodebuild ... test       → TEST SUCCEEDED, 41 tests, 0 failures
 Launchpad --smoke-test    → SMOKE overlayWindows=1 pages=3 items=75 frame=(0.0, 82.0, 1920.0, 1118.0)
 window levels (debug)     → overlay 26 at (0, 82, 1920, 1118); Dock backdrop 19 at (0, 0, 1920, 83); Dock 20
 graceful quit             → process exited after layout.json was flushed

@@ -1,3 +1,4 @@
+import Combine
 import XCTest
 @testable import Launchpad
 
@@ -228,5 +229,61 @@ final class LaunchpadDragCommitTests: XCTestCase {
         XCTAssertNil(viewModel.dragSession)
         XCTAssertNil(viewModel.reorderPreview)
         XCTAssertEqual(viewModel.pages, layout)
+    }
+
+    /// The drag icon follows the cursor through a dedicated observable, so a
+    /// mouse move inside one cell must not invalidate the grid at all.
+    func testMovingInsideOneCellDoesNotInvalidateTheGrid() {
+        let viewModel = makeViewModel()
+        let apps = (0..<22).map { app("Item\($0)") }
+        let layout = LayoutEngine.paginate(
+            apps.map(LaunchpadEntry.app),
+            capacity: viewModel.settings.pageCapacity
+        )
+        viewModel.seedLayoutForTesting(layout, page: 0)
+        viewModel.beginDrag(entry: .app(apps[0]), page: 0, index: 0)
+
+        let metrics = LayoutMetrics(screenSize: viewModel.screenSize, settings: viewModel.settings)
+        // A point near the bottom edge of the grid is inside one cell but far
+        // from every icon centre, so no merge target is hovered.
+        let point = CGPoint(x: metrics.gridRect.midX, y: metrics.gridRect.maxY - 2)
+
+        var publishes = 0
+        let cancellable = viewModel.objectWillChange.sink { publishes += 1 }
+        defer { cancellable.cancel() }
+
+        viewModel.updateDrag(location: point)
+        let afterFirstMove = publishes
+        XCTAssertGreaterThan(afterFirstMove, 0)
+
+        viewModel.updateDrag(location: CGPoint(x: point.x + 2, y: point.y))
+        XCTAssertEqual(publishes, afterFirstMove, "same-cell moves should not re-render the grid")
+        XCTAssertEqual(viewModel.itemDrag.location, CGPoint(x: point.x + 2, y: point.y))
+
+        // Crossing into another cell still updates the projected layout.
+        viewModel.updateDrag(location: metrics.iconCenter(at: 7))
+        XCTAssertGreaterThan(publishes, afterFirstMove)
+        XCTAssertEqual(viewModel.reorderPreview?.locations[viewModel.dragSession!.entry.id], .init(page: 0, index: 7))
+    }
+
+    func testEndingOrCancellingADragResetsTheCursorPosition() {
+        let viewModel = makeViewModel()
+        let apps = (0..<22).map { app("Item\($0)") }
+        let layout = LayoutEngine.paginate(
+            apps.map(LaunchpadEntry.app),
+            capacity: viewModel.settings.pageCapacity
+        )
+        let metrics = LayoutMetrics(screenSize: viewModel.screenSize, settings: viewModel.settings)
+
+        viewModel.seedLayoutForTesting(layout, page: 0)
+        viewModel.beginDrag(entry: .app(apps[0]), page: 0, index: 0)
+        viewModel.updateDrag(location: metrics.iconCenter(at: 3))
+        viewModel.endDrag()
+        XCTAssertEqual(viewModel.itemDrag.location, .zero)
+
+        viewModel.beginDrag(entry: .app(apps[1]), page: 0, index: 1)
+        viewModel.updateDrag(location: metrics.iconCenter(at: 5))
+        viewModel.cancelDrag()
+        XCTAssertEqual(viewModel.itemDrag.location, .zero)
     }
 }

@@ -119,7 +119,7 @@ struct PageView: View {
     }
 
     private var reorderAnimation: Animation? {
-        viewModel.reduceMotion ? Metrics.Motion.reduced : .spring(response: 0.30, dampingFraction: 0.80)
+        viewModel.reduceMotion ? Metrics.Motion.reduced : Metrics.Motion.reorder
     }
 
     private func visibilityAnimation(row: Int) -> Animation? {

@@ -40,7 +40,7 @@ struct ItemIconView: View {
     private var isFolder: Bool { entry.isFolder }
 
     var body: some View {
-        TimelineView(.animation(minimumInterval: 1.0 / 120.0, paused: !jiggleActive)) { context in
+        TimelineView(.animation(minimumInterval: 1.0 / 60.0, paused: !jiggleActive)) { context in
             let time = context.date.timeIntervalSinceReferenceDate
             let period = 0.26
             let angle = jiggleActive ? sin(time * 2 * .pi / period + phase) * Metrics.jiggleAngle : 0

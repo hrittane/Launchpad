@@ -140,7 +140,10 @@ enum Metrics {
         static let hideBackground = Animation.easeIn(duration: Durations.hideBackground)
         static let page = Animation.timingCurve(0.22, 0.90, 0.25, 1.0, duration: Durations.pageSlide)
         static let folder = Animation.spring(response: 0.33, dampingFraction: 0.88)
-        static let reorder = Animation.spring(response: 0.30, dampingFraction: 0.80)
+        /// Reflow animation for tiles displaced by a drag. The blend duration
+        /// lets a new target take over mid-flight instead of restarting the
+        /// spring from rest, which is what made rapid slot changes feel stuttery.
+        static let reorder = Animation.spring(response: 0.30, dampingFraction: 0.85, blendDuration: 0.10)
         static let hover = Animation.easeInOut(duration: Durations.hover)
         static let pressed = Animation.easeOut(duration: Durations.pressed)
         static let reduced = Animation.easeInOut(duration: Durations.reducedMotion)
