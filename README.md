@@ -464,3 +464,4 @@ The local machine used Xcode 26.5 on macOS 26.7.1 with deployment target 13.0.
 Pixel-level visual inspection requires Screen Recording permission, which was
 unavailable in this environment; window levels, frames, visibility, build, and
 tests were verified programmatically.
+# Launchpad
