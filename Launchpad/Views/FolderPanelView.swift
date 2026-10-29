@@ -47,6 +47,11 @@ struct FolderPanelView: View {
             .position(isPresented ? endPoint : startPoint)
             .opacity(isPresented ? 1 : 0)
             .animation(panelAnimation, value: isPresented)
+            .onAppear {
+                if !viewModel.folderIsPresented {
+                    viewModel.presentFolder()
+                }
+            }
             .accessibilityElement(children: .contain)
             .accessibilityLabel(folder.name)
     }
@@ -106,6 +111,16 @@ struct FolderPanelView: View {
                 .font(.system(size: Metrics.folderTitleFontSize * metrics.scale, weight: .regular))
                 .foregroundStyle(.white)
                 .tint(.white)
+                .padding(.horizontal, 16 * metrics.scale)
+                .padding(.vertical, 4 * metrics.scale)
+                .background(
+                    RoundedRectangle(cornerRadius: 8 * metrics.scale, style: .continuous)
+                        .fill(Color.white.opacity(0.18))
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 8 * metrics.scale, style: .continuous)
+                        .stroke(Color.white.opacity(0.35), lineWidth: 1)
+                )
                 .focused($titleIsFocused)
                 .onAppear {
                     titleIsFocused = true

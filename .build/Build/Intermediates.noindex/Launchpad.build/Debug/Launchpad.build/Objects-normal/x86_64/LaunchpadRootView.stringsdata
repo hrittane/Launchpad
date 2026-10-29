@@ -31,7 +31,7 @@
         "key": "Remove %@?",
         "location": {
           "startingColumn": 25,
-          "startingLine": 259
+          "startingLine": 266
         }
       },
       {
@@ -39,7 +39,7 @@
         "key": "Move to Trash",
         "location": {
           "startingColumn": 30,
-          "startingLine": 267
+          "startingLine": 274
         }
       },
       {
@@ -47,7 +47,7 @@
         "key": "Cancel",
         "location": {
           "startingColumn": 30,
-          "startingLine": 272
+          "startingLine": 279
         }
       },
       {
@@ -55,7 +55,7 @@
         "key": "The application will be moved to the Trash. App files are not deleted immediately.",
         "location": {
           "startingColumn": 25,
-          "startingLine": 276
+          "startingLine": 283
         }
       }
     ]

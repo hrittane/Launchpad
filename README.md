@@ -50,6 +50,7 @@ Launchpad/
 │   ├── Services/
 │   │   ├── AppDirectoryMonitor.swift  # NSMetadataQuery debounced rescans
 │   │   ├── AppScanner.swift           # Actor: authoritative FileManager scan
+│   │   ├── GridReorder.swift         # Pure live-reorder preview + drop model
 │   │   ├── IconProvider.swift         # Actor-backed icon cache + bitmaps
 │   │   ├── LayoutEngine.swift         # Pagination, normalization, folder rules
 │   │   ├── LayoutStore.swift          # Actor: debounced JSON persistence
@@ -81,6 +82,7 @@ Launchpad/
 │   │   └── WindowManager.swift        # Show/hide, mirrors, screen changes
 ├── LaunchpadTests/
 │   ├── CoreTests.swift                # 28 unit tests
+│   ├── GridReorderTests.swift         # 10 reorder preview/commit tests
 │   └── SmokeTests.swift               # Hosted-app smoke test
 ├── README.md
 └── spec.md                            # Requirements + agreed clarifications
@@ -155,7 +157,7 @@ xcodebuild -project Launchpad.xcodeproj -scheme Launchpad \
 # Run the built app
 open .build/Build/Products/Debug/Launchpad.app
 
-# Test suite (28 unit tests + 1 hosted smoke test = 29 total)
+# Test suite (38 unit tests + 1 hosted smoke test = 39 total)
 xcodebuild -project Launchpad.xcodeproj -scheme Launchpad \
   -configuration Debug -derivedDataPath .build test \
   CODE_SIGNING_ALLOWED=NO
@@ -430,8 +432,9 @@ an XCTest environment and skips runtime startup).
 - **Launch at login:** uses `SMAppService.mainApp`; registration may fail for
   ad-hoc builds outside `/Applications`. The toggle reflects the actual system
   status after the attempt.
-- **Tests:** 28 unit tests cover search ranking, pagination math, folder
-  merge/dissolve rules, normalization, JSON persistence, and page-snap geometry.
+- **Tests:** 38 unit tests cover search ranking, pagination math, reorder
+  preview/commit parity, folder merge/dissolve rules, normalization, JSON
+  persistence, and page-snap geometry.
   A hosted smoke test plus the `--smoke-test` debug hook verify that the overlay
   window is created and shown.
 
@@ -441,7 +444,7 @@ an XCTest environment and skips runtime startup).
 
 ```text
 xcodebuild ... build      → BUILD SUCCEEDED
-xcodebuild ... test       → TEST SUCCEEDED, 29 tests, 0 failures
+xcodebuild ... test       → TEST SUCCEEDED, 39 tests, 0 failures
 Launchpad --smoke-test    → SMOKE overlayWindows=1 pages=3 items=75 frame=(0.0, 82.0, 1920.0, 1118.0)
 window levels (debug)     → overlay 26 at (0, 82, 1920, 1118); Dock backdrop 19 at (0, 0, 1920, 83); Dock 20
 graceful quit             → process exited after layout.json was flushed

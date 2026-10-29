@@ -1,0 +1,37 @@
+{
+  "/Users/soufiane/Desktop/Launchpad/Launchpad/App/AppDelegate.swift" : {
+    "const-values" : "/Users/soufiane/Desktop/Launchpad/build/Build/Intermediates.noindex/Launchpad.build/Debug/Launchpad.build/Objects-normal/x86_64/AppDelegate.swiftconstvalues",
+    "dependencies" : "/Users/soufiane/Desktop/Launchpad/build/Build/Intermediates.noindex/Launchpad.build/Debug/Launchpad.build/Objects-normal/x86_64/AppDelegate.d",
+    "diagnostics" : "/Users/soufiane/Desktop/Launchpad/build/Build/Intermediates.noindex/Launchpad.build/Debug/Launchpad.build/Objects-normal/x86_64/AppDelegate.dia",
+    "object" : "/Users/soufiane/Desktop/Launchpad/build/Build/Intermediates.noindex/Launchpad.build/Debug/Launchpad.build/Objects-normal/x86_64/AppDelegate.o",
+    "swift-dependencies" : "/Users/soufiane/Desktop/Launchpad/build/Build/Intermediates.noindex/Launchpad.build/Debug/Launchpad.build/Objects-normal/x86_64/AppDelegate.swiftdeps"
+  },
+  "/Users/soufiane/Desktop/Launchpad/Launchpad/App/AppEnvironment.swift" : {
+    "const-values" : "/Users/soufiane/Desktop/Launchpad/build/Build/Intermediates.noindex/Launchpad.build/Debug/Launchpad.build/Objects-normal/x86_64/AppEnvironment.swiftconstvalues",
+    "dependencies" : "/Users/soufiane/Desktop/Launchpad/build/Build/Intermediates.noindex/Launchpad.build/Debug/Launchpad.build/Objects-normal/x86_64/AppEnvironment.d",
+    "diagnostics" : "/Users/soufiane/Desktop/Launchpad/build/Build/Intermediates.noindex/Launchpad.build/Debug/Launchpad.build/Objects-normal/x86_64/AppEnvironment.dia",
+    "object" : "/Users/soufiane/Desktop/Launchpad/build/Build/Intermediates.noindex/Launchpad.build/Debug/Launchpad.build/Objects-normal/x86_64/AppEnvironment.o",
+    "swift-dependencies" : "/Users/soufiane/Desktop/Launchpad/build/Build/Intermediates.noindex/Launchpad.build/Debug/Launchpad.build/Objects-normal/x86_64/AppEnvironment.swiftdeps"
+  },
+  "/Users/soufiane/Desktop/Launchpad/Launchpad/App/LaunchpadApp.swift" : {
+    "const-values" : "/Users/soufiane/Desktop/Launchpad/build/Build/Intermediates.noindex/Launchpad.build/Debug/Launchpad.build/Objects-normal/x86_64/LaunchpadApp.swiftconstvalues",
+    "dependencies" : "/Users/soufiane/Desktop/Launchpad/build/Build/Intermediates.noindex/Launchpad.build/Debug/Launchpad.build/Objects-normal/x86_64/LaunchpadApp.d",
+    "diagnostics" : "/Users/soufiane/Desktop/Launchpad/build/Build/Intermediates.noindex/Launchpad.build/Debug/Launchpad.build/Objects-normal/x86_64/LaunchpadApp.dia",
+    "object" : "/Users/soufiane/Desktop/Launchpad/build/Build/Intermediates.noindex/Launchpad.build/Debug/Launchpad.build/Objects-normal/x86_64/LaunchpadApp.o",
+    "swift-dependencies" : "/Users/soufiane/Desktop/Launchpad/build/Build/Intermediates.noindex/Launchpad.build/Debug/Launchpad.build/Objects-normal/x86_64/LaunchpadApp.swiftdeps"
+  },
+  "/Users/soufiane/Desktop/Launchpad/Launchpad/Design/Metrics.swift" : {
+    "const-values" : "/Users/soufiane/Desktop/Launchpad/build/Build/Intermediates.noindex/Launchpad.build/Debug/Launchpad.build/Objects-normal/x86_64/Metrics.swiftconstvalues",
+    "dependencies" : "/Users/soufiane/Desktop/Launchpad/build/Build/Intermediates.noindex/Launchpad.build/Debug/Launchpad.build/Objects-normal/x86_64/Metrics.d",
+    "diagnostics" : "/Users/soufiane/Desktop/Launchpad/build/Build/Intermediates.noindex/Launchpad.build/Debug/Launchpad.build/Objects-normal/x86_64/Metrics.dia",
+    "object" : "/Users/soufiane/Desktop/Launchpad/build/Build/Intermediates.noindex/Launchpad.build/Debug/Launchpad.build/Objects-normal/x86_64/Metrics.o",
+    "swift-dependencies" : "/Users/soufiane/Desktop/Launchpad/build/Build/Intermediates.noindex/Launchpad.build/Debug/Launchpad.build/Objects-normal/x86_64/Metrics.swiftdeps"
+  },
+  "/Users/soufiane/Desktop/Launchpad/Launchpad/Design/PageDragGeometry.swift" : {
+    "const-values" : "/Users/soufiane/Desktop/Launchpad/build/Build/Intermediates.noindex/Launchpad.build/Debug/Launchpad.build/Objects-normal/x86_64/PageDragGeometry.swiftconstvalues",
+    "dependencies" : "/Users/soufiane/Desktop/Launchpad/build/Build/Intermediates.noindex/Launchpad.build/Debug/Launchpad.build/Objects-normal/x86_64/PageDragGeometry.d",
+    "diagnostics" : "/Users/soufiane/Desktop/Launchpad/build/Build/Intermediates.noindex/Launchpad.build/Debug/Launchpad.build/Objects-normal/x86_64/PageDragGeometry.dia",
+    "object" : "/Users/soufiane/Desktop/Launchpad/build/Build/Intermediates.noindex/Launchpad.build/Debug/Launchpad.build/Objects-normal/x86_64/PageDragGeometry.o",
+    "swift-dependencies" : "/Users/soufiane/Desktop/Launchpad/build/Build/Intermediates.noindex/Launchpad.build/Debug/Launchpad.build/Objects-normal/x86_64/PageDragGeometry.swiftdeps"
+  }
+}

@@ -11,11 +11,6 @@ struct PageView: View {
     let isInteractive: Bool
     let recordsFrames: Bool
 
-    private struct DragPreviewLayout {
-        var slots: [String: Int]
-        var insertionSlot: Int?
-    }
-
     @State private var hasShownOnce = false
     /// Trigger the first appearance transition when the app shows and the view
     /// is first laid out. Without this, the first show can skip the zoom if the
@@ -33,9 +28,15 @@ struct PageView: View {
     var body: some View {
         ZStack(alignment: .topLeading) {
             ForEach(Array(entries.enumerated()), id: \.element.id) { index, entry in
-                let preview = dragPreview
-                let slot = preview?.slots[entry.id] ?? index
+                // Position from the projected reorder layout, but keep this
+                // view in its source page so the in-flight drag gesture keeps
+                // its identity. When an entry is projected onto another page,
+                // shift it by whole page widths instead of moving the view.
+                let projected = viewModel.reorderPreview?.locations[entry.id]
+                let slot = projected?.index ?? index
                 let cell = metrics.cellRect(at: slot)
+                let pageDelta = (projected?.page ?? pageIndex) - pageIndex
+                let x = cell.midX + CGFloat(pageDelta) * metrics.screenSize.width
                 let isDragSource = viewModel.dragSession?.entry.id == entry.id
 
                 ItemIconView(
@@ -51,7 +52,12 @@ struct PageView: View {
                     showDeleteBadge: entry.app?.isDeletable == true,
                     recordsFrame: recordsFrames,
                     onTap: {
-                        viewModel.activate(entry)
+                        if let folder = entry.folder {
+                            let frame = metrics.iconFrame(at: slot)
+                            viewModel.openFolder(folder, anchor: frame)
+                        } else {
+                            viewModel.activate(entry)
+                        }
                     },
                     onDelete: {
                         if let app = entry.app { viewModel.requestDelete(app) }
@@ -73,26 +79,18 @@ struct PageView: View {
                     },
                     onDoubleTap: entry.isFolder
                         ? {
-                            viewModel.activate(entry)
+                            let frame = metrics.iconFrame(at: slot)
+                            viewModel.openFolder(folderID: entry.folder!.id, anchor: frame)
                             viewModel.beginFolderRename()
                         }
                         : nil
                 )
                 .frame(width: metrics.cellWidth, height: metrics.cellHeight)
-                .position(x: cell.midX, y: cell.midY)
-                .opacity(1.0)
-                .scaleEffect(isDragSource ? 1.12 : (viewModel.dragSession?.armedMergeTargetID == entry.id ? 1.15 : tileScale))
-                .shadow(color: .black.opacity(isDragSource ? 0.4 : 0), radius: isDragSource ? 14 : 0)
-                .animation(.easeOut(duration: 0.12), value: isDragSource)
-                .animation(.easeOut(duration: 0.18), value: viewModel.dragSession?.armedMergeTargetID)
+                .position(x: x, y: cell.midY)
+                .opacity(isDragSource ? 0 : 1)
+                .allowsHitTesting(!isDragSource)
+                .animation(reorderAnimation, value: CGPoint(x: x, y: cell.midY))
                 .animation(visibilityAnimation(row: slot / max(1, metrics.columns)), value: viewModel.isVisible)
-                .animation(reorderAnimation, value: slot)
-                .animation(Metrics.Motion.hover, value: isDragSource)
-                .animation(.easeInOut(duration: 0.15), value: viewModel.dragSession?.hoveredEntryID)
-            }
-
-            if let preview = dragPreview, let insertion = preview.insertionSlot {
-                // Removed drag placeholder highlight per user request
             }
         }
         .onAppear {
@@ -111,7 +109,7 @@ struct PageView: View {
 
     private func opacity(for isDragSource: Bool) -> Double {
         guard viewModel.isVisible else { return 0 }
-        return 1 // keep others visible for tight packing
+        return 1
     }
 
     private var tileOpacity: Double {
@@ -121,11 +119,7 @@ struct PageView: View {
     }
 
     private var reorderAnimation: Animation? {
-        guard let session = viewModel.dragSession else { return viewModel.reduceMotion ? Metrics.Motion.reduced : .spring(response: 0.22, dampingFraction: 0.9) }
-        if session.armedMergeTargetID != nil { return nil }
-        if session.mergeCandidateID != nil { return nil }
-        // Keep layout tight with no gaps
-        return viewModel.reduceMotion ? Metrics.Motion.reduced : .spring(response: 0.22, dampingFraction: 0.92)
+        viewModel.reduceMotion ? Metrics.Motion.reduced : .spring(response: 0.30, dampingFraction: 0.80)
     }
 
     private func visibilityAnimation(row: Int) -> Animation? {
@@ -135,36 +129,6 @@ struct PageView: View {
             return Metrics.Motion.showIcons.delay(delay)
         }
         return .easeIn(duration: Metrics.Durations.hideIcons)
-    }
-
-    /// Slots used for the live reorder preview. A folder target or an armed
-    /// folder-merge intentionally shows no reflow because the drop will not
-    /// insert on the grid.
-    private var dragPreview: DragPreviewLayout? {
-        guard isInteractive,
-              let session = viewModel.dragSession,
-              pageIndex == viewModel.currentDisplayedPage,
-              session.isOverFolder == false,
-              session.armedMergeTargetID == nil,
-              session.mergeCandidateID == nil else { return nil }
-
-        let remaining = entries.filter { $0.id != session.entry.id }
-        let capacity = max(1, metrics.columns * metrics.rows)
-        guard remaining.count < capacity else { return nil }
-
-        var insertion: Int = remaining.count
-        if let hoveredID = session.hoveredEntryID,
-           let hoveredIndex = remaining.firstIndex(where: { $0.id == hoveredID }) {
-            insertion = hoveredIndex
-        } else if let slot = metrics.slot(at: session.location) {
-            insertion = min(max(slot, 0), remaining.count)
-        }
-
-        var slots: [String: Int] = [:]
-        for (index, entry) in remaining.enumerated() {
-            slots[entry.id] = index < insertion ? index : index
-        }
-        return DragPreviewLayout(slots: slots, insertionSlot: nil)
     }
 
     private func handle(_ action: ItemContextAction, for entry: LaunchpadEntry) {
@@ -178,7 +142,10 @@ struct PageView: View {
         case .removeFolder(let id):
             viewModel.removeFolder(folderID: id)
         case .renameFolder(let id):
-            viewModel.openFolder(folderID: id, anchor: viewModel.iconFrames[entry.id] ?? .zero)
+            let projected = viewModel.reorderPreview?.locations[entry.id]
+            let slot = projected?.index ?? (entries.firstIndex(where: { $0.id == entry.id }) ?? 0)
+            let frame = metrics.iconFrame(at: slot)
+            viewModel.openFolder(folderID: id, anchor: frame)
             viewModel.beginFolderRename()
         }
     }

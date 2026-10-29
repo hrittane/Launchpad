@@ -136,6 +136,16 @@
     "swift-dependencies" : "/Users/soufiane/Desktop/Launchpad/.build/Build/Intermediates.noindex/Launchpad.build/Debug/Launchpad.build/Objects-normal/x86_64/AppScanner.swiftdeps",
     "swiftmodule" : "/Users/soufiane/Desktop/Launchpad/.build/Build/Intermediates.noindex/Launchpad.build/Debug/Launchpad.build/Objects-normal/x86_64/AppScanner~partial.swiftmodule"
   },
+  "/Users/soufiane/Desktop/Launchpad/Launchpad/Services/GridReorder.swift" : {
+    "const-values" : "/Users/soufiane/Desktop/Launchpad/.build/Build/Intermediates.noindex/Launchpad.build/Debug/Launchpad.build/Objects-normal/x86_64/GridReorder.swiftconstvalues",
+    "dependencies" : "/Users/soufiane/Desktop/Launchpad/.build/Build/Intermediates.noindex/Launchpad.build/Debug/Launchpad.build/Objects-normal/x86_64/GridReorder.d",
+    "diagnostics" : "/Users/soufiane/Desktop/Launchpad/.build/Build/Intermediates.noindex/Launchpad.build/Debug/Launchpad.build/Objects-normal/x86_64/GridReorder.dia",
+    "index-unit-output-path" : "/Launchpad.build/Debug/Launchpad.build/Objects-normal/x86_64/GridReorder.o",
+    "llvm-bc" : "/Users/soufiane/Desktop/Launchpad/.build/Build/Intermediates.noindex/Launchpad.build/Debug/Launchpad.build/Objects-normal/x86_64/GridReorder.bc",
+    "object" : "/Users/soufiane/Desktop/Launchpad/.build/Build/Intermediates.noindex/Launchpad.build/Debug/Launchpad.build/Objects-normal/x86_64/GridReorder.o",
+    "swift-dependencies" : "/Users/soufiane/Desktop/Launchpad/.build/Build/Intermediates.noindex/Launchpad.build/Debug/Launchpad.build/Objects-normal/x86_64/GridReorder.swiftdeps",
+    "swiftmodule" : "/Users/soufiane/Desktop/Launchpad/.build/Build/Intermediates.noindex/Launchpad.build/Debug/Launchpad.build/Objects-normal/x86_64/GridReorder~partial.swiftmodule"
+  },
   "/Users/soufiane/Desktop/Launchpad/Launchpad/Services/IconProvider.swift" : {
     "const-values" : "/Users/soufiane/Desktop/Launchpad/.build/Build/Intermediates.noindex/Launchpad.build/Debug/Launchpad.build/Objects-normal/x86_64/IconProvider.swiftconstvalues",
     "dependencies" : "/Users/soufiane/Desktop/Launchpad/.build/Build/Intermediates.noindex/Launchpad.build/Debug/Launchpad.build/Objects-normal/x86_64/IconProvider.d",

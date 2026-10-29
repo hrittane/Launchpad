@@ -1,0 +1,48 @@
+{
+  "source": "/Users/soufiane/Desktop/Launchpad/Launchpad/Models/AppSettings.swift",
+  "tables": {
+    "Localizable": [
+      {
+        "comment": "Hot corner disabled",
+        "key": "Off",
+        "location": {
+          "startingColumn": 38,
+          "startingLine": 64
+        }
+      },
+      {
+        "comment": "Hot corner position",
+        "key": "Top Left",
+        "location": {
+          "startingColumn": 38,
+          "startingLine": 66
+        }
+      },
+      {
+        "comment": "Hot corner position",
+        "key": "Top Right",
+        "location": {
+          "startingColumn": 38,
+          "startingLine": 68
+        }
+      },
+      {
+        "comment": "Hot corner position",
+        "key": "Bottom Left",
+        "location": {
+          "startingColumn": 38,
+          "startingLine": 70
+        }
+      },
+      {
+        "comment": "Hot corner position",
+        "key": "Bottom Right",
+        "location": {
+          "startingColumn": 38,
+          "startingLine": 72
+        }
+      }
+    ]
+  },
+  "version": 1
+}

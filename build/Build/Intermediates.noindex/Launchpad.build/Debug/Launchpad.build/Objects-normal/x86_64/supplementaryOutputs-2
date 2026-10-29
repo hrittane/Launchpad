@@ -1,0 +1,37 @@
+{
+  "/Users/soufiane/Desktop/Launchpad/Launchpad/Design/PageDragState.swift" : {
+    "const-values" : "/Users/soufiane/Desktop/Launchpad/build/Build/Intermediates.noindex/Launchpad.build/Debug/Launchpad.build/Objects-normal/x86_64/PageDragState.swiftconstvalues",
+    "dependencies" : "/Users/soufiane/Desktop/Launchpad/build/Build/Intermediates.noindex/Launchpad.build/Debug/Launchpad.build/Objects-normal/x86_64/PageDragState.d",
+    "diagnostics" : "/Users/soufiane/Desktop/Launchpad/build/Build/Intermediates.noindex/Launchpad.build/Debug/Launchpad.build/Objects-normal/x86_64/PageDragState.dia",
+    "object" : "/Users/soufiane/Desktop/Launchpad/build/Build/Intermediates.noindex/Launchpad.build/Debug/Launchpad.build/Objects-normal/x86_64/PageDragState.o",
+    "swift-dependencies" : "/Users/soufiane/Desktop/Launchpad/build/Build/Intermediates.noindex/Launchpad.build/Debug/Launchpad.build/Objects-normal/x86_64/PageDragState.swiftdeps"
+  },
+  "/Users/soufiane/Desktop/Launchpad/Launchpad/Input/HotCornerMonitor.swift" : {
+    "const-values" : "/Users/soufiane/Desktop/Launchpad/build/Build/Intermediates.noindex/Launchpad.build/Debug/Launchpad.build/Objects-normal/x86_64/HotCornerMonitor.swiftconstvalues",
+    "dependencies" : "/Users/soufiane/Desktop/Launchpad/build/Build/Intermediates.noindex/Launchpad.build/Debug/Launchpad.build/Objects-normal/x86_64/HotCornerMonitor.d",
+    "diagnostics" : "/Users/soufiane/Desktop/Launchpad/build/Build/Intermediates.noindex/Launchpad.build/Debug/Launchpad.build/Objects-normal/x86_64/HotCornerMonitor.dia",
+    "object" : "/Users/soufiane/Desktop/Launchpad/build/Build/Intermediates.noindex/Launchpad.build/Debug/Launchpad.build/Objects-normal/x86_64/HotCornerMonitor.o",
+    "swift-dependencies" : "/Users/soufiane/Desktop/Launchpad/build/Build/Intermediates.noindex/Launchpad.build/Debug/Launchpad.build/Objects-normal/x86_64/HotCornerMonitor.swiftdeps"
+  },
+  "/Users/soufiane/Desktop/Launchpad/Launchpad/Input/HotKeyManager.swift" : {
+    "const-values" : "/Users/soufiane/Desktop/Launchpad/build/Build/Intermediates.noindex/Launchpad.build/Debug/Launchpad.build/Objects-normal/x86_64/HotKeyManager.swiftconstvalues",
+    "dependencies" : "/Users/soufiane/Desktop/Launchpad/build/Build/Intermediates.noindex/Launchpad.build/Debug/Launchpad.build/Objects-normal/x86_64/HotKeyManager.d",
+    "diagnostics" : "/Users/soufiane/Desktop/Launchpad/build/Build/Intermediates.noindex/Launchpad.build/Debug/Launchpad.build/Objects-normal/x86_64/HotKeyManager.dia",
+    "object" : "/Users/soufiane/Desktop/Launchpad/build/Build/Intermediates.noindex/Launchpad.build/Debug/Launchpad.build/Objects-normal/x86_64/HotKeyManager.o",
+    "swift-dependencies" : "/Users/soufiane/Desktop/Launchpad/build/Build/Intermediates.noindex/Launchpad.build/Debug/Launchpad.build/Objects-normal/x86_64/HotKeyManager.swiftdeps"
+  },
+  "/Users/soufiane/Desktop/Launchpad/Launchpad/Models/AppItem.swift" : {
+    "const-values" : "/Users/soufiane/Desktop/Launchpad/build/Build/Intermediates.noindex/Launchpad.build/Debug/Launchpad.build/Objects-normal/x86_64/AppItem.swiftconstvalues",
+    "dependencies" : "/Users/soufiane/Desktop/Launchpad/build/Build/Intermediates.noindex/Launchpad.build/Debug/Launchpad.build/Objects-normal/x86_64/AppItem.d",
+    "diagnostics" : "/Users/soufiane/Desktop/Launchpad/build/Build/Intermediates.noindex/Launchpad.build/Debug/Launchpad.build/Objects-normal/x86_64/AppItem.dia",
+    "object" : "/Users/soufiane/Desktop/Launchpad/build/Build/Intermediates.noindex/Launchpad.build/Debug/Launchpad.build/Objects-normal/x86_64/AppItem.o",
+    "swift-dependencies" : "/Users/soufiane/Desktop/Launchpad/build/Build/Intermediates.noindex/Launchpad.build/Debug/Launchpad.build/Objects-normal/x86_64/AppItem.swiftdeps"
+  },
+  "/Users/soufiane/Desktop/Launchpad/Launchpad/Models/AppSettings.swift" : {
+    "const-values" : "/Users/soufiane/Desktop/Launchpad/build/Build/Intermediates.noindex/Launchpad.build/Debug/Launchpad.build/Objects-normal/x86_64/AppSettings.swiftconstvalues",
+    "dependencies" : "/Users/soufiane/Desktop/Launchpad/build/Build/Intermediates.noindex/Launchpad.build/Debug/Launchpad.build/Objects-normal/x86_64/AppSettings.d",
+    "diagnostics" : "/Users/soufiane/Desktop/Launchpad/build/Build/Intermediates.noindex/Launchpad.build/Debug/Launchpad.build/Objects-normal/x86_64/AppSettings.dia",
+    "object" : "/Users/soufiane/Desktop/Launchpad/build/Build/Intermediates.noindex/Launchpad.build/Debug/Launchpad.build/Objects-normal/x86_64/AppSettings.o",
+    "swift-dependencies" : "/Users/soufiane/Desktop/Launchpad/build/Build/Intermediates.noindex/Launchpad.build/Debug/Launchpad.build/Objects-normal/x86_64/AppSettings.swiftdeps"
+  }
+}

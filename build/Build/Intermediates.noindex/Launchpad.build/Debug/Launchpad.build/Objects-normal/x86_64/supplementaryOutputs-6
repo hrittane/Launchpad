@@ -1,0 +1,37 @@
+{
+  "/Users/soufiane/Desktop/Launchpad/Launchpad/Views/LaunchpadRootView.swift" : {
+    "const-values" : "/Users/soufiane/Desktop/Launchpad/build/Build/Intermediates.noindex/Launchpad.build/Debug/Launchpad.build/Objects-normal/x86_64/LaunchpadRootView.swiftconstvalues",
+    "dependencies" : "/Users/soufiane/Desktop/Launchpad/build/Build/Intermediates.noindex/Launchpad.build/Debug/Launchpad.build/Objects-normal/x86_64/LaunchpadRootView.d",
+    "diagnostics" : "/Users/soufiane/Desktop/Launchpad/build/Build/Intermediates.noindex/Launchpad.build/Debug/Launchpad.build/Objects-normal/x86_64/LaunchpadRootView.dia",
+    "object" : "/Users/soufiane/Desktop/Launchpad/build/Build/Intermediates.noindex/Launchpad.build/Debug/Launchpad.build/Objects-normal/x86_64/LaunchpadRootView.o",
+    "swift-dependencies" : "/Users/soufiane/Desktop/Launchpad/build/Build/Intermediates.noindex/Launchpad.build/Debug/Launchpad.build/Objects-normal/x86_64/LaunchpadRootView.swiftdeps"
+  },
+  "/Users/soufiane/Desktop/Launchpad/Launchpad/Views/PageDots.swift" : {
+    "const-values" : "/Users/soufiane/Desktop/Launchpad/build/Build/Intermediates.noindex/Launchpad.build/Debug/Launchpad.build/Objects-normal/x86_64/PageDots.swiftconstvalues",
+    "dependencies" : "/Users/soufiane/Desktop/Launchpad/build/Build/Intermediates.noindex/Launchpad.build/Debug/Launchpad.build/Objects-normal/x86_64/PageDots.d",
+    "diagnostics" : "/Users/soufiane/Desktop/Launchpad/build/Build/Intermediates.noindex/Launchpad.build/Debug/Launchpad.build/Objects-normal/x86_64/PageDots.dia",
+    "object" : "/Users/soufiane/Desktop/Launchpad/build/Build/Intermediates.noindex/Launchpad.build/Debug/Launchpad.build/Objects-normal/x86_64/PageDots.o",
+    "swift-dependencies" : "/Users/soufiane/Desktop/Launchpad/build/Build/Intermediates.noindex/Launchpad.build/Debug/Launchpad.build/Objects-normal/x86_64/PageDots.swiftdeps"
+  },
+  "/Users/soufiane/Desktop/Launchpad/Launchpad/Views/PageView.swift" : {
+    "const-values" : "/Users/soufiane/Desktop/Launchpad/build/Build/Intermediates.noindex/Launchpad.build/Debug/Launchpad.build/Objects-normal/x86_64/PageView.swiftconstvalues",
+    "dependencies" : "/Users/soufiane/Desktop/Launchpad/build/Build/Intermediates.noindex/Launchpad.build/Debug/Launchpad.build/Objects-normal/x86_64/PageView.d",
+    "diagnostics" : "/Users/soufiane/Desktop/Launchpad/build/Build/Intermediates.noindex/Launchpad.build/Debug/Launchpad.build/Objects-normal/x86_64/PageView.dia",
+    "object" : "/Users/soufiane/Desktop/Launchpad/build/Build/Intermediates.noindex/Launchpad.build/Debug/Launchpad.build/Objects-normal/x86_64/PageView.o",
+    "swift-dependencies" : "/Users/soufiane/Desktop/Launchpad/build/Build/Intermediates.noindex/Launchpad.build/Debug/Launchpad.build/Objects-normal/x86_64/PageView.swiftdeps"
+  },
+  "/Users/soufiane/Desktop/Launchpad/Launchpad/Views/PreferencesView.swift" : {
+    "const-values" : "/Users/soufiane/Desktop/Launchpad/build/Build/Intermediates.noindex/Launchpad.build/Debug/Launchpad.build/Objects-normal/x86_64/PreferencesView.swiftconstvalues",
+    "dependencies" : "/Users/soufiane/Desktop/Launchpad/build/Build/Intermediates.noindex/Launchpad.build/Debug/Launchpad.build/Objects-normal/x86_64/PreferencesView.d",
+    "diagnostics" : "/Users/soufiane/Desktop/Launchpad/build/Build/Intermediates.noindex/Launchpad.build/Debug/Launchpad.build/Objects-normal/x86_64/PreferencesView.dia",
+    "object" : "/Users/soufiane/Desktop/Launchpad/build/Build/Intermediates.noindex/Launchpad.build/Debug/Launchpad.build/Objects-normal/x86_64/PreferencesView.o",
+    "swift-dependencies" : "/Users/soufiane/Desktop/Launchpad/build/Build/Intermediates.noindex/Launchpad.build/Debug/Launchpad.build/Objects-normal/x86_64/PreferencesView.swiftdeps"
+  },
+  "/Users/soufiane/Desktop/Launchpad/Launchpad/Views/SearchBar.swift" : {
+    "const-values" : "/Users/soufiane/Desktop/Launchpad/build/Build/Intermediates.noindex/Launchpad.build/Debug/Launchpad.build/Objects-normal/x86_64/SearchBar.swiftconstvalues",
+    "dependencies" : "/Users/soufiane/Desktop/Launchpad/build/Build/Intermediates.noindex/Launchpad.build/Debug/Launchpad.build/Objects-normal/x86_64/SearchBar.d",
+    "diagnostics" : "/Users/soufiane/Desktop/Launchpad/build/Build/Intermediates.noindex/Launchpad.build/Debug/Launchpad.build/Objects-normal/x86_64/SearchBar.dia",
+    "object" : "/Users/soufiane/Desktop/Launchpad/build/Build/Intermediates.noindex/Launchpad.build/Debug/Launchpad.build/Objects-normal/x86_64/SearchBar.o",
+    "swift-dependencies" : "/Users/soufiane/Desktop/Launchpad/build/Build/Intermediates.noindex/Launchpad.build/Debug/Launchpad.build/Objects-normal/x86_64/SearchBar.swiftdeps"
+  }
+}

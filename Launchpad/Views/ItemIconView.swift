@@ -76,13 +76,26 @@ struct ItemIconView: View {
 
     private var content: some View {
         VStack(spacing: Metrics.labelSpacing * scale) {
-            ZStack(alignment: .topLeading) {
+            ZStack(alignment: .center) {
                 if isMergeTarget {
-                    RoundedRectangle(cornerRadius: Metrics.iconCornerRadius * scale, style: .continuous)
-                        .fill(Color.white.opacity(0.16))
+                    if isFolder {
+                        RoundedRectangle(cornerRadius: Metrics.iconCornerRadius * scale, style: .continuous)
+                            .stroke(Color.white.opacity(0.7), lineWidth: 2.5 * scale)
+                            .frame(width: iconSize * 1.08, height: iconSize * 1.08)
+                            .transition(.scale.combined(with: .opacity))
+                    } else {
+                        ZStack {
+                            RoundedRectangle(cornerRadius: Metrics.iconCornerRadius * scale, style: .continuous)
+                                .fill(.ultraThinMaterial)
+                            RoundedRectangle(cornerRadius: Metrics.iconCornerRadius * scale, style: .continuous)
+                                .fill(Color.white.opacity(0.24))
+                            RoundedRectangle(cornerRadius: Metrics.iconCornerRadius * scale, style: .continuous)
+                                .stroke(Color.white.opacity(0.35), lineWidth: 1)
+                        }
                         .frame(width: iconSize, height: iconSize)
-                        .scaleEffect(1.14)
-                        .transition(.opacity)
+                        .shadow(color: .black.opacity(0.35), radius: 8 * scale, y: 4 * scale)
+                        .transition(.scale(scale: 0.9).combined(with: .opacity))
+                    }
                 }
 
                 iconContent
@@ -91,7 +104,7 @@ struct ItemIconView: View {
                     .scaleEffect(tileScale)
                     .brightness(isPressed ? Metrics.iconPressedBrightness : 0)
                     .shadow(
-                        color: .black.opacity(isPressed ? 0.25 : Metrics.iconShadowOpacity),
+                        color: .black.opacity(isPressed ? 0.25 : (isMergeTarget && !isFolder ? 0 : Metrics.iconShadowOpacity)),
                         radius: Metrics.iconShadowRadius * scale,
                         x: 0,
                         y: Metrics.iconShadowY * scale
@@ -126,8 +139,9 @@ struct ItemIconView: View {
                 )
                 .frame(maxWidth: labelMaxWidth, alignment: .center)
                 .fixedSize(horizontal: false, vertical: true)
+                .opacity(isMergeTarget && !isFolder ? 0 : 1)
         }
-        .animation(isMergeTarget ? .easeInOut(duration: 0.3).repeatForever(autoreverses: true) : Metrics.Motion.hover, value: isMergeTarget)
+        .animation(.spring(response: 0.32, dampingFraction: 0.78), value: isMergeTarget)
         .animation(Metrics.Motion.hover, value: isHovered)
         .animation(Metrics.Motion.pressed, value: isPressed)
     }
@@ -142,10 +156,16 @@ struct ItemIconView: View {
     }
 
     private var tileScale: CGFloat {
-        let hover: CGFloat = isHovered && !isEditing && !isMergeTarget ? Metrics.iconHoverScale : 1
+        if isMergeTarget {
+            if isFolder {
+                return 1.08
+            } else {
+                return 0.40
+            }
+        }
+        let hover: CGFloat = isHovered && !isEditing ? Metrics.iconHoverScale : 1
         let pressed: CGFloat = isPressed ? Metrics.iconPressedScale : 1
-        let merge: CGFloat = isMergeTarget ? 1.15 : 1
-        return hover * pressed * merge
+        return hover * pressed
     }
 
     private var deleteBadge: some View {

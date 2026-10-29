@@ -7,7 +7,7 @@
         "key": "Folder name",
         "location": {
           "startingColumn": 42,
-          "startingLine": 116
+          "startingLine": 131
         }
       },
       {
@@ -15,7 +15,7 @@
         "key": "Click to rename",
         "location": {
           "startingColumn": 28,
-          "startingLine": 128
+          "startingLine": 143
         }
       },
       {
@@ -23,7 +23,7 @@
         "key": "",
         "location": {
           "startingColumn": 23,
-          "startingLine": 103
+          "startingLine": 108
         }
       }
     ]

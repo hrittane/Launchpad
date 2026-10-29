@@ -1,0 +1,30 @@
+{
+  "/Users/soufiane/Desktop/Launchpad/Launchpad/Window/MenuBarPatchWindowController.swift" : {
+    "const-values" : "/Users/soufiane/Desktop/Launchpad/build/Build/Intermediates.noindex/Launchpad.build/Debug/Launchpad.build/Objects-normal/x86_64/MenuBarPatchWindowController.swiftconstvalues",
+    "dependencies" : "/Users/soufiane/Desktop/Launchpad/build/Build/Intermediates.noindex/Launchpad.build/Debug/Launchpad.build/Objects-normal/x86_64/MenuBarPatchWindowController.d",
+    "diagnostics" : "/Users/soufiane/Desktop/Launchpad/build/Build/Intermediates.noindex/Launchpad.build/Debug/Launchpad.build/Objects-normal/x86_64/MenuBarPatchWindowController.dia",
+    "object" : "/Users/soufiane/Desktop/Launchpad/build/Build/Intermediates.noindex/Launchpad.build/Debug/Launchpad.build/Objects-normal/x86_64/MenuBarPatchWindowController.o",
+    "swift-dependencies" : "/Users/soufiane/Desktop/Launchpad/build/Build/Intermediates.noindex/Launchpad.build/Debug/Launchpad.build/Objects-normal/x86_64/MenuBarPatchWindowController.swiftdeps"
+  },
+  "/Users/soufiane/Desktop/Launchpad/Launchpad/Window/PreferencesWindowController.swift" : {
+    "const-values" : "/Users/soufiane/Desktop/Launchpad/build/Build/Intermediates.noindex/Launchpad.build/Debug/Launchpad.build/Objects-normal/x86_64/PreferencesWindowController.swiftconstvalues",
+    "dependencies" : "/Users/soufiane/Desktop/Launchpad/build/Build/Intermediates.noindex/Launchpad.build/Debug/Launchpad.build/Objects-normal/x86_64/PreferencesWindowController.d",
+    "diagnostics" : "/Users/soufiane/Desktop/Launchpad/build/Build/Intermediates.noindex/Launchpad.build/Debug/Launchpad.build/Objects-normal/x86_64/PreferencesWindowController.dia",
+    "object" : "/Users/soufiane/Desktop/Launchpad/build/Build/Intermediates.noindex/Launchpad.build/Debug/Launchpad.build/Objects-normal/x86_64/PreferencesWindowController.o",
+    "swift-dependencies" : "/Users/soufiane/Desktop/Launchpad/build/Build/Intermediates.noindex/Launchpad.build/Debug/Launchpad.build/Objects-normal/x86_64/PreferencesWindowController.swiftdeps"
+  },
+  "/Users/soufiane/Desktop/Launchpad/Launchpad/Window/WindowLevels.swift" : {
+    "const-values" : "/Users/soufiane/Desktop/Launchpad/build/Build/Intermediates.noindex/Launchpad.build/Debug/Launchpad.build/Objects-normal/x86_64/WindowLevels.swiftconstvalues",
+    "dependencies" : "/Users/soufiane/Desktop/Launchpad/build/Build/Intermediates.noindex/Launchpad.build/Debug/Launchpad.build/Objects-normal/x86_64/WindowLevels.d",
+    "diagnostics" : "/Users/soufiane/Desktop/Launchpad/build/Build/Intermediates.noindex/Launchpad.build/Debug/Launchpad.build/Objects-normal/x86_64/WindowLevels.dia",
+    "object" : "/Users/soufiane/Desktop/Launchpad/build/Build/Intermediates.noindex/Launchpad.build/Debug/Launchpad.build/Objects-normal/x86_64/WindowLevels.o",
+    "swift-dependencies" : "/Users/soufiane/Desktop/Launchpad/build/Build/Intermediates.noindex/Launchpad.build/Debug/Launchpad.build/Objects-normal/x86_64/WindowLevels.swiftdeps"
+  },
+  "/Users/soufiane/Desktop/Launchpad/Launchpad/Window/WindowManager.swift" : {
+    "const-values" : "/Users/soufiane/Desktop/Launchpad/build/Build/Intermediates.noindex/Launchpad.build/Debug/Launchpad.build/Objects-normal/x86_64/WindowManager.swiftconstvalues",
+    "dependencies" : "/Users/soufiane/Desktop/Launchpad/build/Build/Intermediates.noindex/Launchpad.build/Debug/Launchpad.build/Objects-normal/x86_64/WindowManager.d",
+    "diagnostics" : "/Users/soufiane/Desktop/Launchpad/build/Build/Intermediates.noindex/Launchpad.build/Debug/Launchpad.build/Objects-normal/x86_64/WindowManager.dia",
+    "object" : "/Users/soufiane/Desktop/Launchpad/build/Build/Intermediates.noindex/Launchpad.build/Debug/Launchpad.build/Objects-normal/x86_64/WindowManager.o",
+    "swift-dependencies" : "/Users/soufiane/Desktop/Launchpad/build/Build/Intermediates.noindex/Launchpad.build/Debug/Launchpad.build/Objects-normal/x86_64/WindowManager.swiftdeps"
+  }
+}

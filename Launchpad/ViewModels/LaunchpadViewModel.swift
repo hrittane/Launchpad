@@ -8,13 +8,10 @@ struct DragSession: Equatable {
     var sourcePage: Int
     var sourceIndex: Int
     var location: CGPoint
+    var targetInsertionSlot: Int?
     var hoveredEntryID: String?
     var armedMergeTargetID: String?
     var isOverFolder: Bool = false
-    /// Frames captured at drag start so hit-testing doesn't chase animated
-    /// reflow positions.
-    var baseFrames: [String: CGRect] = [:]
-    /// Candidate target for merge (hysteresis)
     var mergeCandidateID: String?
 }
 
@@ -102,6 +99,10 @@ final class LaunchpadViewModel: ObservableObject {
     let pageDrag = PageDragState()
     private var isDraggingPage = false
     @Published private(set) var dragSession: DragSession?
+    /// The exact layout a drop would commit, rendered while dragging. Nil when
+    /// no drag is active or when hovering a folder merge target (the drop will
+    /// not reorder the grid in that case).
+    @Published private(set) var reorderPreview: GridReorderPreview?
     @Published private(set) var folderDragSession: FolderDragSession?
     @Published private(set) var screenSize: CGSize = NSScreen.main?.frame.size ?? Metrics.referenceSize
     @Published private(set) var searchFocusToken = 0
@@ -282,6 +283,16 @@ final class LaunchpadViewModel: ObservableObject {
         screenSize = size
     }
 
+#if DEBUG
+    /// Test-only hook that installs a deterministic layout without scanning the
+    /// file system. Kept in DEBUG so release builds never expose it.
+    func seedLayoutForTesting(_ layout: [PageLayout], page: Int = 0) {
+        pages = layout
+        currentPage = page
+        clampPages()
+    }
+#endif
+
     func requestSearchFocus() {
         searchFocusToken &+= 1
     }
@@ -303,10 +314,18 @@ final class LaunchpadViewModel: ObservableObject {
     }
 
     var currentDisplayedPage: Int {
-        min(max(isSearchMode ? searchPage : currentPage, 0), max(0, displayedPages.count - 1))
+        let page = isSearchMode ? searchPage : currentPage
+        return min(max(page, 0), max(0, displayedPageCount - 1))
     }
 
-    var displayedPageCount: Int { max(1, displayedPages.count) }
+    var displayedPageCount: Int {
+        // A drag preview never adds pages, but it can collapse a transient
+        // trailing page created by dragging past the last real page.
+        if !isSearchMode, let reorderPreview {
+            return max(1, reorderPreview.pages.count)
+        }
+        return max(1, displayedPages.count)
+    }
 
     var activeFolder: FolderItem? {
         guard let openFolderID else { return nil }
@@ -674,8 +693,7 @@ final class LaunchpadViewModel: ObservableObject {
     func openFolder(_ folder: FolderItem, anchor: CGRect) {
         finishPageSnap()
         folderCloseTask?.cancel()
-        if openFolderID == folder.id {
-            folderIsPresented = true
+        if openFolderID == folder.id && folderIsPresented {
             return
         }
         openFolderID = folder.id
@@ -683,6 +701,18 @@ final class LaunchpadViewModel: ObservableObject {
         folderPage = 0
         folderTitleEditing = false
         focusedEntryID = nil
+        folderIsPresented = false
+
+        DispatchQueue.main.async { [weak self] in
+            guard let self, self.openFolderID == folder.id else { return }
+            withAnimation(self.animation(.folder)) {
+                self.folderIsPresented = true
+            }
+        }
+    }
+
+    func presentFolder() {
+        guard openFolderID != nil, !folderIsPresented else { return }
         withAnimation(animation(.folder)) {
             folderIsPresented = true
         }
@@ -901,7 +931,16 @@ final class LaunchpadViewModel: ObservableObject {
             sourcePage: page,
             sourceIndex: index,
             location: .zero,
-            baseFrames: iconFrames
+            targetInsertionSlot: index
+        )
+        // The initial preview is the untouched layout; the first pointer update
+        // replaces it with the projected reflow.
+        reorderPreview = GridReorder.preview(
+            moving: entry.id,
+            toPage: page,
+            slot: index,
+            in: pages,
+            capacity: settings.pageCapacity
         )
     }
 
@@ -909,72 +948,130 @@ final class LaunchpadViewModel: ObservableObject {
         guard var session = dragSession else { return }
         session.location = location
 
-        let frames = session.baseFrames.isEmpty ? iconFrames : session.baseFrames
-        var bestID: String?
-        var bestDistance = CGFloat.greatestFiniteMagnitude
-        var overFolder = false
-        for (id, frame) in frames where id != session.entry.id {
-            let center = CGPoint(x: frame.midX, y: frame.midY)
-            let distance = hypot(center.x - location.x, center.y - location.y)
-            let hitRadius = max(frame.width, frame.height) * 0.6
-            if distance < hitRadius, distance < bestDistance {
-                bestDistance = distance
-                bestID = id
-                overFolder = entry(withID: id)?.isFolder ?? false
+        let metrics = LayoutMetrics(screenSize: screenSize, settings: settings)
+        // Use the page the user actually sees. A transient trailing page is
+        // already folded into the last real page by `currentDisplayedPage`.
+        let page = min(max(currentDisplayedPage, 0), max(0, pages.count - 1))
+        let currentEntries = pages.indices.contains(page) ? pages[page] : []
+        let remaining = currentEntries.filter { $0.id != session.entry.id }
+
+        // 1. Check if hovering directly over an item for folder merge / drop into folder
+        var hoveredTargetID: String? = nil
+        var isTargetFolder: Bool = false
+
+        if session.entry.app != nil {
+            for (idx, item) in remaining.enumerated() {
+                let itemSlot: Int
+                if session.armedMergeTargetID == item.id {
+                    itemSlot = idx
+                } else if let insertion = session.targetInsertionSlot {
+                    itemSlot = (idx < insertion) ? idx : (idx + 1)
+                } else {
+                    itemSlot = idx
+                }
+
+                let center = metrics.iconCenter(at: itemSlot)
+                let dist = hypot(center.x - location.x, center.y - location.y)
+                let mergeRadius = metrics.iconSize * 0.44
+
+                if dist <= mergeRadius {
+                    hoveredTargetID = item.id
+                    isTargetFolder = item.isFolder
+                    break
+                }
             }
         }
-        session.hoveredEntryID = bestID
-        session.isOverFolder = overFolder
 
-        if let bestID,
-           !overFolder,
-           session.entry.app != nil,
-           let targetEntry = entry(withID: bestID),
-           targetEntry.app != nil,
-           let targetFrame = frames[bestID] {
-            let center = CGPoint(x: targetFrame.midX, y: targetFrame.midY)
-            let distance = hypot(center.x - location.x, center.y - location.y)
-            let mergeRadius = targetFrame.width * 0.5
-            let reorderExit = targetFrame.width * 0.65
+        session.hoveredEntryID = hoveredTargetID
+        session.isOverFolder = isTargetFolder
 
-            if session.armedMergeTargetID == bestID {
-                if distance > targetFrame.width * 0.7 {
-                    cancelMergeArm()
-                    session.mergeCandidateID = nil
-                }
-            } else if distance <= mergeRadius {
-                // Directly over - start merge, suppress reorder
-                session.mergeCandidateID = bestID
-                if mergeArmTask == nil {
-                    mergeArmTask = Task { [weak self] in
-                        try? await Task.sleep(nanoseconds: UInt64(Metrics.Durations.dragHoverFolder * 1_000_000_000))
-                        guard !Task.isCancelled else { return }
-                        await MainActor.run {
-                            if let self, var sess = self.dragSession,
-                               sess.mergeCandidateID == bestID,
-                               sess.hoveredEntryID == bestID,
-                               sess.entry.app != nil {
-                                withAnimation(.easeOut(duration: 0.16)) {
-                                    sess.armedMergeTargetID = bestID
-                                }
-                                self.dragSession = sess
-                            }
+        // 2. Folder merge arming logic
+        if let targetID = hoveredTargetID {
+            if session.armedMergeTargetID == targetID {
+                // Already armed
+            } else if session.mergeCandidateID == targetID {
+                // Waiting for dwell timer
+            } else {
+                session.mergeCandidateID = targetID
+                mergeArmTask?.cancel()
+                let targetCandidateID = targetID
+                mergeArmTask = Task { [weak self] in
+                    try? await Task.sleep(nanoseconds: UInt64(Metrics.Durations.dragHoverFolder * 1_000_000_000))
+                    guard !Task.isCancelled else { return }
+                    await MainActor.run {
+                        guard let self,
+                              var sess = self.dragSession,
+                              sess.mergeCandidateID == targetCandidateID,
+                              sess.hoveredEntryID == targetCandidateID else { return }
+                        withAnimation(.spring(response: 0.32, dampingFraction: 0.78)) {
+                            sess.armedMergeTargetID = targetCandidateID
                         }
-                        self?.mergeArmTask = nil
+                        self.dragSession = sess
                     }
                 }
-            } else if distance > reorderExit {
-                // Past the merge zone - allow reordering
-                cancelMergeArm()
-                session.mergeCandidateID = nil
-            } else {
-                // In between - prefer merge if still close
-                session.mergeCandidateID = bestID
-                cancelMergeArm()
             }
         } else {
-            session.mergeCandidateID = nil
-            cancelMergeArm()
+            if let armedID = session.armedMergeTargetID {
+                var shouldDisarm = true
+                if let idx = remaining.firstIndex(where: { $0.id == armedID }) {
+                    let center = metrics.iconCenter(at: idx)
+                    let dist = hypot(center.x - location.x, center.y - location.y)
+                    if dist <= metrics.iconSize * 0.55 {
+                        shouldDisarm = false
+                    }
+                }
+                if shouldDisarm {
+                    withAnimation(.spring(response: 0.30, dampingFraction: 0.82)) {
+                        session.armedMergeTargetID = nil
+                    }
+                    session.mergeCandidateID = nil
+                    cancelMergeArm()
+                }
+            } else {
+                session.mergeCandidateID = nil
+                cancelMergeArm()
+            }
+        }
+
+        // 3. Project the layout for the cell under the cursor. This preview is
+        // also what `endDrag` commits, so the drop can never disagree with it.
+        if session.armedMergeTargetID == nil {
+            let targetSlot: Int
+            if let s = metrics.slot(at: location) {
+                targetSlot = s
+            } else {
+                let col = Int(floor((location.x - metrics.gridRect.minX) / metrics.cellWidth))
+                let row = Int(floor((location.y - metrics.gridRect.minY) / metrics.cellHeight))
+                let clampedCol = min(max(col, 0), metrics.columns - 1)
+                let clampedRow = min(max(row, 0), metrics.rows - 1)
+                targetSlot = clampedRow * metrics.columns + clampedCol
+            }
+            session.targetInsertionSlot = targetSlot
+
+            var targetPage = page
+            var preview = GridReorder.preview(
+                moving: session.entry.id,
+                toPage: targetPage,
+                slot: targetSlot,
+                in: pages,
+                capacity: settings.pageCapacity
+            )
+            if let projected = preview, targetPage >= projected.pages.count {
+                // The cursor was over a transient trailing page; the packed
+                // layout folds that page back into the last real one.
+                targetPage = max(0, projected.pages.count - 1)
+                preview = GridReorder.preview(
+                    moving: session.entry.id,
+                    toPage: targetPage,
+                    slot: targetSlot,
+                    in: pages,
+                    capacity: settings.pageCapacity
+                )
+            }
+            // Hovering a folder means the drop merges rather than reorders.
+            reorderPreview = session.isOverFolder ? nil : preview
+        } else {
+            reorderPreview = nil
         }
 
         dragSession = session
@@ -988,36 +1085,63 @@ final class LaunchpadViewModel: ObservableObject {
         edgeFlipTask = nil
         mergeArmTask = nil
 
-        let targetID = session.hoveredEntryID
         let armedMergeID = session.armedMergeTargetID
+        let hoveredID = session.hoveredEntryID
         let draggedEntry = session.entry
-        let baseFrames = session.baseFrames
+        let metrics = LayoutMetrics(screenSize: screenSize, settings: settings)
 
-        // Remove the dragged entry first so insertion indices describe the
-        // post-removal layout.
-        var releasedDuringRemoval: [LaunchpadEntry] = []
-        if let app = draggedEntry.app {
-            releasedDuringRemoval = LayoutEngine.removeApp(appID: app.id, from: &pages)
+        // Priority 1: armed merge target (app or folder)
+        // Priority 2: if hovered directly over an existing folder
+        let mergeTargetID: String?
+        if let armed = armedMergeID {
+            mergeTargetID = armed
+        } else if session.isOverFolder, let hovered = hoveredID {
+            mergeTargetID = hovered
         } else {
-            LayoutEngine.remove(entryID: draggedEntry.id, from: &pages)
+            mergeTargetID = nil
+        }
+
+        var targetLocationBefore: (page: Int, index: Int)?
+        if let mergeTargetID {
+            targetLocationBefore = entryLocation(id: mergeTargetID)
         }
 
         var didCreateFolder = false
         var createdFolderID: UUID?
-        var createdAnchor: CGRect = baseFrames[armedMergeID ?? targetID ?? ""] ?? .zero
+        var createdAnchor: CGRect = .zero
+        let preview = reorderPreview
 
-        if let targetID,
+        if let targetID = mergeTargetID,
            let draggedApp = draggedEntry.app,
-           let targetEntry = entry(withID: targetID),
-           let targetLocation = entryLocation(id: targetID) {
-            if let folder = targetEntry.folder, targetID.hasPrefix("folder:") {
+           let targetLocationBefore,
+           let targetEntry = entry(withID: targetID) {
+
+            // Folder merges keep their own path: the dragged entry is removed
+            // first so the target index can be adjusted for the shifted row.
+            var releasedDuringRemoval: [LaunchpadEntry] = []
+            if let app = draggedEntry.app {
+                releasedDuringRemoval = LayoutEngine.removeApp(appID: app.id, from: &pages)
+            } else {
+                LayoutEngine.remove(entryID: draggedEntry.id, from: &pages)
+            }
+
+            var targetLocation = targetLocationBefore
+            if session.sourcePage == targetLocation.page && session.sourceIndex < targetLocation.index {
+                targetLocation.index = max(0, targetLocation.index - 1)
+            }
+
+            if let folder = targetEntry.folder {
+                // Drop onto existing folder
                 updateFolder(id: folder.id) { existing in
                     LayoutEngine.folder(existing, adding: draggedApp)
                 }
             } else if let targetApp = targetEntry.app,
-                      armedMergeID == targetID,
                       let newFolder = LayoutEngine.makeFolder(apps: [targetApp, draggedApp]) {
-                pages[targetLocation.page].remove(at: targetLocation.index)
+                // Create new folder
+                if pages.indices.contains(targetLocation.page),
+                   pages[targetLocation.page].indices.contains(targetLocation.index) {
+                    pages[targetLocation.page].remove(at: targetLocation.index)
+                }
                 LayoutEngine.insert(
                     .folder(newFolder),
                     at: targetLocation.page,
@@ -1027,58 +1151,65 @@ final class LaunchpadViewModel: ObservableObject {
                 )
                 didCreateFolder = true
                 createdFolderID = newFolder.id
-                createdAnchor = baseFrames[targetID] ?? iconFrames[targetID] ?? .zero
-            } else {
-                LayoutEngine.insert(
-                    draggedEntry,
-                    at: targetLocation.page,
-                    index: targetLocation.index,
-                    in: &pages,
-                    capacity: settings.pageCapacity
-                )
+                createdAnchor = metrics.iconFrame(at: targetLocation.index)
             }
+
+            for released in releasedDuringRemoval {
+                switch released {
+                case .app(let app):
+                    LayoutEngine.appendApp(app, to: &pages, capacity: settings.pageCapacity)
+                case .folder(let folder):
+                    for app in folder.apps {
+                        LayoutEngine.appendApp(app, to: &pages, capacity: settings.pageCapacity)
+                    }
+                }
+            }
+        } else if let preview {
+            // Commit exactly the layout the user saw. Using the preview pages
+            // (not a remove/insert reconstruction) is what keeps the icon from
+            // jumping to a neighbouring slot on drop.
+            pages = preview.pages
         } else {
-            let metrics = LayoutMetrics(screenSize: screenSize, settings: settings)
-            let page = min(max(currentPage, 0), max(0, pages.count - 1))
-            let slot = metrics.slot(at: session.location)
-            let insertionIndex: Int
-            if let slot, pages.indices.contains(page) {
-                insertionIndex = min(slot, pages[page].count)
-            } else if pages.indices.contains(page) {
-                insertionIndex = pages[page].count
+            // Defensive fallback for a drag that ends before any pointer update
+            // produced a preview.
+            var releasedDuringRemoval: [LaunchpadEntry] = []
+            if let app = draggedEntry.app {
+                releasedDuringRemoval = LayoutEngine.removeApp(appID: app.id, from: &pages)
             } else {
-                insertionIndex = 0
+                LayoutEngine.remove(entryID: draggedEntry.id, from: &pages)
             }
+            let fallbackPage = min(max(currentPage, 0), max(0, pages.count - 1))
+            let insertionIndex = session.targetInsertionSlot
+                ?? (pages.indices.contains(fallbackPage) ? pages[fallbackPage].count : 0)
             LayoutEngine.insert(
                 draggedEntry,
-                at: page,
+                at: fallbackPage,
                 index: insertionIndex,
                 in: &pages,
                 capacity: settings.pageCapacity
             )
-        }
-
-        // Apps released by dissolving a folder during removal must not vanish.
-        for released in releasedDuringRemoval {
-            switch released {
-            case .app(let app):
-                LayoutEngine.appendApp(app, to: &pages, capacity: settings.pageCapacity)
-            case .folder(let folder):
-                for app in folder.apps {
+            for released in releasedDuringRemoval {
+                switch released {
+                case .app(let app):
                     LayoutEngine.appendApp(app, to: &pages, capacity: settings.pageCapacity)
+                case .folder(let folder):
+                    for app in folder.apps {
+                        LayoutEngine.appendApp(app, to: &pages, capacity: settings.pageCapacity)
+                    }
                 }
             }
         }
 
         dragSession = nil
+        reorderPreview = nil
         pageDrag.offset = 0
         isDraggingPage = false
         cleanupAfterLayoutChange()
         persist()
 
         if didCreateFolder, let createdFolderID {
-            // Small delay so layout settles before animating folder open
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak self] in
+            // Automatically zoom open newly created folder
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.08) { [weak self] in
                 guard let self else { return }
                 self.openFolder(folderID: createdFolderID, anchor: createdAnchor)
                 self.beginFolderRename()
@@ -1091,14 +1222,8 @@ final class LaunchpadViewModel: ObservableObject {
         mergeArmTask = nil
         edgeFlipTask?.cancel()
         edgeFlipTask = nil
-        withAnimation(.easeOut(duration: 0.15)) {
-            if var s = dragSession {
-                s.armedMergeTargetID = nil
-                s.mergeCandidateID = nil
-                dragSession = s
-            }
-        }
         dragSession = nil
+        reorderPreview = nil
     }
 
     // MARK: Folder drag
@@ -1213,21 +1338,24 @@ final class LaunchpadViewModel: ObservableObject {
               let folder = folder(withID: session.folderID) else { return }
 
         let survivingApps = folder.apps.filter { $0.id != session.app.id }
+        let appsToInsert: [AppItem]
         if survivingApps.count >= 2 {
             var updated = folder
             updated.remove(appID: session.app.id)
             pages[location.page][location.index] = .folder(updated)
+            appsToInsert = [session.app]
         } else {
             // A one-app folder is not viable: remove the folder and release
             // both the dragged app and the survivor.
             pages[location.page].remove(at: location.index)
+            appsToInsert = [session.app] + survivingApps
         }
 
         let metrics = LayoutMetrics(screenSize: screenSize, settings: settings)
         let page = min(max(currentPage, 0), max(0, pages.count - 1))
         let slot = metrics.slot(at: session.location) ?? (pages.indices.contains(page) ? pages[page].count : 0)
         var inserted = 0
-        for app in [session.app] + survivingApps {
+        for app in appsToInsert {
             LayoutEngine.insert(
                 .app(app),
                 at: page,
@@ -1292,6 +1420,9 @@ final class LaunchpadViewModel: ObservableObject {
             }
         } else if currentPage > 0 {
             withAnimation(animation(.page)) { currentPage -= 1 }
+        }
+        if let loc = dragSession?.location {
+            updateDrag(location: loc)
         }
     }
 

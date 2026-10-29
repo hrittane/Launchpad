@@ -1,0 +1,64 @@
+{
+  "source": "/Users/soufiane/Desktop/Launchpad/Launchpad/Views/LaunchpadRootView.swift",
+  "tables": {
+    "Localizable": [
+      {
+        "comment": "Empty search results label",
+        "key": "No Results",
+        "location": {
+          "startingColumn": 22,
+          "startingLine": 109
+        }
+      },
+      {
+        "comment": "Accessibility rotor for grid pages",
+        "key": "Pages",
+        "location": {
+          "startingColumn": 34,
+          "startingLine": 165
+        }
+      },
+      {
+        "comment": "Accessibility rotor page entry",
+        "key": "Page %lld of %lld",
+        "location": {
+          "startingColumn": 25,
+          "startingLine": 169
+        }
+      },
+      {
+        "comment": "Delete confirmation title",
+        "key": "Remove %@?",
+        "location": {
+          "startingColumn": 25,
+          "startingLine": 259
+        }
+      },
+      {
+        "comment": "Delete confirmation button",
+        "key": "Move to Trash",
+        "location": {
+          "startingColumn": 30,
+          "startingLine": 267
+        }
+      },
+      {
+        "comment": "Cancel button",
+        "key": "Cancel",
+        "location": {
+          "startingColumn": 30,
+          "startingLine": 272
+        }
+      },
+      {
+        "comment": "Delete confirmation message",
+        "key": "The application will be moved to the Trash. App files are not deleted immediately.",
+        "location": {
+          "startingColumn": 25,
+          "startingLine": 276
+        }
+      }
+    ]
+  },
+  "version": 1
+}

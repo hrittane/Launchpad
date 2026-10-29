@@ -99,8 +99,8 @@ enum Metrics {
         static let folderClose: Double = 0.25
         static let jiggle: Double = 0.13
         static let jiggleReturn: Double = 0.15
-        static let dragHoverFolder: Double = 0.6
-        static let dragEdgeFlip: Double = 0.8
+        static let dragHoverFolder: Double = 0.45
+        static let dragEdgeFlip: Double = 0.7
         static let removeItem: Double = 0.2
         static let reducedMotion: Double = 0.15
         static let layoutSaveDebounce: Double = 0.5

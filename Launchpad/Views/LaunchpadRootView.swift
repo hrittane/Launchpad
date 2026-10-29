@@ -216,7 +216,14 @@ struct LaunchpadRootView: View {
 
     private func visiblePageIndices(current: Int, count: Int) -> [Int] {
         guard count > 0 else { return [] }
-        return ((current - 1)...(current + 1)).filter { (0..<count).contains($0) }
+        var indices = Set(((current - 1)...(current + 1)).filter { (0..<count).contains($0) })
+        // The dragged item's view must stay alive for the whole gesture. Keep
+        // its source page instantiated even after the user flips away from it.
+        if let session = viewModel.dragSession {
+            let source = session.sourcePage
+            indices.formUnion(((source - 1)...(source + 1)).filter { (0..<count).contains($0) })
+        }
+        return indices.sorted()
     }
 
     private func centeredFrame(for size: CGSize, in container: CGSize) -> CGRect {
