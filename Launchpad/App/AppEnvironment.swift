@@ -76,7 +76,7 @@ final class AppEnvironment {
 #endif
 
     func openPreferences() {
-        NSApp.activate(ignoringOtherApps: true)
+        NSApp.activate()
 
         // SwiftUI's Settings scene is opened through the standard action. The
         // selector name changed across macOS releases, so try both.

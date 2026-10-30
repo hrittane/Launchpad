@@ -9,9 +9,9 @@ The app is built with SwiftUI for the interface, AppKit for the window, blur,
 event, and hot-key plumbing, and an MVVM structure with `async/await` services.
 There are no third-party dependencies.
 
-- **Platform:** macOS 13.0 or newer
+- **Platform:** macOS 26.0 or newer
 - **Language:** Swift 5.9+ toolchain (project `SWIFT_VERSION = 5.0`, using
-  modern concurrency, actors, and SwiftUI APIs available on macOS 13)
+  modern concurrency, actors, and the macOS 26 SwiftUI APIs)
 - **Bundle identifier:** `com.soufiane.launchpad`
 - **Product:** `Launchpad.app`
 - **Data:** `~/Library/Application Support/Launchpad/`
@@ -106,7 +106,7 @@ automatically. The app target is `Launchpad`; the test target is
 | `CFBundleName` / `CFBundleDisplayName` | `Launchpad` | App/menu-bar name |
 | `CFBundlePackageType` | `APPL` | Application bundle |
 | `CFBundleShortVersionString` / `CFBundleVersion` | `1.0` / `1` | Version metadata |
-| `LSMinimumSystemVersion` | `$(MACOSX_DEPLOYMENT_TARGET)` → `13.0` | Deployment target |
+| `LSMinimumSystemVersion` | `$(MACOSX_DEPLOYMENT_TARGET)` → `26.0` | Deployment target |
 | `LSApplicationCategoryType` | `public.app-category.utilities` | Utilities category |
 | `LSUIElement` | `true` | Menu-bar agent: no Dock icon, no app menu |
 | `LSMultipleInstancesProhibited` | `true` | One launcher instance |
@@ -267,8 +267,8 @@ an XCTest environment and skips runtime startup).
 - [ ] Move the pointer to the top edge: no menu titles appear and clicking there
       opens no macOS menu.
 - [ ] Background is a vibrant blurred desktop with a cool ambient wash, a
-      specular highlight, and a dark/light tint; moving **Blur intensity** from
-      0% to 100% visibly deepens the tint and ambient cast.
+      specular highlight, and a dark/light tint that follows the system
+      appearance.
 - [ ] Enable **Reduce Transparency** in System Settings → Accessibility →
       Display; the background becomes a solid dark gray fallback.
 - [ ] With **Show on all displays** enabled, every display mirrors the UI, but
@@ -361,9 +361,8 @@ an XCTest environment and skips runtime startup).
 
 - [ ] ⌘, and the status menu both open Preferences.
 - [ ] Columns/rows, icon size (64 pt up to the largest size the current grid
-      fits), label size (11–15), blur intensity, hot corner, global shortcut,
-      **Launch at login**, and **Show on all displays** all persist across
-      relaunch.
+      fits), label size (6–15), hot corner, global shortcut, **Launch at login**, and **Show on all displays** all
+      persist across relaunch.
 - [ ] The shortcut recorder captures a chord and the new global shortcut toggles
       the overlay; **Reset** restores F4.
 - [ ] Selecting a hot corner shows the overlay after a 0.3 s dwell at that
@@ -399,14 +398,13 @@ an XCTest environment and skips runtime startup).
   40–60 pt Gaussian radius, so the full-screen backdrop uses
   `NSVisualEffectView` (`.fullScreenUI`, emphasized) plus a cool ambient wash
   and specular highlight. Per Apple's HIG, Liquid Glass belongs to the floating
-  control/navigation layer, not the app background. On macOS 26 and later the
-  folder panel, search field, and folder-drop plate use the real system material
-  through SwiftUI's `glassEffect(_:in:)` (regular variant, with a dark tint for
-  legibility); the material blurs/refracts the grid behind the panel and reacts
-  to the pointer where appropriate. Earlier systems get a layered ultra-thin
-  material with the same silhouette. The **Blur intensity** slider adjusts the
-  backdrop tint and ambient cast, as before. Its range is deliberately wide so
-  both ends of the slider look different.
+  control/navigation layer, not the app background, and glass cannot sample
+  other glass. The folder panel, search field, page-dot pill, and folder-drop
+  plate use the system material through SwiftUI's `glassEffect(_:in:)` (regular
+  variant, with a scheme-aware tint for legibility), all hosted in a single
+  `GlassEffectContainer`; the material blurs and refracts the grid behind it and
+  reacts to the pointer where appropriate. The deployment target is macOS 26, so
+  there is no pre-26 material fallback.
 - **Icon-size range:** `LayoutMetrics.iconSize` caps a request to the cell and
   label block, so the Preferences slider ends at `maximumIconSize` for the
   current grid instead of offering inert values above the cap. Changing label
@@ -473,14 +471,14 @@ an XCTest environment and skips runtime startup).
 
 ```text
 xcodebuild ... build      → BUILD SUCCEEDED
-xcodebuild ... test       → TEST SUCCEEDED, 48 tests, 0 failures
+xcodebuild ... test       → TEST SUCCEEDED, 50 tests, 0 failures
 Launchpad --smoke-test    → SMOKE overlayWindows=1 pages=3 items=75 frame=(0.0, 83.0, 1920.0, 1117.0)
 window levels (debug)     → overlay 26 at (0, 83, 1920, 1117); Dock backdrop 19 at (0, 0, 1920, 84); Dock 20
 graceful quit             → process exited after layout.json was flushed
 ```
 
-The local machine used Xcode 26.5 on macOS 26.7.1 with deployment target 13.0.
-The macOS 26 Liquid Glass code path was built and exercised at runtime.
+The local machine used Xcode 26.5 on macOS 26.7.1 with deployment target 26.0.
+The Liquid Glass surfaces were built and exercised at runtime.
 Pixel-level visual inspection requires Screen Recording permission, which was
 unavailable in this environment; window levels, frames, visibility, build, and
 tests were verified programmatically.

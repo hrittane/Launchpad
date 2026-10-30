@@ -6,6 +6,7 @@ struct LaunchpadRootView: View {
     @ObservedObject var viewModel: LaunchpadViewModel
     let isInteractive: Bool
     @Namespace private var pageRotorNamespace
+    @Namespace private var glassNamespace
 
     var body: some View {
         GeometryReader { proxy in
@@ -17,7 +18,7 @@ struct LaunchpadRootView: View {
                         viewModel.setScreenSize(proxy.size)
                     }
                 }
-                .onChange(of: proxy.size) { newSize in
+                .onChange(of: proxy.size) { _, newSize in
                     if isInteractive {
                         viewModel.setScreenSize(newSize)
                     }
@@ -36,9 +37,7 @@ struct LaunchpadRootView: View {
         let metrics = LayoutMetrics(screenSize: size, settings: viewModel.settings)
         let folderOpen = viewModel.openFolderID != nil
 
-        return ZStack(alignment: .topLeading) {
-            LaunchpadBackgroundView(viewModel: viewModel)
-
+        let stack = ZStack(alignment: .topLeading) {
             mainContent(size: size, metrics: metrics)
                 .scaleEffect(scaleForShow)
                 .opacity(viewModel.isVisible ? 1 : 0)
@@ -64,12 +63,25 @@ struct LaunchpadRootView: View {
                         metrics: folderMetrics,
                         panelFrame: centeredFrame(for: folderMetrics.panelSize, in: size),
                         anchor: viewModel.folderAnchor,
-                        isPresented: viewModel.folderIsPresented
+                        isPresented: viewModel.folderIsPresented,
+                        glassNamespace: glassNamespace
                     )
                 }
             }
 
             dragLayer(metrics: metrics)
+        }
+
+        // The backdrop stays outside the glass container so its window material
+        // keeps sampling the desktop directly. Every custom glass surface above
+        // it shares one container, which lets the system batch them in a single
+        // pass and morph shapes that share a `glassEffectID`.
+        return ZStack(alignment: .topLeading) {
+            LaunchpadBackgroundView(viewModel: viewModel)
+
+            GlassEffectContainer(spacing: 8) {
+                stack
+            }
         }
     }
 
@@ -96,6 +108,7 @@ struct LaunchpadRootView: View {
                     currentPage: viewModel.currentDisplayedPage,
                     diameter: Metrics.pageDotDiameter * metrics.scale,
                     spacing: Metrics.pageDotSpacing * metrics.scale,
+                    style: .glass,
                     onSelect: { page in
                         viewModel.goToPage(page)
                     }

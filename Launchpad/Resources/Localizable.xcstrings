@@ -21,16 +21,6 @@
         }
       }
     },
-    "AppKit exposes blur materials rather than a Gaussian radius, so this control adjusts the backdrop's tint and dimming." : {
-      "localizations" : {
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "AppKit expose des matériaux de flou plutôt qu’un rayon gaussien ; ce réglage ajuste donc la teinte et l’assombrissement de l’arrière-plan."
-          }
-        }
-      }
-    },
     "Application" : {
       "localizations" : {
         "fr" : {
@@ -47,16 +37,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Lanceur d’applications"
-          }
-        }
-      }
-    },
-    "Blur intensity" : {
-      "localizations" : {
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Intensité du flou"
           }
         }
       }

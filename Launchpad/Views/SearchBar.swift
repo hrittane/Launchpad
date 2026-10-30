@@ -7,6 +7,7 @@ struct SearchBar: View {
     let scale: CGFloat
 
     @FocusState private var isFocused: Bool
+    @Environment(\.colorScheme) private var colorScheme
 
     private var width: CGFloat {
         (isFocused ? Metrics.searchFocusedWidth : Metrics.searchWidth) * scale
@@ -15,62 +16,61 @@ struct SearchBar: View {
     private var height: CGFloat { Metrics.searchHeight * scale }
 
     var body: some View {
-        LiquidGlassHost {
-            HStack(spacing: 8 * scale) {
-                Image(systemName: "magnifyingglass")
-                    .font(.system(size: 13 * scale, weight: .medium))
-                    .foregroundStyle(.white.opacity(Metrics.searchPlaceholderOpacity))
-                    .accessibilityHidden(true)
+        HStack(spacing: 8 * scale) {
+            Image(systemName: "magnifyingglass")
+                .font(.system(size: 13 * scale, weight: .medium))
+                .foregroundStyle(.white.opacity(Metrics.searchPlaceholderOpacity))
+                .accessibilityHidden(true)
 
-                ZStack(alignment: .leading) {
-                    if viewModel.searchText.isEmpty {
-                        Text("Search", comment: "Search field placeholder")
-                            .font(.system(size: Metrics.searchFontSize * scale))
-                            .foregroundStyle(.white.opacity(Metrics.searchPlaceholderOpacity))
-                            .allowsHitTesting(false)
-                    }
-
-                    TextField("", text: $viewModel.searchText)
-                        .textFieldStyle(.plain)
+            ZStack(alignment: .leading) {
+                if viewModel.searchText.isEmpty {
+                    Text("Search", comment: "Search field placeholder")
                         .font(.system(size: Metrics.searchFontSize * scale))
-                        .foregroundStyle(.white)
-                        .tint(.white)
-                        .focused($isFocused)
-                        .onSubmit {
-                            viewModel.handleReturn()
-                        }
-                        .accessibilityLabel(Text("Search apps", comment: "Search field accessibility label"))
+                        .foregroundStyle(.white.opacity(Metrics.searchPlaceholderOpacity))
+                        .allowsHitTesting(false)
                 }
 
-                if !viewModel.searchText.isEmpty {
-                    Button {
-                        viewModel.clearSearch()
-                    } label: {
-                        Image(systemName: "xmark.circle.fill")
-                            .font(.system(size: 13 * scale))
-                            .foregroundStyle(.white.opacity(0.65))
+                TextField("", text: $viewModel.searchText)
+                    .textFieldStyle(.plain)
+                    .font(.system(size: Metrics.searchFontSize * scale))
+                    .foregroundStyle(.white)
+                    .tint(.white)
+                    .focused($isFocused)
+                    .onSubmit {
+                        viewModel.handleReturn()
                     }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel(Text("Clear search", comment: "Clear search button"))
-                    .transition(.opacity)
-                }
+                    .accessibilityLabel(Text("Search apps", comment: "Search field accessibility label"))
             }
-            .padding(.horizontal, 10 * scale)
-            .frame(width: width, height: height)
-            .liquidGlass(
-                .regular,
-                tint: Color.black.opacity(0.18),
-                interactive: true,
-                in: RoundedRectangle(cornerRadius: Metrics.searchCornerRadius * scale, style: .continuous)
-            )
+
+            if !viewModel.searchText.isEmpty {
+                Button {
+                    viewModel.clearSearch()
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 13 * scale))
+                        .foregroundStyle(.white.opacity(0.65))
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(Text("Clear search", comment: "Clear search button"))
+                .transition(.opacity)
+            }
         }
+        .padding(.horizontal, 10 * scale)
+        .frame(width: width, height: height)
+        .liquidGlass(
+            .regular
+                .tint(Metrics.glassTintSoft.color(for: colorScheme))
+                .interactive(),
+            in: Capsule()
+        )
+        .glassEffectTransition(.materialize)
         .opacity(viewModel.isVisible ? 1 : 0)
         .animation(widthAnimation, value: width)
         .animation(visibilityAnimation, value: viewModel.isVisible)
-        .onChange(of: viewModel.searchFocusToken) { _ in
+        .onChange(of: viewModel.searchFocusToken) {
             isFocused = true
         }
-        .onChange(of: viewModel.isVisible) { visible in
+        .onChange(of: viewModel.isVisible) { _, visible in
             if !visible { isFocused = false }
         }
         .accessibilityElement(children: .contain)

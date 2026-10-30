@@ -62,24 +62,10 @@ struct PreferencesView: View {
                     sliderRow(
                         title: Text("Label size", comment: "Preferences label"),
                         value: binding(\.labelFontSize),
-                        range: 11...15,
+                        range: 6...15,
                         step: 1,
                         valueText: "\(Int(viewModel.settings.labelFontSize)) pt"
                     )
-                    sliderRow(
-                        title: Text("Blur intensity", comment: "Preferences label"),
-                        value: binding(\.blurIntensity),
-                        range: 0...1,
-                        step: 0.05,
-                        valueText: "\(Int(viewModel.settings.blurIntensity * 100))%"
-                    )
-                    Text(
-                        "AppKit exposes blur materials rather than a Gaussian radius, so this control adjusts the backdrop's tint and dimming.",
-                        comment: "Blur limitation caption"
-                    )
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
                 }
 
                 section(Text("Activation", comment: "Preferences section")) {
@@ -93,6 +79,7 @@ struct PreferencesView: View {
                         } label: {
                             Text("Reset", comment: "Reset shortcut button")
                         }
+                        .buttonStyle(.glass)
                     }
                     HStack {
                         Text("Hot corner", comment: "Preferences label")
@@ -131,11 +118,14 @@ struct PreferencesView: View {
                         } label: {
                             Text("Reset Layout", comment: "Preferences button")
                         }
+                        .buttonStyle(.glassProminent)
+                        .tint(.red)
                         Button {
                             viewModel.clearIconCache()
                         } label: {
                             Text("Clear Icon Cache", comment: "Preferences button")
                         }
+                        .buttonStyle(.glass)
                         Spacer()
                     }
                     Button {
@@ -143,6 +133,7 @@ struct PreferencesView: View {
                     } label: {
                         Text("Show Data Folder", comment: "Preferences button")
                     }
+                    .buttonStyle(.glass)
                     Text(LayoutStore.defaultFileURL().path)
                         .font(.caption.monospaced())
                         .foregroundStyle(.secondary)
@@ -165,16 +156,16 @@ struct PreferencesView: View {
         .onAppear {
             clampIconSize()
         }
-        .onChange(of: viewModel.settings.labelFontSize) { _ in
+        .onChange(of: viewModel.settings.labelFontSize) {
             clampIconSize()
         }
-        .onChange(of: viewModel.settings.columns) { _ in
+        .onChange(of: viewModel.settings.columns) {
             clampIconSize()
         }
-        .onChange(of: viewModel.settings.rows) { _ in
+        .onChange(of: viewModel.settings.rows) {
             clampIconSize()
         }
-        .onChange(of: viewModel.screenSize) { _ in
+        .onChange(of: viewModel.screenSize) {
             clampIconSize()
         }
         .alert(

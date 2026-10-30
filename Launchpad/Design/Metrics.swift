@@ -1,5 +1,20 @@
 import SwiftUI
 
+/// A black scrim layered over Liquid Glass. Light-mode glass is much brighter,
+/// so it needs a stronger tint to keep the white Launchpad labels legible.
+struct GlassTint: Equatable, Sendable {
+    var light: Double
+    var dark: Double
+
+    func opacity(for scheme: ColorScheme) -> Double {
+        scheme == .dark ? dark : light
+    }
+
+    func color(for scheme: ColorScheme) -> Color {
+        Color.black.opacity(opacity(for: scheme))
+    }
+}
+
 /// Centralized design constants. Every value is expressed at the 1440 × 900
 /// reference size and scaled by `LayoutMetrics.scale` where appropriate.
 enum Metrics {
@@ -37,7 +52,6 @@ enum Metrics {
     static let searchFocusedWidth: CGFloat = 320
     static let searchHeight: CGFloat = 30
     static let searchTop: CGFloat = 36
-    static let searchCornerRadius: CGFloat = 8
     static let searchFontSize: CGFloat = 14
     static let searchPlaceholderOpacity: Double = 0.55
 
@@ -50,13 +64,22 @@ enum Metrics {
     static let pageDotInactiveOpacity: Double = 0.35
     static let folderPageDotDiameter: CGFloat = 7
 
+    // MARK: Liquid Glass
+
+    /// Tint layered over `.regular` glass. The material supplies depth and
+    /// refraction; the tint only guarantees contrast for the white label text.
+    static let glassTintSoft = GlassTint(light: 0.16, dark: 0.10)
+    static let glassTintPanel = GlassTint(light: 0.20, dark: 0.14)
+    /// The merge plate is a light sheen rather than a dark scrim, so it keeps
+    /// the same white tint in both appearances.
+    static let glassTintPlate: Double = 0.10
+    static let pageDotPillTint = GlassTint(light: 0.16, dark: 0.10)
+
     // MARK: Folder
 
     static let folderPanelWidth: CGFloat = 560
     static let folderPanelHeight: CGFloat = 460
     static let folderPanelCornerRadius: CGFloat = 32
-    static let folderPanelShadowOpacity: Double = 0.4
-    static let folderPanelShadowRadius: CGFloat = 30
     static let folderColumns = 4
     static let folderRows = 3
     static let folderIconSize: CGFloat = 80
@@ -68,8 +91,15 @@ enum Metrics {
 
     // MARK: Background
 
+    /// The window material has a fixed blur radius, so the backdrop's depth
+    /// comes from a black tint plus a cool ambient cast, a top sheen, and a
+    /// diagonal reflection.
     static let darkTintOpacity: Double = 0.25
-    static let lightTintOpacity: Double = 0.10
+    static let lightTintOpacity: Double = 0.22
+    static let backdropAmbient = GlassTint(light: 0.13, dark: 0.19)
+    static let backdropSheen: Double = 0.13
+    static let backdropHighlight: Double = 0.04
+    /// Solid fill used when the system asks for reduced transparency.
     static let reduceTransparencyBackground: Double = 0.85
 
     // MARK: Edit mode

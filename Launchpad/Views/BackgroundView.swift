@@ -61,10 +61,10 @@ struct LaunchpadBackgroundView: View {
 /// window renders the same backdrop.
 ///
 /// The app background intentionally uses a standard material rather than
-/// Liquid Glass: Apple's HIG reserves Liquid Glass for the floating control and
-/// navigation layer. The glass look comes from a vibrant, low-opacity material
-/// plus a cool ambient wash and a soft specular highlight, instead of the flat
-/// gray tint that previously read as frost.
+/// Liquid Glass: glass cannot sample other glass, and Apple's HIG reserves it
+/// for the floating control and navigation layer. The glass look comes from a
+/// vibrant, low-opacity material plus a cool ambient wash and a soft specular
+/// highlight, instead of the flat gray tint that previously read as frost.
 struct LaunchpadBackgroundSurface: View {
     @ObservedObject var viewModel: LaunchpadViewModel
     var role: BackdropRole = .overlay
@@ -96,22 +96,16 @@ struct LaunchpadBackgroundSurface: View {
     /// every window, so the main overlay and the Dock strip join seamlessly;
     /// the directional highlights fade to clear before the Dock edge.
     private func liquidGlassWash(size: CGSize) -> some View {
-        let intensity = min(max(viewModel.settings.blurIntensity, 0), 1)
-        let base = colorScheme == .dark ? Metrics.darkTintOpacity : Metrics.lightTintOpacity
-        // The material itself has a fixed blur radius, so intensity has to read
-        // through tint, ambient color, and sheen. Keep the swing wide enough
-        // that the two ends of the slider are clearly different.
-        let extra = (intensity - 0.5) * 0.30
-        let tint = min(0.85, max(0.02, base + extra))
-        let ambient = (colorScheme == .dark ? 0.14 : 0.08) + 0.10 * intensity
-        let sheen = role == .dockStrip ? 0 : 0.08 + 0.10 * intensity
+        let sheen = role == .dockStrip ? 0 : Metrics.backdropSheen
 
         return ZStack {
             // Cool ambient cast: keeps the blurred desktop from reading as
             // neutral gray frost and gives the glass a subtle tint.
             Color(red: 0.10, green: 0.17, blue: 0.32)
-                .opacity(ambient)
-            Color.black.opacity(tint)
+                .opacity(Metrics.backdropAmbient.opacity(for: colorScheme))
+            Color.black.opacity(
+                colorScheme == .dark ? Metrics.darkTintOpacity : Metrics.lightTintOpacity
+            )
 
             // Specular light catching the top of the glass. It fades out well
             // above the Dock so the separate backdrop window is seamless.
@@ -133,7 +127,7 @@ struct LaunchpadBackgroundSurface: View {
             if role == .overlay {
                 LinearGradient(
                     stops: [
-                        .init(color: Color.white.opacity(0.03 + 0.02 * intensity), location: 0),
+                        .init(color: Color.white.opacity(Metrics.backdropHighlight), location: 0),
                         .init(color: .clear, location: 0.55)
                     ],
                     startPoint: .topLeading,

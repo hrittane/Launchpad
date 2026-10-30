@@ -19,16 +19,8 @@ struct LaunchpadApp: App {
             }
             .keyboardShortcut("l", modifiers: [.command, .shift])
 
-            if #available(macOS 14.0, *) {
-                SettingsLink {
-                    Text("Preferences…", comment: "Status menu item")
-                }
-            } else {
-                Button {
-                    AppEnvironment.shared.openPreferences()
-                } label: {
-                    Text("Preferences…", comment: "Status menu item")
-                }
+            SettingsLink {
+                Text("Preferences…", comment: "Status menu item")
             }
 
             Divider()

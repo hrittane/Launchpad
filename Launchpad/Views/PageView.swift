@@ -100,7 +100,7 @@ struct PageView: View {
                 readyForShow = true
             }
         }
-        .onChange(of: viewModel.isVisible) { visible in
+        .onChange(of: viewModel.isVisible) { _, visible in
             if visible {
                 hasShownOnce = true
                 readyForShow = true

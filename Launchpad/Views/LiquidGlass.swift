@@ -1,100 +1,48 @@
 import SwiftUI
 
-/// The two system Liquid Glass variants.
+/// Liquid Glass helpers for the overlay's floating controls.
 ///
-/// `regular` is the legible, adaptive material used for panels and controls
-/// with text. `clear` is the highly translucent variant for visually rich
-/// backgrounds. Apple recommends the regular variant for anything containing
-/// labels or icons.
-enum LiquidGlassVariant {
-    case regular
-    case clear
-}
-
+/// The app deploys to macOS 26, so there is no material fallback to maintain:
+/// `glassEffect` is always the real system material. The compositor blurs and
+/// refracts the desktop behind the shape, adds specular edge light, and reacts
+/// to the pointer when the glass is marked interactive.
 extension View {
-    /// Applies the system Liquid Glass material on macOS 26 and later.
+    /// Applies the system glass material to `shape`.
     ///
-    /// Liquid Glass is a system material, not a hand-drawn gradient: the
-    /// compositor blurs and refracts the content behind the shape, adds
-    /// specular edge light, and (with `interactive`) reacts to the pointer.
-    /// Older systems fall back to a layered ultra-thin material with the same
-    /// silhouette, so layout and hit testing are unchanged.
-    @ViewBuilder
-    func liquidGlass<S: Shape>(
-        _ variant: LiquidGlassVariant = .regular,
-        tint: Color? = nil,
-        interactive: Bool = false,
-        in shape: S
-    ) -> some View {
-        if #available(macOS 26.0, *) {
-            let base: Glass = variant == .regular ? .regular : .clear
-            let tinted = tint.map { base.tint($0) } ?? base
-            let glass = interactive ? tinted.interactive() : tinted
-            self.glassEffect(glass, in: shape)
-        } else {
-            self.background {
-                LiquidGlassFallback(shape: shape, tint: tint)
+    /// Call sites pass the fully configured `Glass` value, for example
+    /// `.regular.tint(tint).interactive()`, so the tint and interactivity stay
+    /// visible where they are used.
+    func liquidGlass<S: Shape>(_ glass: Glass = .regular, in shape: S) -> some View {
+        glassEffect(glass, in: shape)
+            .overlay {
+                LiquidGlassEdge(shape: shape)
             }
-            .clipShape(shape)
-        }
     }
 }
 
-/// Groups Liquid Glass effects so the system can render them in one pass and
-/// morph them together. A single effect works without a container, but Apple
-/// recommends hosting custom glass in one for correct batching.
-struct LiquidGlassHost<Content: View>: View {
-    var spacing: CGFloat = 0
-    @ViewBuilder var content: () -> Content
-
-    var body: some View {
-        if #available(macOS 26.0, *) {
-            GlassEffectContainer(spacing: spacing, content: content)
-        } else {
-            content()
-        }
-    }
-}
-
-/// Pre-macOS 26 stand-in for the system material. It deliberately layers a
-/// thin material, a diagonal light wash, and a bright edge instead of a flat
-/// white fill, which is what made the old surfaces look frosted.
-private struct LiquidGlassFallback<S: Shape>: View {
+/// Restores the specular edge that the system highlight loses on bright
+/// backgrounds. It is hidden in dark mode, where the glass already separates
+/// itself from the content; only light mode needs the extra definition.
+private struct LiquidGlassEdge<S: Shape>: View {
     let shape: S
-    let tint: Color?
+    @Environment(\.colorScheme) private var colorScheme
 
+    @ViewBuilder
     var body: some View {
-        ZStack {
-            shape.fill(.ultraThinMaterial)
-
-            if let tint {
-                shape.fill(tint)
-            }
-
-            shape.fill(
-                LinearGradient(
-                    colors: [
-                        Color.white.opacity(0.20),
-                        Color.white.opacity(0.05),
-                        Color.black.opacity(0.05)
-                    ],
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
-                )
-            )
-
+        if colorScheme == .light {
             shape.stroke(
                 LinearGradient(
                     colors: [
-                        Color.white.opacity(0.55),
-                        Color.white.opacity(0.08),
-                        Color.white.opacity(0.22)
+                        Color.white.opacity(0.50),
+                        Color.white.opacity(0.06),
+                        Color.white.opacity(0.18)
                     ],
                     startPoint: .top,
                     endPoint: .bottom
                 ),
-                lineWidth: 0.8
+                lineWidth: 0.7
             )
+            .allowsHitTesting(false)
         }
     }
 }

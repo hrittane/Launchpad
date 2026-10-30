@@ -82,8 +82,6 @@ struct AppSettings: Codable, Equatable, Sendable {
     /// Requested icon size in points at the reference screen scale.
     var iconSize: Double
     var labelFontSize: Double
-    /// 0…1. Maps to tint strength; AppKit does not expose a Gaussian radius.
-    var blurIntensity: Double
     var showOnAllDisplays: Bool
     var hotCorner: HotCorner
     var shortcut: KeyShortcut
@@ -94,7 +92,6 @@ struct AppSettings: Codable, Equatable, Sendable {
         rows: 5,
         iconSize: 96,
         labelFontSize: 13,
-        blurIntensity: 0.5,
         showOnAllDisplays: false,
         hotCorner: .bottomRight,
         shortcut: .launchpadDefault,
@@ -106,7 +103,6 @@ struct AppSettings: Codable, Equatable, Sendable {
         rows: Int,
         iconSize: Double,
         labelFontSize: Double,
-        blurIntensity: Double,
         showOnAllDisplays: Bool,
         hotCorner: HotCorner,
         shortcut: KeyShortcut,
@@ -115,8 +111,7 @@ struct AppSettings: Codable, Equatable, Sendable {
         self.columns = Self.clamp(columns, 5...9)
         self.rows = Self.clamp(rows, 4...6)
         self.iconSize = Self.clampDouble(iconSize, 64...128)
-        self.labelFontSize = Self.clampDouble(labelFontSize, 11...15)
-        self.blurIntensity = Self.clampDouble(blurIntensity, 0...1)
+        self.labelFontSize = Self.clampDouble(labelFontSize, 6...15)
         self.showOnAllDisplays = showOnAllDisplays
         self.hotCorner = hotCorner
         self.shortcut = shortcut
@@ -140,7 +135,6 @@ struct AppSettings: Codable, Equatable, Sendable {
         let rows = try container.decodeIfPresent(Int.self, forKey: .rows) ?? defaults.rows
         let iconSize = try container.decodeIfPresent(Double.self, forKey: .iconSize) ?? defaults.iconSize
         let labelFontSize = try container.decodeIfPresent(Double.self, forKey: .labelFontSize) ?? defaults.labelFontSize
-        let blurIntensity = try container.decodeIfPresent(Double.self, forKey: .blurIntensity) ?? defaults.blurIntensity
         let showOnAllDisplays = try container.decodeIfPresent(Bool.self, forKey: .showOnAllDisplays) ?? defaults.showOnAllDisplays
         let hotCorner = try container.decodeIfPresent(HotCorner.self, forKey: .hotCorner) ?? defaults.hotCorner
         let shortcut = try container.decodeIfPresent(KeyShortcut.self, forKey: .shortcut) ?? defaults.shortcut
@@ -151,7 +145,6 @@ struct AppSettings: Codable, Equatable, Sendable {
             rows: rows,
             iconSize: iconSize,
             labelFontSize: labelFontSize,
-            blurIntensity: blurIntensity,
             showOnAllDisplays: showOnAllDisplays,
             hotCorner: hotCorner,
             shortcut: shortcut,

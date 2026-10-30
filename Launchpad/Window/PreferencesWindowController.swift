@@ -26,6 +26,6 @@ final class PreferencesWindowController: NSWindowController {
     func show() {
         showWindow(nil)
         window?.makeKeyAndOrderFront(nil)
-        NSApp.activate(ignoringOtherApps: true)
+        NSApp.activate()
     }
 }

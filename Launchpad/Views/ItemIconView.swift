@@ -93,14 +93,12 @@ struct ItemIconView: View {
                         Color.clear
                             .frame(width: iconSize, height: iconSize)
                             .liquidGlass(
-                                .regular,
-                                tint: Color.white.opacity(0.10),
+                                .regular.tint(Color.white.opacity(Metrics.glassTintPlate)),
                                 in: RoundedRectangle(
                                     cornerRadius: Metrics.iconCornerRadius * scale,
                                     style: .continuous
                                 )
                             )
-                            .shadow(color: .black.opacity(0.35), radius: 8 * scale, y: 4 * scale)
                             .transition(.scale(scale: 0.9).combined(with: .opacity))
                     }
                 }

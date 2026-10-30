@@ -11,8 +11,10 @@ struct FolderPanelView: View {
     let panelFrame: CGRect
     let anchor: CGRect
     let isPresented: Bool
+    let glassNamespace: Namespace.ID
 
     @FocusState private var titleIsFocused: Bool
+    @Environment(\.colorScheme) private var colorScheme
 
     private var startScale: CGFloat {
         guard anchor.width > 1 else { return 0.35 }
@@ -39,40 +41,33 @@ struct FolderPanelView: View {
     }
 
     var body: some View {
-        LiquidGlassHost {
-            panelContent
-                .frame(width: panelFrame.width, height: panelFrame.height)
-                .background {
-                    // The clear interaction layer sits behind the panel content, so
-                    // swiping empty space pages the folder without stealing drags
-                    // from icons or the title field.
-                    Color.clear
-                        .contentShape(Rectangle())
-                        .gesture(folderSwipeGesture)
-                }
-                .liquidGlass(
-                    .regular,
-                    tint: Color.black.opacity(0.14),
-                    in: panelShape
-                )
-        }
-        .shadow(
-            color: .black.opacity(Metrics.folderPanelShadowOpacity),
-            radius: Metrics.folderPanelShadowRadius * metrics.scale,
-            x: 0,
-            y: 12 * metrics.scale
-        )
-        .scaleEffect(isPresented ? 1 : startScale)
-        .position(isPresented ? endPoint : startPoint)
-        .opacity(isPresented ? 1 : 0)
-        .animation(panelAnimation, value: isPresented)
-        .onAppear {
-            if !viewModel.folderIsPresented {
-                viewModel.presentFolder()
+        panelContent
+            .frame(width: panelFrame.width, height: panelFrame.height)
+            .background {
+                // The clear interaction layer sits behind the panel content, so
+                // swiping empty space pages the folder without stealing drags
+                // from icons or the title field.
+                Color.clear
+                    .contentShape(Rectangle())
+                    .gesture(folderSwipeGesture)
             }
-        }
-        .accessibilityElement(children: .contain)
-        .accessibilityLabel(folder.name)
+            .liquidGlass(
+                .regular.tint(Metrics.glassTintPanel.color(for: colorScheme)),
+                in: panelShape
+            )
+            .glassEffectID(folder.id, in: glassNamespace)
+            .glassEffectTransition(.materialize)
+            .scaleEffect(isPresented ? 1 : startScale)
+            .position(isPresented ? endPoint : startPoint)
+            .opacity(isPresented ? 1 : 0)
+            .animation(panelAnimation, value: isPresented)
+            .onAppear {
+                if !viewModel.folderIsPresented {
+                    viewModel.presentFolder()
+                }
+            }
+            .accessibilityElement(children: .contain)
+            .accessibilityLabel(folder.name)
     }
 
     private var panelAnimation: Animation {
@@ -134,7 +129,7 @@ struct FolderPanelView: View {
                     titleIsFocused = false
                     viewModel.cancelFolderRename()
                 }
-                .onChange(of: titleIsFocused) { focused in
+                .onChange(of: titleIsFocused) { _, focused in
                     // Clicking anywhere else commits, like Launchpad's folder
                     // title field.
                     guard !focused, viewModel.folderTitleEditing else { return }

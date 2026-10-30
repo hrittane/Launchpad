@@ -402,7 +402,6 @@ final class LayoutMetricsTests: XCTestCase {
             rows: 5,
             iconSize: iconSize,
             labelFontSize: labelFontSize,
-            blurIntensity: 0.5,
             showOnAllDisplays: false,
             hotCorner: .bottomRight,
             shortcut: .launchpadDefault,
@@ -437,5 +436,41 @@ final class LayoutMetricsTests: XCTestCase {
         let large = LayoutMetrics(screenSize: screen, settings: settings(labelFontSize: 15))
 
         XCTAssertLessThan(large.maximumIconSize, normal.maximumIconSize)
+    }
+}
+
+final class AppSettingsTests: XCTestCase {
+    private func settings(labelFontSize: Double) -> AppSettings {
+        AppSettings(
+            columns: 7,
+            rows: 5,
+            iconSize: 96,
+            labelFontSize: labelFontSize,
+            showOnAllDisplays: false,
+            hotCorner: .bottomRight,
+            shortcut: .launchpadDefault,
+            launchAtLogin: false
+        )
+    }
+
+    func testLabelFontSizeIsClamped() {
+        XCTAssertEqual(settings(labelFontSize: 4).labelFontSize, 6, accuracy: 0.0001)
+        XCTAssertEqual(settings(labelFontSize: 20).labelFontSize, 15, accuracy: 0.0001)
+    }
+
+    /// Settings written before the backdrop sliders were removed still carry
+    /// `blurIntensity` and `transparency`. Unknown keys must be ignored rather
+    /// than failing the decode.
+    func testLegacyBackdropKeysAreIgnored() throws {
+        let encoded = try JSONEncoder().encode(AppSettings.default)
+        var object = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: encoded) as? [String: Any]
+        )
+        object["blurIntensity"] = 0.85
+        object["transparency"] = 0.4
+        let legacy = try JSONSerialization.data(withJSONObject: object)
+
+        let decoded = try JSONDecoder().decode(AppSettings.self, from: legacy)
+        XCTAssertEqual(decoded, AppSettings.default)
     }
 }
