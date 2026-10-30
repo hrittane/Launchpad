@@ -58,18 +58,23 @@ struct FolderPanelView: View {
             .position(isPresented ? endPoint : startPoint)
             .animation(panelAnimation, value: isPresented)
             .onAppear {
-                if !viewModel.folderIsPresented {
+                // Present on the next run-loop turn, after this collapsed frame
+                // has been committed. Presenting earlier made the panel appear
+                // at full size with no zoom.
+                DispatchQueue.main.async {
                     viewModel.presentFolder()
                 }
+            }
+            .onChange(of: viewModel.folderFocusToken) { _, _ in
+                guard viewModel.folderTitleEditing else { return }
+                focusAndSelectTitle()
             }
             .accessibilityElement(children: .contain)
             .accessibilityLabel(folder.name)
     }
 
     private var panelAnimation: Animation {
-        viewModel.reduceMotion
-            ? Metrics.Motion.reduced
-            : .spring(response: 0.35, dampingFraction: 0.82)
+        viewModel.reduceMotion ? Metrics.Motion.reduced : Metrics.Motion.folder
     }
 
     private var panelContent: some View {
@@ -114,9 +119,6 @@ struct FolderPanelView: View {
                 .padding(.horizontal, 16 * metrics.scale)
                 .padding(.vertical, 4 * metrics.scale)
                 .focused($titleIsFocused)
-                .onAppear {
-                    focusAndSelectTitle()
-                }
                 .onSubmit {
                     viewModel.commitFolderRename()
                 }
@@ -127,9 +129,13 @@ struct FolderPanelView: View {
                 }
                 .onChange(of: titleIsFocused) { _, focused in
                     // Clicking anywhere else commits, like Launchpad's folder
-                    // title field.
+                    // title field. A focus loss during the opening zoom is
+                    // transient, so wait a moment before committing.
                     guard !focused, viewModel.folderTitleEditing else { return }
-                    viewModel.commitFolderRename()
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+                        guard viewModel.folderTitleEditing, !titleIsFocused else { return }
+                        viewModel.commitFolderRename()
+                    }
                 }
                 .accessibilityLabel(Text("Folder name", comment: "Folder title field accessibility label"))
         } else {
@@ -292,10 +298,27 @@ struct FolderPanelView: View {
 
     /// Focus the title field and select the whole current name, so a new folder
     /// can be renamed by simply typing and an old name replaced in one keystroke.
+    /// Focus can land a beat after the zoom starts, so retry once against the
+    /// field editor rather than relying on a single `selectAll` broadcast.
     private func focusAndSelectTitle() {
         titleIsFocused = true
         DispatchQueue.main.async {
-            NSApp.sendAction(#selector(NSText.selectAll(_:)), to: nil, from: nil)
+            selectAllInTitleField(retries: 2)
+        }
+    }
+
+    private func selectAllInTitleField(retries: Int) {
+        guard viewModel.folderTitleEditing else { return }
+        if let editor = (NSApp.keyWindow ?? NSApp.mainWindow)?.firstResponder as? NSTextView {
+            editor.selectAll(nil)
+            return
+        }
+        // The field may have been inserted in the same update as the token;
+        // ask for focus again before the final retry.
+        titleIsFocused = true
+        guard retries > 0 else { return }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+            selectAllInTitleField(retries: retries - 1)
         }
     }
 

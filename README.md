@@ -340,9 +340,12 @@ an XCTest environment and skips runtime startup).
 - [ ] Drag within an open folder to reorder with the reflow preview; swipe or
       scroll pages inside folders with more than 12 apps.
 - [ ] Drag an app out of the folder panel; the panel closes as the cursor
-      leaves and the icon continues onto the main grid.
-- [ ] Removing the second-to-last app dissolves the folder and releases the
-      survivor; removing the last app deletes the folder.
+      leaves and the icon continues onto the main grid. The drop snaps to the
+      nearest grid cell, including drops over a margin or the search field.
+- [ ] Removing the second-to-last app dissolves the folder: the survivor stays
+      in the folder's former slot and the dragged app lands at the cursor.
+      Removing the last app deletes the folder. Other pages are not repaginated
+      by a drop.
 - [ ] Right-click a folder → **Remove from Launchpad** dissolves it and releases
       its apps without deleting anything.
 - [ ] Drag to the left/right 60 pt edge and hold 0.8 s; the grid flips pages,

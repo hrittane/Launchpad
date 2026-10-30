@@ -21,7 +21,6 @@ struct FolderDragSession: Equatable {
     var folderID: UUID
     /// Absolute index inside the folder's app array.
     var sourceIndex: Int
-    var location: CGPoint
     /// Page-local slot inside the folder grid, when the cursor is over it.
     var hoverSlot: Int?
     var isOutside: Bool = false
@@ -91,9 +90,17 @@ final class LaunchpadViewModel: ObservableObject {
     @Published private(set) var folderPage = 0
     @Published private(set) var folderTitleEditing = false
     @Published var folderTitleDraft = ""
+    /// Incremented whenever the title field should take focus. The panel
+    /// observes this instead of focusing inside the zoom animation, where the
+    /// field editor may not exist yet.
+    @Published private(set) var folderFocusToken = 0
     /// Set when a folder was just created: the panel starts renaming as soon as
     /// it finishes zooming open, so the name field is ready immediately.
     private var renameOnPresent = false
+    /// Bumped on every open/close so a delayed presentation cannot reopen a
+    /// folder that is already closing.
+    private var folderPresentationGeneration = 0
+    private var folderIsClosing = false
     /// Gesture offsets are observable on their own so a scroll event only
     /// invalidates the small offset modifier, not the whole grid.
     let folderDrag = PageDragState()
@@ -101,6 +108,8 @@ final class LaunchpadViewModel: ObservableObject {
     /// Cursor position for a grid drag, isolated so mouse-move events do not
     /// invalidate the grid. Only the floating drag preview observes it.
     let itemDrag = ItemDragState()
+    /// Cursor position for a folder drag-out, isolated for the same reason.
+    let folderItemDrag = FolderDragState()
     private var isDraggingPage = false
     @Published private(set) var dragSession: DragSession?
     /// The exact layout a drop would commit, rendered while dragging. Nil when
@@ -130,7 +139,6 @@ final class LaunchpadViewModel: ObservableObject {
     private var discoveredApps: [AppItem] = []
     private var searchTask: Task<Void, Never>?
     private var scanTask: Task<Void, Never>?
-    private var folderCloseTask: Task<Void, Never>?
     private var mergeArmTask: Task<Void, Never>?
     private var edgeFlipTask: Task<Void, Never>?
     private var scrollCommitTask: Task<Void, Never>?
@@ -235,7 +243,6 @@ final class LaunchpadViewModel: ObservableObject {
         edgeFlipTask?.cancel()
         scrollCommitTask?.cancel()
         pageSnapTask?.cancel()
-        folderCloseTask?.cancel()
         folderDragSession = nil
         if let accessibilityObserver {
             NSWorkspace.shared.notificationCenter.removeObserver(accessibilityObserver)
@@ -256,7 +263,8 @@ final class LaunchpadViewModel: ObservableObject {
         isEditing = false
         cancelDrag()
         cancelFolderDrag()
-        folderCloseTask?.cancel()
+        folderPresentationGeneration &+= 1
+        folderIsClosing = false
         openFolderID = nil
         folderIsPresented = false
         folderTitleEditing = false
@@ -697,38 +705,43 @@ final class LaunchpadViewModel: ObservableObject {
 
     func openFolder(_ folder: FolderItem, anchor: CGRect) {
         finishPageSnap()
-        folderCloseTask?.cancel()
         if openFolderID == folder.id && folderIsPresented {
             return
         }
+        folderPresentationGeneration &+= 1
+        folderIsClosing = false
         openFolderID = folder.id
         folderAnchor = anchor
         folderPage = 0
         folderTitleEditing = false
         renameOnPresent = false
         focusedEntryID = nil
-        folderIsPresented = false
-
-        DispatchQueue.main.async { [weak self] in
-            guard let self, self.openFolderID == folder.id else { return }
-            withAnimation(self.animation(.folder)) {
-                self.folderIsPresented = true
-            }
-            if self.renameOnPresent {
-                self.renameOnPresent = false
-                self.beginFolderRename()
-            }
+        // Insert the panel collapsed. `FolderPanelView` asks for presentation
+        // on the next run-loop turn, after this collapsed frame has been
+        // committed, so the zoom always starts from the folder's tile.
+        var transaction = Transaction()
+        transaction.disablesAnimations = true
+        withTransaction(transaction) {
+            folderIsPresented = false
         }
     }
 
+    /// Called by the panel once it has been inserted. Presenting from the view
+    /// (instead of scheduling from `openFolder`) removes the race between the
+    /// async present and the panel's first render.
     func presentFolder() {
-        guard openFolderID != nil, !folderIsPresented else { return }
+        guard openFolderID != nil, !folderIsClosing else { return }
+        guard !folderIsPresented else {
+            consumeRenameOnPresent()
+            return
+        }
+        let generation = folderPresentationGeneration
         withAnimation(animation(.folder)) {
             folderIsPresented = true
-        }
-        if renameOnPresent {
-            renameOnPresent = false
-            beginFolderRename()
+        } completion: {
+            guard self.folderPresentationGeneration == generation,
+                  self.folderIsPresented else { return }
+            self.consumeRenameOnPresent()
         }
     }
 
@@ -736,9 +749,11 @@ final class LaunchpadViewModel: ObservableObject {
     func openNewFolder(folderID: UUID, anchor: CGRect) {
         guard folder(withID: folderID) != nil else { return }
         openFolder(folderID: folderID, anchor: anchor)
-        // `openFolder` presents asynchronously, so this flag is consumed by
-        // whichever presentation path runs first.
         renameOnPresent = true
+        // Show the title field during the zoom, but defer focus until the
+        // animation settles so the field editor is not created inside a
+        // transformed view.
+        beginFolderRename(focus: false)
     }
 
     func openFolder(folderID: UUID, anchor: CGRect) {
@@ -748,19 +763,24 @@ final class LaunchpadViewModel: ObservableObject {
 
     func closeFolder(animated: Bool = true) {
         guard openFolderID != nil else { return }
+        folderPresentationGeneration &+= 1
+        folderIsClosing = true
         folderTitleEditing = false
-        folderCloseTask?.cancel()
+        renameOnPresent = false
         if animated && !reduceMotion {
+            let generation = folderPresentationGeneration
             withAnimation(animation(.folder)) {
                 folderIsPresented = false
-            }
-            folderCloseTask = Task { [weak self] in
-                try? await Task.sleep(nanoseconds: 280_000_000)
-                guard !Task.isCancelled else { return }
-                self?.finishFolderClose()
+            } completion: {
+                guard self.folderPresentationGeneration == generation else { return }
+                self.finishFolderClose()
             }
         } else {
-            folderIsPresented = false
+            var transaction = Transaction()
+            transaction.disablesAnimations = true
+            withTransaction(transaction) {
+                folderIsPresented = false
+            }
             finishFolderClose()
         }
     }
@@ -772,13 +792,25 @@ final class LaunchpadViewModel: ObservableObject {
         folderDrag.offset = 0
         folderTitleEditing = false
         renameOnPresent = false
+        folderIsClosing = false
         focusedEntryID = nil
     }
 
-    func beginFolderRename() {
+    private func consumeRenameOnPresent() {
+        guard renameOnPresent else { return }
+        renameOnPresent = false
+        requestFolderTitleFocus()
+    }
+
+    func beginFolderRename(focus: Bool = true) {
         guard let activeFolder else { return }
         folderTitleDraft = activeFolder.name
         folderTitleEditing = true
+        if focus { requestFolderTitleFocus() }
+    }
+
+    func requestFolderTitleFocus() {
+        folderFocusToken &+= 1
     }
 
     func commitFolderRename() {
@@ -1055,16 +1087,7 @@ final class LaunchpadViewModel: ObservableObject {
         // 3. Project the layout for the cell under the cursor. This preview is
         // also what `endDrag` commits, so the drop can never disagree with it.
         if session.armedMergeTargetID == nil {
-            let targetSlot: Int
-            if let s = metrics.slot(at: location) {
-                targetSlot = s
-            } else {
-                let col = Int(floor((location.x - metrics.gridRect.minX) / metrics.cellWidth))
-                let row = Int(floor((location.y - metrics.gridRect.minY) / metrics.cellHeight))
-                let clampedCol = min(max(col, 0), metrics.columns - 1)
-                let clampedRow = min(max(row, 0), metrics.rows - 1)
-                targetSlot = clampedRow * metrics.columns + clampedCol
-            }
+            let targetSlot = metrics.nearestSlot(at: location)
             session.targetInsertionSlot = targetSlot
 
             var targetPage = page
@@ -1117,7 +1140,6 @@ final class LaunchpadViewModel: ObservableObject {
         let armedMergeID = session.armedMergeTargetID
         let hoveredID = session.hoveredEntryID
         let draggedEntry = session.entry
-        let metrics = LayoutMetrics(screenSize: screenSize, settings: settings)
 
         // The drop always targets the item under the cursor. The dwell-driven
         // arm only supplies the shrink affordance; an immediate app-on-app drop
@@ -1131,7 +1153,6 @@ final class LaunchpadViewModel: ObservableObject {
 
         var didCreateFolder = false
         var createdFolderID: UUID?
-        var createdAnchor: CGRect = .zero
         let preview = reorderPreview
 
         if let targetID = mergeTargetID,
@@ -1177,7 +1198,6 @@ final class LaunchpadViewModel: ObservableObject {
                     )
                     didCreateFolder = true
                     createdFolderID = newFolder.id
-                    createdAnchor = metrics.iconFrame(at: targetLocation.index)
                 }
 
                 for released in releasedDuringRemoval {
@@ -1236,9 +1256,10 @@ final class LaunchpadViewModel: ObservableObject {
         persist()
 
         if didCreateFolder, let createdFolderID {
-            // Zoom the freshly created folder open from its tile and start
-            // renaming, matching Launchpad's creation flow.
-            openNewFolder(folderID: createdFolderID, anchor: createdAnchor)
+            // Zoom the freshly created folder open from its *final* tile. The
+            // layout may have been repaginated, so the pre-cleanup anchor can
+            // point at a slot the folder no longer occupies.
+            revealCreatedFolder(createdFolderID)
         }
     }
 
@@ -1270,72 +1291,108 @@ final class LaunchpadViewModel: ObservableObject {
         guard openFolderID == folderID, dragSession == nil else { return }
         cancelFolderDrag()
         folderTitleEditing = false
+        folderItemDrag.location = .zero
         folderDragSession = FolderDragSession(
             app: app,
             folderID: folderID,
             sourceIndex: sourceIndex,
-            location: .zero,
             panelFrame: folderPanelFrame()
         )
     }
 
     func updateFolderDrag(location: CGPoint) {
         guard var session = folderDragSession else { return }
-        session.location = location
+        // Cursor tracking is isolated from the overlay: only the floating
+        // preview observes this value, so moving inside one slot does not
+        // re-render the grid or the folder panel.
+        folderItemDrag.location = location
+
         let panelFrame = folderPanelFrame()
         session.panelFrame = panelFrame
-        let outside = !panelFrame.contains(location)
+        let outside = folderDragIsOutside(location, panelFrame: panelFrame, wasOutside: session.isOutside)
+        var stateChanged = false
         if outside != session.isOutside {
             session.isOutside = outside
+            stateChanged = true
             // Hide the panel (without ending the folder session) so the icon
             // can be seen continuing over the main grid.
-            if reduceMotion {
-                folderIsPresented = !outside
-            } else {
-                withAnimation(animation(.folder)) {
-                    folderIsPresented = !outside
-                }
-            }
+            setFolderPanelVisible(!outside, animated: !reduceMotion)
         }
 
+        let hoverSlot: Int?
         if outside {
-            session.hoverSlot = nil
+            hoverSlot = nil
         } else {
             let metrics = FolderMetrics(screenSize: screenSize, settings: settings)
             let local = CGPoint(
                 x: location.x - panelFrame.minX,
                 y: location.y - panelFrame.minY
             )
-            session.hoverSlot = metrics.slot(at: local)
+            hoverSlot = metrics.slot(at: local)
         }
-        folderDragSession = session
+        if hoverSlot != session.hoverSlot {
+            session.hoverSlot = hoverSlot
+            stateChanged = true
+        }
+
+        // Publish only when the discrete drop state changes. A drag used to
+        // assign a new session on every pointer event, invalidating the whole
+        // overlay at mouse-move frequency.
+        if stateChanged, folderDragSession != session {
+            folderDragSession = session
+        }
+    }
+
+    /// A small hysteresis band around the panel edge. Once outside, the pointer
+    /// must come back inside the panel proper before the panel reappears; once
+    /// inside, it must leave a slightly expanded frame before it hides.
+    private func folderDragIsOutside(
+        _ location: CGPoint,
+        panelFrame: CGRect,
+        wasOutside: Bool
+    ) -> Bool {
+        let margin: CGFloat = 10
+        let bounds = wasOutside
+            ? panelFrame.insetBy(dx: margin, dy: margin)
+            : panelFrame.insetBy(dx: -margin, dy: -margin)
+        return !bounds.contains(location)
+    }
+
+    private func setFolderPanelVisible(_ visible: Bool, animated: Bool) {
+        guard folderIsPresented != visible else { return }
+        if animated {
+            withAnimation(animation(.folder)) {
+                folderIsPresented = visible
+            }
+        } else {
+            folderIsPresented = visible
+        }
     }
 
     func endFolderDrag() {
         guard let session = folderDragSession else { return }
+        let location = folderItemDrag.location
         folderDragSession = nil
+        folderItemDrag.location = .zero
 
         if session.isOutside {
-            dropAppFromFolder(session)
-        } else if let slot = session.hoverSlot {
-            reorderFolderApp(folderID: session.folderID, from: session.sourceIndex, toSlot: slot)
-        }
-
-        if openFolderID != nil {
-            if reduceMotion {
-                folderIsPresented = true
-            } else {
-                withAnimation(animation(.folder)) {
-                    folderIsPresented = true
-                }
+            // The panel was already hidden while the pointer was over the grid.
+            // Commit the drop and close the folder without replaying the zoom.
+            dropAppFromFolder(session, at: location)
+        } else {
+            if let slot = session.hoverSlot {
+                reorderFolderApp(folderID: session.folderID, from: session.sourceIndex, toSlot: slot)
             }
+            setFolderPanelVisible(true, animated: !reduceMotion)
         }
     }
 
     func cancelFolderDrag() {
+        guard folderDragSession != nil else { return }
         folderDragSession = nil
+        folderItemDrag.location = .zero
         if openFolderID != nil {
-            folderIsPresented = true
+            setFolderPanelVisible(true, animated: false)
         }
     }
 
@@ -1356,46 +1413,88 @@ final class LaunchpadViewModel: ObservableObject {
         persist()
     }
 
-    /// Removes the dragged app from its folder and inserts it on the current
-    /// grid page. If the folder drops below two apps it dissolves and releases
-    /// its remaining app as well.
-    private func dropAppFromFolder(_ session: FolderDragSession) {
-        guard let location = entryLocation(id: "folder:\(session.folderID.uuidString)"),
-              let folder = folder(withID: session.folderID) else { return }
-
-        let survivingApps = folder.apps.filter { $0.id != session.app.id }
-        let appsToInsert: [AppItem]
-        if survivingApps.count >= 2 {
-            var updated = folder
-            updated.remove(appID: session.app.id)
-            pages[location.page][location.index] = .folder(updated)
-            appsToInsert = [session.app]
-        } else {
-            // A one-app folder is not viable: remove the folder and release
-            // both the dragged app and the survivor.
-            pages[location.page].remove(at: location.index)
-            appsToInsert = [session.app] + survivingApps
+    /// Removes the dragged app from its folder and inserts it on the visible
+    /// grid page. If the folder drops below two apps it dissolves: the survivor
+    /// takes the folder's former slot and the dragged app lands at the cursor.
+    private func dropAppFromFolder(_ session: FolderDragSession, at location: CGPoint) {
+        guard let folderLocation = entryLocation(id: "folder:\(session.folderID.uuidString)"),
+              let folder = folder(withID: session.folderID) else {
+            // A rescan can remove the folder mid-drag; leave the overlay in a
+            // consistent state instead of keeping a ghost scrim.
+            closeFolder(animated: false)
+            return
+        }
+        guard folder.apps.contains(where: { $0.id == session.app.id }) else {
+            // The dragged app is no longer in the folder (for example after a
+            // rescan). Close the panel rather than re-inserting a duplicate.
+            closeFolder(animated: false)
+            return
         }
 
         let metrics = LayoutMetrics(screenSize: screenSize, settings: settings)
         let page = min(max(currentPage, 0), max(0, pages.count - 1))
-        let slot = metrics.slot(at: session.location) ?? (pages.indices.contains(page) ? pages[page].count : 0)
-        var inserted = 0
-        for app in appsToInsert {
-            LayoutEngine.insert(
-                .app(app),
-                at: page,
-                index: slot + inserted,
-                in: &pages,
-                capacity: settings.pageCapacity
-            )
-            inserted += 1
+        // Snap to the nearest cell when the pointer is over the search field or
+        // a margin, matching the grid's own drop behaviour.
+        let dropSlot = metrics.nearestSlot(at: location)
+        let capacity = settings.pageCapacity
+        let survivingApps = folder.apps.filter { $0.id != session.app.id }
+
+        withAnimation(animation(.reorder)) {
+            if survivingApps.count >= 2 {
+                var updated = folder
+                updated.remove(appID: session.app.id)
+                pages[folderLocation.page][folderLocation.index] = .folder(updated)
+                LayoutEngine.insert(
+                    .app(session.app),
+                    at: page,
+                    index: dropSlot,
+                    in: &pages,
+                    capacity: capacity
+                )
+            } else {
+                // A one-app folder is not viable. Remove it, then place the
+                // survivor where the folder was and the dragged app where the
+                // pointer was released.
+                pages[folderLocation.page].remove(at: folderLocation.index)
+                if dropSlot <= folderLocation.index {
+                    LayoutEngine.insert(
+                        .app(session.app),
+                        at: page,
+                        index: dropSlot,
+                        in: &pages,
+                        capacity: capacity
+                    )
+                    LayoutEngine.insert(
+                        .app(survivingApps[0]),
+                        at: folderLocation.page,
+                        index: folderLocation.index,
+                        in: &pages,
+                        capacity: capacity
+                    )
+                } else {
+                    LayoutEngine.insert(
+                        .app(survivingApps[0]),
+                        at: folderLocation.page,
+                        index: folderLocation.index,
+                        in: &pages,
+                        capacity: capacity
+                    )
+                    LayoutEngine.insert(
+                        .app(session.app),
+                        at: page,
+                        index: dropSlot,
+                        in: &pages,
+                        capacity: capacity
+                    )
+                }
+            }
         }
 
-        folderIsPresented = false
-        closeFolder(animated: false)
-        cleanupAfterLayoutChange()
+        // Remove empty pages only. Repaginating the whole layout here is what
+        // made unrelated apps jump across page boundaries after a drop.
+        removeEmptyPagesAfterMutation()
         persist()
+        closeFolder(animated: false)
     }
 
     private func cancelMergeArm() {
@@ -1797,7 +1896,7 @@ final class LaunchpadViewModel: ObservableObject {
             moveFocus(.up)
             return true
         case 51: // Delete / Backspace
-            if isTextEditing { return false }
+            if isTextEditing || folderTitleEditing { return false }
             handleDeleteKey()
             return true
         default:
@@ -1807,6 +1906,13 @@ final class LaunchpadViewModel: ObservableObject {
         if isTextEditing {
             // The search field owns printable input; arrows, Return, Esc, and
             // command shortcuts were handled above.
+            return false
+        }
+
+        if folderTitleEditing {
+            // The folder title field owns input even if the field editor has
+            // not claimed focus yet (for example during the opening zoom).
+            // Falling through to search would close the folder mid-rename.
             return false
         }
 
@@ -1917,6 +2023,40 @@ final class LaunchpadViewModel: ObservableObject {
         if openFolderID != nil && activeFolder == nil {
             closeFolder(animated: false)
         }
+    }
+
+    /// Removes empty pages without repaginating the remaining entries. Used
+    /// after a folder drop so unrelated apps never jump across page breaks.
+    private func removeEmptyPagesAfterMutation() {
+        guard pages.contains(where: { $0.isEmpty }) else {
+            currentPage = min(max(currentPage, 0), max(0, pages.count - 1))
+            return
+        }
+        let anchorID = pages.indices.contains(currentPage) ? pages[currentPage].first?.id : nil
+        pages.removeAll { $0.isEmpty }
+        if pages.isEmpty { pages = [[]] }
+        if let anchorID, let location = entryLocation(id: anchorID) {
+            currentPage = location.page
+        } else {
+            currentPage = min(max(currentPage, 0), pages.count - 1)
+        }
+    }
+
+    /// Presents a folder that was just created. The layout may have been
+    /// repaginated after the merge, so use the folder's final page and slot and
+    /// switch the visible page when it moved.
+    private func revealCreatedFolder(_ folderID: UUID) {
+        guard let location = entryLocation(id: "folder:\(folderID.uuidString)") else { return }
+        if location.page != currentPage {
+            var transaction = Transaction()
+            transaction.disablesAnimations = true
+            withTransaction(transaction) {
+                currentPage = location.page
+                pageDrag.offset = 0
+            }
+        }
+        let metrics = LayoutMetrics(screenSize: screenSize, settings: settings)
+        openNewFolder(folderID: folderID, anchor: metrics.iconFrame(at: location.index))
     }
 
     private func repaginateForCapacityChange() {

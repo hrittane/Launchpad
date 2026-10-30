@@ -297,6 +297,18 @@ struct LayoutMetrics {
         return row * columns + column
     }
 
+    /// The slot under a point, clamped to the grid when the point falls in a
+    /// margin or over the search field. Drops therefore always land on the
+    /// nearest cell instead of being appended to the end of the page.
+    func nearestSlot(at point: CGPoint) -> Int {
+        if let slot = slot(at: point) { return slot }
+        let column = Int(floor((point.x - gridRect.minX) / cellWidth))
+        let row = Int(floor((point.y - gridRect.minY) / cellHeight))
+        let clampedColumn = min(max(column, 0), max(0, columns - 1))
+        let clampedRow = min(max(row, 0), max(0, rows - 1))
+        return clampedRow * columns + clampedColumn
+    }
+
     func pageIndex(forHorizontalOffset offset: CGFloat) -> Int {
         guard screenSize.width > 0 else { return 0 }
         return Int((-offset / screenSize.width).rounded())

@@ -41,12 +41,18 @@ struct LaunchpadRootView: View {
             mainContent(size: size, metrics: metrics)
 
             if folderOpen {
-                Color.black.opacity(0.16)
+                // The scrim fades with the panel instead of popping. It also
+                // fades out while an app is dragged out of the folder so the
+                // grid underneath is legible.
+                Color.black.opacity(viewModel.folderIsPresented ? 0.16 : 0)
                     .contentShape(Rectangle())
                     .onTapGesture {
-                        viewModel.closeFolder()
+                        // Commits a pending rename before closing, matching a
+                        // click outside the folder.
+                        viewModel.handleBackgroundTap()
                     }
-                    .transition(.opacity)
+                    .allowsHitTesting(viewModel.folderIsPresented)
+                    .animation(folderAnimation, value: viewModel.folderIsPresented)
 
                 if let folder = viewModel.activeFolder {
                     let folderMetrics = FolderMetrics(screenSize: size, settings: viewModel.settings)
@@ -58,6 +64,10 @@ struct LaunchpadRootView: View {
                         anchor: viewModel.folderAnchor,
                         isPresented: viewModel.folderIsPresented
                     )
+                    // A new folder must insert a fresh panel so its `onAppear`
+                    // can request the zoom, even if the previous panel was
+                    // still in the view tree.
+                    .id(folder.id)
                 }
             }
 
@@ -175,11 +185,13 @@ struct LaunchpadRootView: View {
                 scale: metrics.scale
             )
         } else if let session = viewModel.folderDragSession {
-            DragPreview(
+            // Observes only the isolated cursor position, so dragging an app
+            // out of a folder does not re-render the grid or the panel.
+            FolderDragPreviewLayer(
+                dragState: viewModel.folderItemDrag,
                 entry: .app(session.app),
                 iconSize: metrics.iconSize,
-                scale: metrics.scale,
-                location: session.location
+                scale: metrics.scale
             )
         }
     }
@@ -227,12 +239,35 @@ struct LaunchpadRootView: View {
     private var searchAnimation: Animation? {
         viewModel.reduceMotion ? Metrics.Motion.reduced : .easeInOut(duration: Metrics.Durations.searchCrossFade)
     }
+
+    private var folderAnimation: Animation? {
+        viewModel.reduceMotion ? Metrics.Motion.reduced : Metrics.Motion.folder
+    }
 }
 
 /// Floating icon for a grid drag. Reads the drag position from its own
 /// observable so only this small view updates as the cursor moves.
 private struct ItemDragPreviewLayer: View {
     @ObservedObject var dragState: ItemDragState
+    let entry: LaunchpadEntry
+    let iconSize: CGFloat
+    let scale: CGFloat
+
+    var body: some View {
+        DragPreview(
+            entry: entry,
+            iconSize: iconSize,
+            scale: scale,
+            location: dragState.location
+        )
+    }
+}
+
+/// Floating icon for an app dragged out of an opened folder. Reads the cursor
+/// from the isolated folder-drag observable so the panel and grid stay static
+/// while the pointer moves.
+private struct FolderDragPreviewLayer: View {
+    @ObservedObject var dragState: FolderDragState
     let entry: LaunchpadEntry
     let iconSize: CGFloat
     let scale: CGFloat

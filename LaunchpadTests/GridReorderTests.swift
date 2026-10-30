@@ -353,15 +353,189 @@ final class LaunchpadDragCommitTests: XCTestCase {
         XCTAssertFalse(topLevel.contains(.app(alpha)))
         XCTAssertFalse(topLevel.contains(.app(bravo)))
 
-        // The new folder zooms open and its name field starts editing on the
-        // next run-loop turn.
-        let presented = expectation(description: "created folder presented")
-        DispatchQueue.main.async { presented.fulfill() }
-        wait(for: [presented], timeout: 1)
-
+        // The panel is inserted collapsed and asks the view model to present it
+        // once its first frame has been committed, so presentation is explicit
+        // rather than racing the layout pass.
         XCTAssertEqual(viewModel.openFolderID, folder.id)
-        XCTAssertTrue(viewModel.folderIsPresented)
+        XCTAssertFalse(viewModel.folderIsPresented)
         XCTAssertTrue(viewModel.folderTitleEditing)
         XCTAssertEqual(viewModel.folderTitleDraft, FolderItem.defaultName)
+
+        viewModel.presentFolder()
+        XCTAssertTrue(viewModel.folderIsPresented)
+    }
+
+    // MARK: Folder drag-out
+
+    private func openFolder(_ folder: FolderItem, in viewModel: LaunchpadViewModel) {
+        viewModel.openFolder(folder, anchor: .zero)
+        viewModel.presentFolder()
+    }
+
+    private func dragOut(
+        app: AppItem,
+        folder: FolderItem,
+        sourceIndex: Int,
+        to location: CGPoint,
+        in viewModel: LaunchpadViewModel
+    ) {
+        viewModel.beginFolderDrag(app: app, folderID: folder.id, sourceIndex: sourceIndex)
+        viewModel.updateFolderDrag(location: location)
+        XCTAssertEqual(viewModel.folderDragSession?.isOutside, true)
+        viewModel.endFolderDrag()
+    }
+
+    func testDraggingAnAppOutOfALargeFolderInsertsItAtTheDropSlot() {
+        let viewModel = makeViewModel()
+        let alpha = app("Alpha")
+        let bravo = app("Bravo")
+        let charlie = app("Charlie")
+        let folder = FolderItem(name: "Tools", apps: [alpha, bravo, charlie])
+        viewModel.seedLayoutForTesting([[.folder(folder), .app(charlie)]])
+        openFolder(folder, in: viewModel)
+
+        let metrics = LayoutMetrics(screenSize: viewModel.screenSize, settings: viewModel.settings)
+        let cell = metrics.cellRect(at: 1)
+        let drop = CGPoint(x: cell.midX, y: cell.midY)
+        XCTAssertFalse(viewModel.folderPanelFrame().contains(drop))
+
+        dragOut(app: alpha, folder: folder, sourceIndex: 0, to: drop, in: viewModel)
+
+        XCTAssertNil(viewModel.openFolderID)
+        XCTAssertEqual(viewModel.pages.count, 1)
+        guard case .folder(let updated) = viewModel.pages[0][0] else {
+            return XCTFail("The folder should survive while it still has two apps")
+        }
+        XCTAssertEqual(updated.apps.map(\.name), ["Bravo", "Charlie"])
+        XCTAssertEqual(viewModel.pages[0][1], .app(alpha))
+        XCTAssertEqual(viewModel.pages[0][2], .app(charlie))
+    }
+
+    func testDraggingTheLastAppOutDissolvesTheFolderAndKeepsTheSurvivorInItsSlot() {
+        let viewModel = makeViewModel()
+        let alpha = app("Alpha")
+        let bravo = app("Bravo")
+        let charlie = app("Charlie")
+        let folder = FolderItem(name: "Tools", apps: [alpha, bravo])
+        viewModel.seedLayoutForTesting([[.folder(folder), .app(charlie)]])
+        openFolder(folder, in: viewModel)
+
+        let metrics = LayoutMetrics(screenSize: viewModel.screenSize, settings: viewModel.settings)
+        let cell = metrics.cellRect(at: 3)
+        let drop = CGPoint(x: cell.midX, y: cell.midY)
+
+        dragOut(app: alpha, folder: folder, sourceIndex: 0, to: drop, in: viewModel)
+
+        XCTAssertNil(viewModel.openFolderID)
+        XCTAssertEqual(viewModel.pages.count, 1)
+        XCTAssertEqual(viewModel.pages[0][0], .app(bravo), "the survivor keeps the folder's slot")
+        XCTAssertEqual(viewModel.pages[0].count, 3)
+        XCTAssertTrue(viewModel.pages[0].contains(.app(alpha)))
+        XCTAssertTrue(viewModel.pages[0].contains(.app(charlie)))
+        XCTAssertFalse(viewModel.pages[0].contains(where: { $0.folder != nil }))
+    }
+
+    func testDroppingOverAMarginSnapsToTheNearestSlotInsteadOfAppending() {
+        let viewModel = makeViewModel()
+        let alpha = app("Alpha")
+        let bravo = app("Bravo")
+        let charlie = app("Charlie")
+        let folder = FolderItem(name: "Tools", apps: [alpha, bravo, charlie])
+        viewModel.seedLayoutForTesting([[.folder(folder), .app(charlie)]])
+        openFolder(folder, in: viewModel)
+
+        let metrics = LayoutMetrics(screenSize: viewModel.screenSize, settings: viewModel.settings)
+        let drop = CGPoint(x: metrics.gridRect.minX + 4, y: metrics.gridRect.minY + 4)
+        dragOut(app: alpha, folder: folder, sourceIndex: 0, to: drop, in: viewModel)
+
+        XCTAssertEqual(viewModel.pages[0].first, .app(alpha), "a margin drop snaps to slot zero")
+        XCTAssertEqual(viewModel.pages[0].count, 3)
+    }
+
+    func testDroppingFromAFolderDoesNotRepaginateOtherPages() {
+        let viewModel = makeViewModel()
+        let alpha = app("Alpha")
+        let bravo = app("Bravo")
+        let charlie = app("Charlie")
+        let delta = app("Delta")
+        let echo = app("Echo")
+        let folder = FolderItem(name: "Tools", apps: [alpha, bravo, charlie])
+        viewModel.seedLayoutForTesting(
+            [[.folder(folder), .app(charlie)], [.app(delta), .app(echo)]],
+            page: 0
+        )
+        openFolder(folder, in: viewModel)
+
+        let metrics = LayoutMetrics(screenSize: viewModel.screenSize, settings: viewModel.settings)
+        let cell = metrics.cellRect(at: 1)
+        dragOut(
+            app: alpha,
+            folder: folder,
+            sourceIndex: 0,
+            to: CGPoint(x: cell.midX, y: cell.midY),
+            in: viewModel
+        )
+
+        XCTAssertEqual(viewModel.pages.count, 2)
+        XCTAssertEqual(viewModel.pages[1], [.app(delta), .app(echo)])
+    }
+
+    func testOpenFolderWaitsForPresentationAndCloseCancelsAPendingPresent() {
+        let viewModel = makeViewModel()
+        let folder = FolderItem(name: "Tools", apps: [app("Alpha"), app("Bravo")])
+        viewModel.seedLayoutForTesting([[.folder(folder)]])
+
+        viewModel.openFolder(folder, anchor: .zero)
+        XCTAssertEqual(viewModel.openFolderID, folder.id)
+        XCTAssertFalse(viewModel.folderIsPresented, "opening must not present before the panel exists")
+
+        viewModel.presentFolder()
+        XCTAssertTrue(viewModel.folderIsPresented)
+
+        viewModel.closeFolder(animated: false)
+        XCTAssertNil(viewModel.openFolderID)
+        XCTAssertFalse(viewModel.folderIsPresented)
+
+        // A delayed present from an old panel must not reopen a closed folder.
+        viewModel.openFolder(folder, anchor: .zero)
+        viewModel.closeFolder(animated: false)
+        viewModel.presentFolder()
+        XCTAssertNil(viewModel.openFolderID)
+        XCTAssertFalse(viewModel.folderIsPresented)
+    }
+
+    func testFolderDragPublishesOnlyWhenTheDropStateChanges() {
+        let viewModel = makeViewModel()
+        let alpha = app("Alpha")
+        let bravo = app("Bravo")
+        let charlie = app("Charlie")
+        let folder = FolderItem(name: "Tools", apps: [alpha, bravo, charlie])
+        viewModel.seedLayoutForTesting([[.folder(folder)]])
+        openFolder(folder, in: viewModel)
+        viewModel.beginFolderDrag(app: alpha, folderID: folder.id, sourceIndex: 0)
+
+        let panel = viewModel.folderPanelFrame()
+        let metrics = FolderMetrics(screenSize: viewModel.screenSize, settings: viewModel.settings)
+        let local = CGPoint(x: metrics.cellRect(at: 0).midX, y: metrics.cellRect(at: 0).midY)
+        let first = CGPoint(x: panel.minX + local.x, y: panel.minY + local.y)
+        viewModel.updateFolderDrag(location: first)
+
+        var changes = 0
+        let cancellable = viewModel.$folderDragSession.dropFirst().sink { _ in changes += 1 }
+
+        // Moving inside one slot must not invalidate the overlay.
+        viewModel.updateFolderDrag(location: CGPoint(x: first.x + 2, y: first.y + 2))
+        XCTAssertEqual(changes, 0)
+
+        // Crossing the panel edge is a discrete state change.
+        let outside = CGPoint(x: metrics.gridRect.midX, y: metrics.gridRect.minY + 4)
+        viewModel.updateFolderDrag(location: outside)
+        XCTAssertEqual(changes, 1)
+
+        // Continuing to move outside must not publish again.
+        viewModel.updateFolderDrag(location: CGPoint(x: outside.x + 2, y: outside.y + 2))
+        XCTAssertEqual(changes, 1)
+
+        _ = cancellable
     }
 }

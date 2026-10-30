@@ -21,6 +21,13 @@ final class ItemDragState: ObservableObject {
     @Published var location: CGPoint = .zero
 }
 
+/// High-frequency pointer position for an app being dragged out of an opened
+/// folder. Kept separate from `FolderDragSession` so crossing the panel edge or
+/// moving between slots is the only thing that invalidates the overlay.
+final class FolderDragState: ObservableObject {
+    @Published var location: CGPoint = .zero
+}
+
 /// Applies a `PageDragState` offset without invalidating the wrapped content.
 /// The modifier's body re-runs per scroll event, while the grid it wraps keeps
 /// its existing view identity and rendered layers.
