@@ -9,7 +9,15 @@ import SwiftUI
 /// corner. A bottom Dock needs no patch because the main window covers the
 /// full width at the top.
 final class MenuBarPatchWindowController: NSWindowController {
+    private let viewModel: LaunchpadViewModel
+    private let hostingView: NSHostingView<LaunchpadBackgroundView>
+
     init(viewModel: LaunchpadViewModel) {
+        self.viewModel = viewModel
+        self.hostingView = NSHostingView(
+            rootView: LaunchpadBackgroundView(viewModel: viewModel)
+        )
+
         let window = MenuBarPatchWindow(
             contentRect: .zero,
             styleMask: [.borderless],
@@ -30,8 +38,6 @@ final class MenuBarPatchWindowController: NSWindowController {
 
         super.init(window: window)
 
-        let background = LaunchpadBackgroundView(viewModel: viewModel, role: .patch)
-        let hostingView = NSHostingView(rootView: background)
         hostingView.translatesAutoresizingMaskIntoConstraints = true
         hostingView.autoresizingMask = [.width, .height]
         hostingView.frame = window.contentView?.bounds ?? .zero
@@ -42,8 +48,13 @@ final class MenuBarPatchWindowController: NSWindowController {
         fatalError("init(coder:) has not been implemented")
     }
 
-    func updateFrame(_ frame: NSRect) {
+    func updateFrame(_ frame: NSRect, screen: NSScreen, viewport: CGRect) {
         window?.setFrame(frame, display: true)
+        hostingView.rootView = LaunchpadBackgroundView(
+            viewModel: viewModel,
+            screen: screen,
+            viewport: viewport
+        )
     }
 
     func orderFront() {

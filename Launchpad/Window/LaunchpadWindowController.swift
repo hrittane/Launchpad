@@ -1,14 +1,23 @@
 import AppKit
 import SwiftUI
 
+/// Publishes the overlay window's own screen and the slice of that screen the
+/// window covers, so the SwiftUI backdrop can blur the right wallpaper and
+/// line up with the Dock strip (mirrors included).
+@MainActor
+final class OverlayScreenContext: ObservableObject {
+    @Published var screen: NSScreen?
+    @Published var viewport: CGRect?
+}
+
 /// Owns one overlay window and its local event monitors. The primary instance
 /// handles keyboard and pointer input; mirror windows on other displays are
 /// non-interactive.
 ///
 /// The main window sits above the status bar so it covers the menu bar. It
 /// stops at the Dock's edge, and a non-interactive background window fills the
-/// Dock strip one level lower. This keeps the Dock visible without adding a
-/// separate menu-bar strip over the grid.
+/// Dock strip one level lower. This keeps the Dock visible and clickable
+/// without adding a separate menu-bar strip over the grid.
 final class LaunchpadWindowController: NSWindowController {
     let viewModel: LaunchpadViewModel
     let isInteractive: Bool
@@ -17,6 +26,7 @@ final class LaunchpadWindowController: NSWindowController {
     private var flagsMonitor: Any?
     private var dockBackground: DockBackgroundWindowController?
     private var menuBarPatch: MenuBarPatchWindowController?
+    private let screenContext = OverlayScreenContext()
 
     init(viewModel: LaunchpadViewModel, interactive: Bool) {
         self.viewModel = viewModel
@@ -44,7 +54,11 @@ final class LaunchpadWindowController: NSWindowController {
 
         super.init(window: window)
 
-        let root = LaunchpadRootView(viewModel: viewModel, isInteractive: interactive)
+        let root = LaunchpadRootView(
+            viewModel: viewModel,
+            isInteractive: interactive,
+            screenContext: screenContext
+        )
         let hostingView = OverlayHostingView(rootView: root)
         hostingView.translatesAutoresizingMaskIntoConstraints = true
         hostingView.autoresizingMask = [.width, .height]
@@ -71,8 +85,15 @@ final class LaunchpadWindowController: NSWindowController {
     }
 
     func updateFrame(_ screen: NSScreen) {
+        // Resolve and blur the wallpaper once, before the window and its
+        // SwiftUI body are positioned on this screen. The body only reads the
+        // cached result.
+        WallpaperBackdrop.prepare(for: screen)
+
         let reservation = DockReservation.current(for: screen)
         let frame = reservation.interactiveFrame(for: screen)
+        screenContext.screen = screen
+        screenContext.viewport = reservation.viewport(for: frame, on: screen)
         window?.setFrame(frame, display: true)
         // Preferences derives the usable icon-size range from this size, so
         // keep it accurate even when the overlay has not been shown yet.
@@ -99,6 +120,29 @@ final class LaunchpadWindowController: NSWindowController {
         window?.orderOut(nil)
     }
 
+    /// Window-level opacity. Animating the window's alpha lets the compositor
+    /// cross-fade the whole overlay (including Liquid Glass) for free, instead
+    /// of re-rendering every SwiftUI opacity animation frame.
+    func setAlpha(_ value: CGFloat) {
+        window?.alphaValue = value
+        dockBackground?.window?.alphaValue = value
+        menuBarPatch?.window?.alphaValue = value
+    }
+
+    func animateAlpha(to value: CGFloat, duration: TimeInterval) {
+        guard let window else { return }
+        let rising = value > window.alphaValue
+        NSAnimationContext.runAnimationGroup { context in
+            context.duration = duration
+            context.timingFunction = CAMediaTimingFunction(
+                name: rising ? .easeOut : .easeIn
+            )
+            window.animator().alphaValue = value
+            dockBackground?.window?.animator().alphaValue = value
+            menuBarPatch?.window?.animator().alphaValue = value
+        }
+    }
+
     func setInteractive(_ interactive: Bool) {
         window?.ignoresMouseEvents = !interactive
     }
@@ -115,7 +159,11 @@ final class LaunchpadWindowController: NSWindowController {
 
         let background = dockBackground ?? DockBackgroundWindowController(viewModel: viewModel)
         dockBackground = background
-        background.updateFrame(frame)
+        background.updateFrame(
+            frame,
+            screen: screen,
+            viewport: reservation.viewport(for: frame, on: screen)
+        )
         if window?.isVisible == true {
             background.orderFront()
         }
@@ -133,7 +181,11 @@ final class LaunchpadWindowController: NSWindowController {
 
         let patch = menuBarPatch ?? MenuBarPatchWindowController(viewModel: viewModel)
         menuBarPatch = patch
-        patch.updateFrame(frame)
+        patch.updateFrame(
+            frame,
+            screen: screen,
+            viewport: reservation.viewport(for: frame, on: screen)
+        )
         if window?.isVisible == true {
             patch.orderFront()
         }

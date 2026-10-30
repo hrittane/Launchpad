@@ -66,9 +66,60 @@ final class AppEnvironment {
             try? await Task.sleep(nanoseconds: 1_500_000_000)
 
             let overlayWindows = NSApp.windows.filter { $0.title == "Launchpad" && $0.isVisible }
+            let dockWindows = NSApp.windows.filter {
+                $0.title == "Launchpad Dock Background" && $0.isVisible
+            }
+            let patchWindows = NSApp.windows.filter {
+                $0.title == "Launchpad Menu Bar Patch" && $0.isVisible
+            }
             let itemCount = viewModel.pages.reduce(0) { $0 + $1.count }
-            let frame = overlayWindows.first?.frame ?? .zero
-            print("SMOKE overlayWindows=\(overlayWindows.count) pages=\(viewModel.pages.count) items=\(itemCount) frame=\(frame)")
+            let displayCount = NSScreen.screens.count
+            let expectedWindows = viewModel.settings.showOnAllDisplays ? displayCount : 1
+
+            guard let overlay = overlayWindows.first, let screen = overlay.screen else {
+                print("SMOKE overlayWindows=0 displays=\(displayCount) expectedWindows=\(expectedWindows)")
+                NSApp.terminate(nil)
+                return
+            }
+
+            let reservation = DockReservation.current(for: screen)
+            let frame = overlay.frame
+            let expectedFrame = reservation.interactiveFrame(for: screen)
+            let screenFrame = screen.frame
+            let level = overlay.level.rawValue
+            let frameStopsAtDock = frame == expectedFrame
+            let levelIsExpected = level == WindowLevels.aboveStatusBar.rawValue
+            let windowCountMatches = overlayWindows.count == expectedWindows
+            // A bottom Dock needs one strip behind it; a side Dock needs the
+            // strip plus the menu-bar corner patch.
+            let dockStripIsPresent = reservation.isEmpty || !dockWindows.isEmpty
+            let patchIsPresent = reservation.menuBarPatchFrame(for: screen) == nil
+                || !patchWindows.isEmpty
+            let dockIsBelowTheOverlay = dockWindows.allSatisfy {
+                $0.level == WindowLevels.belowDock
+            }
+            let wallpaper = SystemWallpaper.resolve(for: screen)
+            let wallpaperIsResolved = wallpaper != nil
+
+            print(
+                "SMOKE overlayWindows=\(overlayWindows.count) displays=\(displayCount) "
+                    + "expectedWindows=\(expectedWindows) pages=\(viewModel.pages.count) "
+                    + "items=\(itemCount) frame=\(frame) expectedFrame=\(expectedFrame) "
+                    + "screen=\(screenFrame) level=\(level) "
+                    + "frameStopsAtDock=\(frameStopsAtDock) windowCountMatches=\(windowCountMatches) "
+                    + "dockWindows=\(dockWindows.count) patchWindows=\(patchWindows.count) "
+                    + "dockStripIsPresent=\(dockStripIsPresent) patchIsPresent=\(patchIsPresent) "
+                    + "belowDockLevel=\(WindowLevels.belowDock.rawValue) "
+                    + "dockIsBelowTheOverlay=\(dockIsBelowTheOverlay) "
+                    + "wallpaper=\(wallpaper?.identity ?? "none") "
+                    + "wallpaperIsResolved=\(wallpaperIsResolved)"
+            )
+            assert(
+                frameStopsAtDock && levelIsExpected && windowCountMatches
+                    && dockStripIsPresent && patchIsPresent && dockIsBelowTheOverlay
+                    && wallpaperIsResolved,
+                "Overlay window or wallpaper source is not configured correctly"
+            )
             NSApp.terminate(nil)
         }
     }

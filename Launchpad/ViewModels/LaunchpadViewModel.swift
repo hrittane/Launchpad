@@ -940,6 +940,11 @@ final class LaunchpadViewModel: ObservableObject {
         closeFolder(animated: false)
         isEditing = false
         focusedEntryID = nil
+        // The icon size is persisted, so a fresh default alone would never
+        // reach an existing install. Reset restores it explicitly.
+        var resetSettings = settings
+        resetSettings.iconSize = Double(Metrics.defaultIconSize)
+        settings = resetSettings
         persist()
     }
 

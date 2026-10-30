@@ -11,7 +11,6 @@ struct FolderPanelView: View {
     let panelFrame: CGRect
     let anchor: CGRect
     let isPresented: Bool
-    let glassNamespace: Namespace.ID
 
     @FocusState private var titleIsFocused: Bool
     @Environment(\.colorScheme) private var colorScheme
@@ -55,11 +54,8 @@ struct FolderPanelView: View {
                 .regular.tint(Metrics.glassTintPanel.color(for: colorScheme)),
                 in: panelShape
             )
-            .glassEffectID(folder.id, in: glassNamespace)
-            .glassEffectTransition(.materialize)
             .scaleEffect(isPresented ? 1 : startScale)
             .position(isPresented ? endPoint : startPoint)
-            .opacity(isPresented ? 1 : 0)
             .animation(panelAnimation, value: isPresented)
             .onAppear {
                 if !viewModel.folderIsPresented {

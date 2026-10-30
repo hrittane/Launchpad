@@ -183,7 +183,7 @@ struct PreferencesView: View {
             }
         } message: {
             Text(
-                "This restores alphabetical order and removes all folders. App files are not affected.",
+                "This restores alphabetical order, removes all folders, and resets the icon size. App files are not affected.",
                 comment: "Reset confirmation message"
             )
         }

@@ -413,11 +413,11 @@ final class LayoutMetricsTests: XCTestCase {
     /// rendered icon is already as large as the cell and label allow, so a
     /// larger request must not change the result.
     func testMaximumIconSizeIsWhereTheRenderedIconStopsGrowing() {
-        let atMax = LayoutMetrics(screenSize: screen, settings: settings(iconSize: 100))
+        let probe = LayoutMetrics(screenSize: screen, settings: settings(iconSize: 128))
+        let atMax = LayoutMetrics(screenSize: screen, settings: settings(iconSize: probe.maximumIconSize))
         let aboveMax = LayoutMetrics(screenSize: screen, settings: settings(iconSize: 128))
 
-        XCTAssertEqual(atMax.maximumIconSize, 100, accuracy: 0.001)
-        XCTAssertEqual(atMax.iconSize, 100, accuracy: 0.001)
+        XCTAssertEqual(atMax.iconSize, atMax.maximumIconSize, accuracy: 0.001)
         XCTAssertEqual(aboveMax.iconSize, atMax.iconSize, accuracy: 0.001)
     }
 
@@ -429,13 +429,94 @@ final class LayoutMetricsTests: XCTestCase {
         XCTAssertLessThan(smaller.iconSize, atMax.iconSize)
     }
 
-    /// A larger label block leaves less room for the icon, so the maximum has
-    /// to shrink and the preferences range follows it.
-    func testMaximumIconSizeTracksLabelSize() {
+    /// With single-line labels the 32 pt vertical gap binds before the label
+    /// block does, so the label size changes the block height without changing
+    /// the icon cap at this reference size.
+    func testLabelBlockHeightTracksLabelSize() {
         let normal = LayoutMetrics(screenSize: screen, settings: settings(labelFontSize: 12))
         let large = LayoutMetrics(screenSize: screen, settings: settings(labelFontSize: 15))
 
-        XCTAssertLessThan(large.maximumIconSize, normal.maximumIconSize)
+        XCTAssertGreaterThan(large.labelBlockHeight, normal.labelBlockHeight)
+        XCTAssertEqual(large.maximumIconSize, normal.maximumIconSize, accuracy: 0.001)
+        XCTAssertGreaterThan(large.itemBlockHeight, normal.itemBlockHeight)
+    }
+}
+
+/// Ratios for the macOS 26 full-bleed launcher: a 7 x 5 grid that runs nearly
+/// edge to edge, an icon near 5.6% of the screen width, and a search pill and
+/// page-dot row that stay clear of the grid.
+final class FullScreenLayoutTests: XCTestCase {
+    private let screens = [
+        CGSize(width: 1440, height: 900),
+        CGSize(width: 1920, height: 1200)
+    ]
+
+    func testCellAndIconRatiosMatchTheTargetAtBothReferenceSizes() {
+        for screen in screens {
+            let metrics = LayoutMetrics(screenSize: screen, settings: .default)
+            let cellWidthRatio = metrics.cellWidth / screen.width
+            let cellHeightRatio = metrics.cellHeight / screen.height
+            let iconRatio = metrics.iconSize / screen.width
+
+            print(String(
+                format: "LAYOUT %.0fx%.0f cellWidth=%.4f cellHeight=%.4f icon=%.4f iconPt=%.2f",
+                screen.width,
+                screen.height,
+                cellWidthRatio,
+                cellHeightRatio,
+                iconRatio,
+                metrics.iconSize
+            ))
+
+            XCTAssertEqual(cellWidthRatio, 0.132, accuracy: 0.015)
+            XCTAssertEqual(cellHeightRatio, 0.165, accuracy: 0.015)
+            XCTAssertEqual(iconRatio, 0.056, accuracy: 0.006)
+        }
+    }
+
+    func testAllIconFramesStayInsideTheScreen() {
+        for screen in screens {
+            let metrics = LayoutMetrics(screenSize: screen, settings: .default)
+            let bounds = CGRect(origin: .zero, size: screen)
+
+            for index in 0..<(metrics.columns * metrics.rows) {
+                let frame = metrics.iconFrame(at: index)
+                XCTAssertTrue(
+                    bounds.contains(frame),
+                    "Icon \(index) at \(frame) left the \(screen) screen"
+                )
+            }
+        }
+    }
+
+    func testSearchPillAndPageDotsDoNotOverlapTheGrid() {
+        for screen in screens {
+            let metrics = LayoutMetrics(screenSize: screen, settings: .default)
+
+            let searchRect = CGRect(
+                x: (screen.width - metrics.searchSize.width) / 2,
+                y: metrics.searchTopOffset,
+                width: metrics.searchSize.width,
+                height: metrics.searchSize.height
+            )
+            let dotDiameter = Metrics.pageDotDiameter * metrics.scale
+            let dotRow = CGRect(
+                x: 0,
+                y: metrics.pageDotCenterY - dotDiameter / 2,
+                width: screen.width,
+                height: dotDiameter
+            )
+
+            XCTAssertFalse(
+                searchRect.intersects(metrics.gridRect),
+                "Search pill \(searchRect) overlaps grid \(metrics.gridRect) at \(screen)"
+            )
+            XCTAssertFalse(
+                dotRow.intersects(metrics.gridRect),
+                "Page dots \(dotRow) overlap grid \(metrics.gridRect) at \(screen)"
+            )
+            XCTAssertLessThan(metrics.gridRect.maxY, metrics.pageDotCenterY)
+        }
     }
 }
 
@@ -456,6 +537,11 @@ final class AppSettingsTests: XCTestCase {
     func testLabelFontSizeIsClamped() {
         XCTAssertEqual(settings(labelFontSize: 4).labelFontSize, 6, accuracy: 0.0001)
         XCTAssertEqual(settings(labelFontSize: 20).labelFontSize, 15, accuracy: 0.0001)
+    }
+
+    func testDefaultIconSizeMatchesTheFullBleedMetric() {
+        XCTAssertEqual(AppSettings.default.iconSize, Double(Metrics.defaultIconSize))
+        XCTAssertEqual(AppSettings.default.iconSize, 81, accuracy: 0.0001)
     }
 
     /// Settings written before the backdrop sliders were removed still carry

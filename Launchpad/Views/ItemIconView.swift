@@ -24,6 +24,9 @@ struct ItemIconView: View {
     /// The hovered target after the dwell delay. Turns the tile into the
     /// folder-creation affordance (shrink / folder glass).
     var isMergeArmed: Bool = false
+    /// Only the current page animates its wiggle. Driving this from the page
+    /// instead of `isEditing` keeps off-screen pages static.
+    var jiggleActive: Bool = false
     let reduceMotion: Bool
     let showDeleteBadge: Bool
     let recordsFrame: Bool
@@ -40,36 +43,48 @@ struct ItemIconView: View {
 
     @State private var isHovered = false
     @State private var isPressed = false
-    @State private var phase = Double.random(in: 0..<(2 * .pi))
+    /// Drives the wiggle through a repeating Core Animation transaction instead
+    /// of a 60 fps `TimelineView`, which used to rebuild every tile each frame.
+    @State private var jiggleSwing = false
 
     private var isFolder: Bool { entry.isFolder }
 
     var body: some View {
-        TimelineView(.animation(minimumInterval: 1.0 / 60.0, paused: !jiggleActive)) { context in
-            let time = context.date.timeIntervalSinceReferenceDate
-            let period = 0.26
-            let angle = jiggleActive ? sin(time * 2 * .pi / period + phase) * Metrics.jiggleAngle : 0
-            let vertical = jiggleActive ? sin(time * 2 * .pi / period + phase) * Metrics.jiggleTranslation : 0
-
-            content
-                .rotationEffect(.degrees(angle))
-                .offset(y: vertical)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .contentShape(Rectangle())
-        .onHover { isHovered = $0 }
-        .gesture(pointerGesture)
-        .simultaneousGesture(longPressGesture)
-        .contextMenu { contextMenu }
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(entry.displayName)
-        .accessibilityHint(accessibilityHint)
-        .accessibilityAddTraits(.isButton)
-        .accessibilityAction(named: Text("Open", comment: "Accessibility action")) { onTap() }
+        content
+            .rotationEffect(.degrees(jiggleActive ? (jiggleSwing ? Metrics.jiggleAngle : -Metrics.jiggleAngle) : 0))
+            .offset(y: jiggleActive ? (jiggleSwing ? Metrics.jiggleTranslation : -Metrics.jiggleTranslation) : 0)
+            .animation(jiggleAnimation, value: jiggleSwing)
+            .animation(.easeOut(duration: 0.15), value: jiggleActive)
+            .onChange(of: jiggleActive) { _, active in
+                jiggleSwing = active ? !jiggleSwing : false
+            }
+            .onAppear {
+                if jiggleActive { jiggleSwing = true }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .contentShape(Rectangle())
+            .onHover { isHovered = $0 }
+            .gesture(pointerGesture)
+            .simultaneousGesture(longPressGesture)
+            .contextMenu { contextMenu }
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(entry.displayName)
+            .accessibilityHint(accessibilityHint)
+            .accessibilityAddTraits(.isButton)
+            .accessibilityAction(named: Text("Open", comment: "Accessibility action")) { onTap() }
     }
 
-    private var jiggleActive: Bool {
-        isEditing && !reduceMotion
+    /// A small random offset per icon keeps the grid from wiggling in lockstep.
+    private static let jigglePeriod: Double = 0.26
+
+    private var jiggleAnimation: Animation? {
+        guard jiggleActive, !reduceMotion else {
+            return .easeOut(duration: 0.15)
+        }
+        let seed = Double(abs(entry.id.hashValue % 100)) / 100
+        return .easeInOut(duration: Self.jigglePeriod / 2)
+            .repeatForever(autoreverses: true)
+            .delay(seed * Self.jigglePeriod / 2)
     }
 
     private var accessibilityHint: String {

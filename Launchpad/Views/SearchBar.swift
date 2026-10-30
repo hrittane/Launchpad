@@ -2,6 +2,8 @@ import SwiftUI
 
 /// Top-centered search field. Width grows when focused and the clear button
 /// appears only when there is text, matching the classic Launchpad behavior.
+/// A circled options button on the right opens the same actions as the status
+/// menu without taking over typing or Escape handling.
 struct SearchBar: View {
     @ObservedObject var viewModel: LaunchpadViewModel
     let scale: CGFloat
@@ -18,13 +20,13 @@ struct SearchBar: View {
     var body: some View {
         HStack(spacing: 8 * scale) {
             Image(systemName: "magnifyingglass")
-                .font(.system(size: 13 * scale, weight: .medium))
+                .font(.system(size: 14 * scale, weight: .medium))
                 .foregroundStyle(.white.opacity(Metrics.searchPlaceholderOpacity))
                 .accessibilityHidden(true)
 
             ZStack(alignment: .leading) {
                 if viewModel.searchText.isEmpty {
-                    Text("Search", comment: "Search field placeholder")
+                    Text("Search Applications", comment: "Search field placeholder")
                         .font(.system(size: Metrics.searchFontSize * scale))
                         .foregroundStyle(.white.opacity(Metrics.searchPlaceholderOpacity))
                         .allowsHitTesting(false)
@@ -54,8 +56,32 @@ struct SearchBar: View {
                 .accessibilityLabel(Text("Clear search", comment: "Clear search button"))
                 .transition(.opacity)
             }
+
+            Menu {
+                Button {
+                    viewModel.onRequestPreferences?()
+                } label: {
+                    Text("Preferences…", comment: "Overlay options menu item")
+                }
+                Divider()
+                Button {
+                    viewModel.resetLayout()
+                    viewModel.requestSearchFocus()
+                } label: {
+                    Text("Reset Layout", comment: "Preferences button")
+                }
+            } label: {
+                Image(systemName: "ellipsis.circle.fill")
+                    .font(.system(size: 17 * scale, weight: .medium))
+                    .foregroundStyle(.white.opacity(0.85))
+            }
+            .menuStyle(.borderlessButton)
+            .menuIndicator(.hidden)
+            .fixedSize()
+            .accessibilityLabel(Text("More options", comment: "Search options button"))
         }
-        .padding(.horizontal, 10 * scale)
+        .padding(.leading, 14 * scale)
+        .padding(.trailing, 8 * scale)
         .frame(width: width, height: height)
         .liquidGlass(
             .regular
@@ -63,10 +89,15 @@ struct SearchBar: View {
                 .interactive(),
             in: Capsule()
         )
-        .glassEffectTransition(.materialize)
-        .opacity(viewModel.isVisible ? 1 : 0)
+        .overlay {
+            Capsule()
+                .strokeBorder(
+                    Color.white.opacity(Metrics.searchOutlineOpacity),
+                    lineWidth: 1
+                )
+                .allowsHitTesting(false)
+        }
         .animation(widthAnimation, value: width)
-        .animation(visibilityAnimation, value: viewModel.isVisible)
         .onChange(of: viewModel.searchFocusToken) {
             isFocused = true
         }
@@ -78,12 +109,5 @@ struct SearchBar: View {
 
     private var widthAnimation: Animation {
         viewModel.reduceMotion ? Metrics.Motion.reduced : .easeInOut(duration: 0.2)
-    }
-
-    private var visibilityAnimation: Animation {
-        if viewModel.reduceMotion { return Metrics.Motion.reduced }
-        return viewModel.isVisible
-            ? .easeOut(duration: Metrics.Durations.showBackground)
-            : .easeIn(duration: Metrics.Durations.hideIcons)
     }
 }

@@ -1,13 +1,13 @@
 # Launchpad
 
-A native macOS recreation of the classic Launchpad: a full-screen, blurred app
+A native macOS recreation of the classic Launchpad: an edge-to-edge, blurred app
 launcher with paged grids, folders, live search, drag-and-drop arrangement, an
 edit/jiggle mode, a global hot key, an optional hot corner, and a menu-bar
 agent lifecycle.
 
-The app is built with SwiftUI for the interface, AppKit for the window, blur,
-event, and hot-key plumbing, and an MVVM structure with `async/await` services.
-There are no third-party dependencies.
+The app is built with SwiftUI for the interface, AppKit for the window, event,
+and hot-key plumbing, Core Image for the wallpaper blur, and an MVVM structure
+with `async/await` services. There are no third-party dependencies.
 
 - **Platform:** macOS 26.0 or newer
 - **Language:** Swift 5.9+ toolchain (project `SWIFT_VERSION = 5.0`, using
@@ -56,35 +56,39 @@ Launchpad/
 │   │   ├── LayoutStore.swift          # Actor: debounced JSON persistence
 │   │   ├── LaunchAtLoginService.swift # SMAppService wrapper
 │   │   ├── SearchEngine.swift         # Ranked prefix/word/substring/fuzzy search
-│   │   └── SettingsStore.swift        # UserDefaults JSON settings
+│   │   ├── SettingsStore.swift        # UserDefaults JSON settings
+│   │   └── SystemWallpaper.swift      # Real wallpaper from store/providers
 │   ├── ViewModels/
 │   │   └── LaunchpadViewModel.swift   # All overlay state and interactions
 │   ├── Views/
 │   │   ├── AppIconImage.swift         # Async icon view with fallback tile
-│   │   ├── BackgroundView.swift       # Shared blur + tint (overlay, Dock strip, patch)
+│   │   ├── BackgroundView.swift       # Blurred-wallpaper surface + material fallback
 │   │   ├── FolderPanelView.swift      # Folder panel, paging, drag-out
 │   │   ├── InfoSheet.swift            # Native Get Info sheet
 │   │   ├── ItemIconView.swift         # App/folder tile, jiggle, badge, menu
 │   │   ├── LaunchpadRootView.swift    # Root layout, search, pages, drag layer
-│   │   ├── LiquidGlass.swift          # System Liquid Glass + fallback material
-│   │   ├── PageDots.swift             # Clickable page indicators
+│   │   ├── LiquidGlass.swift          # System Liquid Glass helpers
+│   │   ├── PageDots.swift             # Bare clickable page indicators
 │   │   ├── PageView.swift             # One paged grid with reorder preview
 │   │   ├── PreferencesView.swift      # SwiftUI Settings content
-│   │   ├── SearchBar.swift            # Growing search field
-│   │   └── ShortcutRecorder.swift     # AppKit key-chord recorder
+│   │   ├── SearchBar.swift            # Search pill with options menu
+│   │   ├── ShortcutRecorder.swift     # AppKit key-chord recorder
+│   │   └── WallpaperBackdrop.swift    # Cached Gaussian blur of the desktop image
 │   ├── Window/
-│   │   ├── DockBackgroundWindowController.swift # Backdrop strip behind the Dock
-│   │   ├── DockReservation.swift      # Dock edge/thickness and window frames
 │   │   ├── LaunchpadWindow.swift      # Borderless, key-capable overlay
-│   │   ├── LaunchpadWindowController.swift
-│   │   ├── MenuBarPatchWindowController.swift # Corner patch for a side Dock
+│   │   ├── LaunchpadWindowController.swift # Overlay + Dock backdrop + monitors
+│   │   ├── DockReservation.swift      # Dock edge/thickness + viewport mapping
+│   │   ├── DockBackgroundWindowController.swift # Blurred strip behind the Dock
+│   │   ├── MenuBarPatchWindowController.swift   # Corner patch for a side Dock
 │   │   ├── PreferencesWindowController.swift
-│   │   ├── WindowLevels.swift         # Above status bar / below Dock levels
+│   │   ├── WindowLevels.swift         # Above the menu bar, below the Dock
 │   │   └── WindowManager.swift        # Show/hide, mirrors, screen changes
 ├── LaunchpadTests/
-│   ├── CoreTests.swift                # 30 unit tests
+│   ├── BackdropTests.swift            # 3 wallpaper pixel/cache checks
+│   ├── CoreTests.swift                # 39 unit tests
 │   ├── GridReorderTests.swift         # 14 reorder/folder-drop tests
-│   └── SmokeTests.swift               # Hosted-app smoke test
+│   ├── SystemWallpaperTests.swift     # 5 wallpaper-source tests
+│   └── SmokeTests.swift               # 5 window-layout tests
 ├── README.md
 └── spec.md                            # Requirements + agreed clarifications
 ```
@@ -158,25 +162,29 @@ xcodebuild -project Launchpad.xcodeproj -scheme Launchpad \
 # Run the built app
 open .build/Build/Products/Debug/Launchpad.app
 
-# Test suite (44 unit tests + 1 hosted smoke test = 45 total)
+# Test suite (66 unit tests)
 xcodebuild -project Launchpad.xcodeproj -scheme Launchpad \
   -configuration Debug -derivedDataPath .build test \
   CODE_SIGNING_ALLOWED=NO
 
-# Debug-only smoke test: shows the overlay, prints layout diagnostics,
-# reports whether a visible overlay window exists, then exits.
+# Debug-only smoke test: shows the overlay, prints window diagnostics,
+# asserts the overlay reserves the Dock with a below-Dock backdrop and
+# that a real wallpaper source resolves, then exits.
 .build/Build/Products/Debug/Launchpad.app/Contents/MacOS/Launchpad --smoke-test
 ```
 
 The smoke test prints a line such as:
 
 ```text
-SMOKE overlayWindows=1 pages=3 items=75 frame=(0.0, 83.0, 1920.0, 1117.0)
+SMOKE overlayWindows=1 displays=1 expectedWindows=1 pages=3 items=74 frame=(0.0, 82.0, 1920.0, 1118.0) expectedFrame=(0.0, 82.0, 1920.0, 1118.0) screen=(0.0, 0.0, 1920.0, 1200.0) level=26 frameStopsAtDock=true windowCountMatches=true dockWindows=1 patchWindows=0 dockStripIsPresent=true patchIsPresent=true belowDockLevel=19 dockIsBelowTheOverlay=true wallpaper=neptune:TahoeDark wallpaperIsResolved=true
 ```
 
-The frame excludes the Dock strip on the current display (1920×1200 with an
-83 pt bottom Dock). If `overlayWindows=0`, the app did not create/show its
-window correctly.
+The overlay frame stops at the Dock's edge (`screen.frame` minus the reserved
+strip) while a background-only window one level below the Dock continues the
+blurred wallpaper behind it. The wallpaper line shows the real source the
+backdrop resolved (`neptune:TahoeDark` for the macOS 26 Tahoe default in dark
+mode, `neptune:TahoeLight` in light mode); it must not be `none` on a normal
+desktop.
 
 ### First launch and permissions
 
@@ -224,8 +232,8 @@ an XCTest environment and skips runtime startup).
   Double-click a folder tile to open it and edit its name. Drag apps out of an
   open folder to return them to the main grid. A folder with fewer than two apps
   dissolves.
-- **Edit mode:** long-press an icon (0.5 s), hold Option, or use the context
-  menu's delete action prerequisites. In edit mode, deletable user apps show an
+- **Edit mode:** long-press an icon (0.5 s), hold Option, or choose a delete
+  action from an item's context menu. In edit mode, deletable user apps show an
   “×” badge. A blank click exits edit mode; a second blank click closes the
   overlay. Escape and Return also exit edit mode.
 - **Get Info:** right-click → **Get Info** opens a native SwiftUI sheet.
@@ -251,24 +259,32 @@ an XCTest environment and skips runtime startup).
       (Console testing: `Launchpad.app/Contents/MacOS/Launchpad -AppleLanguages '(fr)'`.)
 - [ ] Delete/corrupt `layout.json` and relaunch; a fresh alphabetical layout is
       created instead of crashing.
-- [ ] Use **Reset Layout** from both the status menu and Preferences; all folders
-      dissolve, apps become alphabetical, and app files are untouched.
+- [ ] **Reset Layout** from both the status menu and Preferences restores
+      alphabetical order, dissolves all folders, resets the icon size to 81 pt,
+      and leaves app files untouched.
 
 ### Window and background
 
-- [ ] Overlay covers the full width at the top edge and the whole screen above
-      the Dock; the Finder/macOS menu bar and status items are not visible.
-- [ ] The Dock remains visible above the overlay and can still launch apps; the
-      area behind it shows the same blurred backdrop, not an untreated desktop
-      strip.
-- [ ] Move the Dock to the left or right edge and show Launchpad again: the
-      strip behind the Dock is blurred, the small menu-bar corner above it is
-      covered, and the Dock remains usable.
+- [ ] Overlay covers the screen from the menu bar down to the Dock's edge; the
+      Finder/macOS menu bar and status items are not visible, while the Dock
+      stays visible and clickable.
+- [ ] The blurred wallpaper backdrop continues behind the Dock, so the strip
+      around the Dock matches the rest of the overlay with no seam.
+- [ ] The backdrop is the user's own wallpaper, blurred by about 50 pt and still
+      vivid; a flat 22–25% black layer dims it. There is no grey frost, navy or
+      blue wash, sheen, or highlight gradient.
+- [ ] Change the desktop wallpaper, hide Launchpad, and show it again; the new
+      wallpaper appears (the cached blur is rebuilt when its signature changes).
+- [ ] Set the macOS 26 Tahoe default wallpaper (light and dark); the backdrop
+      matches the wallpaper shown in System Settings, not the generic old aerial.
+- [ ] Select a specific aerial whose video has downloaded; its frame is blurred.
+      If the video is not downloaded, the backdrop falls back to the system
+      material, still dimmed the same way.
+- [ ] Move the Dock to the bottom, left, and right edge: the overlay reserves
+      the correct edge, the strip behind the Dock stays blurred, and a side Dock
+      gets the menu-bar corner patch.
 - [ ] Move the pointer to the top edge: no menu titles appear and clicking there
       opens no macOS menu.
-- [ ] Background is a vibrant blurred desktop with a cool ambient wash, a
-      specular highlight, and a dark/light tint that follows the system
-      appearance.
 - [ ] Enable **Reduce Transparency** in System Settings → Accessibility →
       Display; the background becomes a solid dark gray fallback.
 - [ ] With **Show on all displays** enabled, every display mirrors the UI, but
@@ -280,9 +296,10 @@ an XCTest environment and skips runtime startup).
 
 ### Grid and paging
 
-- [ ] Default grid is 7 × 5; Preferences allows 5–9 columns and 4–6 rows.
-- [ ] At 1440 × 900 with 96 pt icons all icons and two-line labels fit; icons
-      shrink automatically at dense settings.
+- [ ] Default grid is 7 × 5 with 81 pt icons; Preferences allows 5–9 columns and
+      4–6 rows.
+- [ ] At 1440 × 900 with default settings all icons and single-line labels fit;
+      icons shrink automatically at dense settings.
 - [ ] Page dots appear only with more than one page and are clickable.
 - [ ] ⌘1…⌘9 jumps to the page; Tab / Shift-Tab cycle pages.
 - [ ] Trackpad two-finger horizontal scroll follows 1:1 for at most one page,
@@ -296,6 +313,9 @@ an XCTest environment and skips runtime startup).
 ### Search
 
 - [ ] Typing a letter anywhere focuses search and filters immediately.
+- [ ] The pill shows a magnifier, the placeholder “Search Applications”, and a
+      circled “…” button that opens Preferences… and Reset Layout without
+      breaking typing, focus, or Escape.
 - [ ] Search is case- and diacritic-insensitive; prefix results rank above word
       prefixes, substrings, then one-edit fuzzy matches (queries ≥ 4 chars).
 - [ ] Search includes apps inside folders.
@@ -331,15 +351,17 @@ an XCTest environment and skips runtime startup).
 
 ### Animations
 
-- [ ] Show: background fades in (0.25 s); icons scale/fade in (0.30 s) with a
-      row stagger capped at 0.1 s.
-- [ ] Hide: icons scale/fade out (0.22 s), the background fades (0.15 s), then
-      windows order out.
+- [ ] Show: the whole overlay cross-fades in over 0.18 s (0.14 s out) by
+      animating each window's alpha, so the wallpaper and Liquid Glass surfaces
+      are composited once instead of re-rendered every frame.
 - [ ] Page changes use the 0.40 s / 0.86 spring.
 - [ ] Search cross-fades (0.2 s) and page dots hide.
 - [ ] Folder open scales from the folder icon center with a 0.35 s / 0.82
-      spring; the grid blurs and dims. Close reverses in 0.25 s.
-- [ ] Edit mode jiggles ±2° with a ±0.5 pt translation; exiting eases back.
+      spring and dims the grid behind it with a flat scrim. Close reverses in
+      0.25 s.
+- [ ] Edit mode jiggles ±2° with a ±0.5 pt translation on the current page only;
+      exiting eases back. Icons use a repeating layer animation rather than a
+      60 fps timeline.
 - [ ] Dragging scales the icon to 1.12 with a larger shadow and reflows neighbors
       with a 0.30 s / 0.8 spring.
 - [ ] Enable Reduce Motion; all animations become ~0.15 s fades and jiggle
@@ -361,8 +383,8 @@ an XCTest environment and skips runtime startup).
 
 - [ ] ⌘, and the status menu both open Preferences.
 - [ ] Columns/rows, icon size (64 pt up to the largest size the current grid
-      fits), label size (6–15), hot corner, global shortcut, **Launch at login**, and **Show on all displays** all
-      persist across relaunch.
+      fits), label size (6–15), hot corner, global shortcut, **Launch at login**,
+      and **Show on all displays** all persist across relaunch.
 - [ ] The shortcut recorder captures a chord and the new global shortcut toggles
       the overlay; **Reset** restores F4.
 - [ ] Selecting a hot corner shows the overlay after a 0.3 s dwell at that
@@ -394,43 +416,50 @@ an XCTest environment and skips runtime startup).
 
 ## Implementation notes and known limitations
 
-- **Blur radius and Liquid Glass:** AppKit does not expose a public continuous
-  40–60 pt Gaussian radius, so the full-screen backdrop uses
-  `NSVisualEffectView` (`.fullScreenUI`, emphasized) plus a cool ambient wash
-  and specular highlight. Per Apple's HIG, Liquid Glass belongs to the floating
-  control/navigation layer, not the app background, and glass cannot sample
-  other glass. The folder panel, search field, page-dot pill, and folder-drop
-  plate use the system material through SwiftUI's `glassEffect(_:in:)` (regular
-  variant, with a scheme-aware tint for legibility), all hosted in a single
-  `GlassEffectContainer`; the material blurs and refracts the grid behind it and
-  reacts to the pointer where appropriate. The deployment target is macOS 26, so
-  there is no pre-26 material fallback.
+- **Wallpaper source:** `SystemWallpaper` resolves the wallpaper the system is
+  actually showing. It uses `NSWorkspace.desktopImageURL(for:)` for ordinary
+  static/user images, but that API returns the generic `DefaultDesktop.heic` for
+  macOS 26 provider-backed wallpapers. In that case it reads the system
+  wallpaper store (per-display choice first, then all displays), maps
+  `com.apple.NeptuneOneExtension` to its bundled `TahoeLight.heic`/`TahoeDark.heic`
+  by appearance, and extracts a frame from the downloaded aerial video when a
+  specific aerial is selected. Linked files are used directly.
+- **Wallpaper blur:** `WallpaperBackdrop` downscales the resolved image to at
+  most 1280 px, aspect-fills it to a 640 pt working width, applies a Gaussian
+  blur (`sigma` scaled from a ~50 pt target), and caches the result per display,
+  screen size, and radius. The 1.1 saturation pass is baked into the cached
+  bitmap; a flat 22–25% black overlay keeps it vivid without a grey frost. Baking
+  avoids a full-screen SwiftUI colour filter on every window fade. `prepare(for:)`
+  runs from the window controller and rebuilds the cache only when a cheap
+  wallpaper signature changes, so wallpaper and appearance changes still appear
+  on the next show. SwiftUI body evaluation only reads the cache; the ~1 s store
+  read and HEIC decode never run during a page drag or other grid re-render.
+- **Wallpaper fallback:** if the store or provider cannot resolve an image (for
+  example a chosen aerial whose video has not downloaded), the backdrop uses
+  `NSVisualEffectView` (`.fullScreenUI`, emphasized) with the same black dim
+  instead of a blur. Reduce Transparency always wins and renders a solid dark
+  gray fill.
+- **Liquid Glass:** the folder panel, search pill, and folder-drop plate use the
+  system material through SwiftUI's `glassEffect(_:in:)` (regular variant, with
+  a scheme-aware tint for legibility), hosted in a single
+  `GlassEffectContainer`. The app background deliberately does not use glass:
+  the wallpaper blur needs a large radius and full saturation. Page dots are
+  bare, with no pill behind them. The folder panel does not use a glass-morph
+  transition; it scales and dims the grid instead, which avoids re-sampling a
+  large glass surface on every animation frame.
 - **Icon-size range:** `LayoutMetrics.iconSize` caps a request to the cell and
   label block, so the Preferences slider ends at `maximumIconSize` for the
-  current grid instead of offering inert values above the cap. Changing label
-  size, columns, rows, or display clamps the stored value into the new range.
-- **Seamless backdrop:** the main overlay, Dock strip, and side-Dock corner
-  patch share identical flat tint and ambient layers. Directional highlights
-  fade to clear before the Dock edge, so the separate backdrop windows join
-  without a visible seam.
-- **Window layering:** the Dock (level 20) and the menu bar (level 24, status
-  items 25) sit at different system levels, so no single window can be both
-  above the menu bar and below the Dock. The main overlay is at
-  `.statusBar + 1` (level 26) and its frame stops at the Dock edge; a
-  non-interactive backdrop window one level below the Dock (level 19) fills the
-  Dock strip. The Dock therefore stays visible and clickable while the menu bar
-  cannot show through. The app does not modify `NSApp.presentationOptions`:
-  AppKit rejects `.hideMenuBar` unless `.hideDock` is also set, which would hide
-  the Dock.
-- **Side Dock:** with a left or right Dock, the main window starts at the Dock
-  edge and leaves the menu-bar-height corner above the Dock exposed. A small
-  companion window at level 26 renders the same backdrop there and consumes
-  clicks. A bottom Dock needs no patch.
-- **Auto-hidden Dock:** macOS stops reserving Dock space in `visibleFrame` when
-  the Dock is set to auto-hide. In that case the app reads the Dock's saved
-  orientation and tile size on the primary display and reserves a conservative
-  strip, so a revealed Dock is not covered. An auto-hidden Dock still follows
-  the system setting and remains hidden until the pointer reaches its edge.
+  current grid instead of offering inert values above the cap. Changing columns,
+  rows, or display clamps the stored value into the new range.
+- **Window and Dock:** the Dock (level 20) and menu bar (level 24, status items
+  25) live on different levels, so one window cannot be both above the menu bar
+  and below the Dock. The main borderless overlay sits at `.statusBar + 1`
+  (level 26) and its frame stops at the Dock's edge. A non-interactive strip one
+  level below the Dock (`belowDock`, level 19) continues the blurred wallpaper
+  behind it, so the Dock stays visible and clickable. A side Dock also gets a
+  menu-bar-height corner patch. The wallpaper is rendered full-screen in each
+  window and offset by its viewport, so the pieces line up without a seam.
+  `NSApp.presentationOptions` is not modified.
 - **4-finger pinch:** third-party apps cannot intercept the system pinch/spread
   gesture that Apple's Launchpad used. Use the hot key, hot corner, status menu,
   trackpad horizontal scroll, arrow keys, Tab, or page dots instead.
@@ -448,22 +477,24 @@ an XCTest environment and skips runtime startup).
   its apps. It never deletes app files.
 - **Get Info:** implemented as a native SwiftUI sheet rather than Finder
   AppleScript, so no Automation permission is required.
-- **Page-indicator scale nuance:** icons show from 1.12 → 1.0. The hide
-  animation ends near 1.08; subsequent shows start from 1.08 rather than
-  snapping back to 1.12 while hidden. Reduce Motion replaces the scale motion
-  with fades.
-- **Search result stagger:** results cross-fade into the same paged grid and
-  inherit the per-row show stagger. There is no separate search-specific
-  stagger timer.
+- **Show/hide compositing:** the overlay uses a window-level alpha cross-fade
+  instead of a SwiftUI opacity animation over the full screen. A SwiftUI opacity
+  pass would force the wallpaper and every Liquid Glass surface to be re-sampled
+  each frame, which is expensive on integrated GPUs. The window alpha lets the
+  compositor cross-fade the finished frame for free.
+- **Search results:** results reuse the same paged grid; there is no separate
+  search-specific stagger timer or transition.
 - **Launch at login:** uses `SMAppService.mainApp`; registration may fail for
   ad-hoc builds outside `/Applications`. The toggle reflects the actual system
   status after the attempt.
-- **Tests:** 44 unit tests cover search ranking, pagination math, reorder
+- **Tests:** 66 unit tests cover search ranking, pagination math, reorder
   preview/commit parity, drag-state isolation, folder creation/merge/dissolve
-  rules, app-removal return semantics, normalization, JSON persistence, and
-  page-snap geometry.
-  A hosted smoke test plus the `--smoke-test` debug hook verify that the overlay
-  window is created and shown.
+  rules, app-removal return semantics, normalization, JSON persistence,
+  page-snap geometry, layout ratios, window coverage, Dock-strip levels and
+  viewport mapping, wallpaper-store/provider resolution, backdrop
+  saturation/brightness, and the cache-only backdrop lookup. The
+  `--smoke-test` debug hook also asserts that the overlay stops at the Dock and
+  that the below-Dock backdrop windows are present and correctly layered.
 
 ---
 
@@ -471,15 +502,34 @@ an XCTest environment and skips runtime startup).
 
 ```text
 xcodebuild ... build      → BUILD SUCCEEDED
-xcodebuild ... test       → TEST SUCCEEDED, 50 tests, 0 failures
-Launchpad --smoke-test    → SMOKE overlayWindows=1 pages=3 items=75 frame=(0.0, 83.0, 1920.0, 1117.0)
-window levels (debug)     → overlay 26 at (0, 83, 1920, 1117); Dock backdrop 19 at (0, 0, 1920, 84); Dock 20
+xcodebuild ... test       → TEST SUCCEEDED, 66 tests, 0 failures
+Launchpad --smoke-test    → SMOKE overlayWindows=1 displays=1 expectedWindows=1
+                            pages=3 items=74
+                            frame=(0.0, 82.0, 1920.0, 1118.0)
+                            expectedFrame=(0.0, 82.0, 1920.0, 1118.0)
+                            screen=(0.0, 0.0, 1920.0, 1200.0)
+                            level=26 frameStopsAtDock=true
+                            dockWindows=1 patchWindows=0 belowDockLevel=19
+                            dockStripIsPresent=true
+                            dockIsBelowTheOverlay=true
+                            wallpaper=neptune:TahoeDark
+                            wallpaperIsResolved=true
+layout ratios             → 1440×900 and 1920×1200: cell width 0.1323 W,
+                            cell height 0.1636 H, icon 0.0563 W
+backdrop pixels           → output saturation 1.031× input,
+                            brightness 0.801× input, hue delta 0.000
+backdrop hot path         → unprepared lookup returns nil (no resolve),
+                            prepared lookup is cache-only, repeated prepare
+                            reuses the same rendered image,
+                            1000 cache lookups in 0.008 s
+wallpaper source          → neptune:TahoeDark, 1280×1280
+                            (public API returned DefaultDesktop.heic)
+window checks             → frame stops at the Dock edge, level 26,
+                            Dock strip at level 19, viewport mapping exact
 graceful quit             → process exited after layout.json was flushed
 ```
 
 The local machine used Xcode 26.5 on macOS 26.7.1 with deployment target 26.0.
-The Liquid Glass surfaces were built and exercised at runtime.
-Pixel-level visual inspection requires Screen Recording permission, which was
-unavailable in this environment; window levels, frames, visibility, build, and
-tests were verified programmatically.
-# Launchpad
+Screen Recording permission is unavailable in this environment, so the visual
+match was not checked by eye. Window frames, levels, layout ratios, rendered
+backdrop pixels, build, and tests were verified programmatically.

@@ -5,8 +5,8 @@ import SwiftUI
 struct LaunchpadRootView: View {
     @ObservedObject var viewModel: LaunchpadViewModel
     let isInteractive: Bool
+    @ObservedObject var screenContext: OverlayScreenContext
     @Namespace private var pageRotorNamespace
-    @Namespace private var glassNamespace
 
     var body: some View {
         GeometryReader { proxy in
@@ -39,16 +39,9 @@ struct LaunchpadRootView: View {
 
         let stack = ZStack(alignment: .topLeading) {
             mainContent(size: size, metrics: metrics)
-                .scaleEffect(scaleForShow)
-                .opacity(viewModel.isVisible ? 1 : 0)
-                .blur(radius: blurForShow)
-                .blur(radius: folderOpen ? 5 * metrics.scale : 0)
-                .opacity(folderOpen ? 0.72 : 1)
-                .animation(showContentAnimation, value: viewModel.isVisible)
-                .animation(folderAnimation, value: folderOpen)
 
             if folderOpen {
-                Color.black.opacity(0.10)
+                Color.black.opacity(0.16)
                     .contentShape(Rectangle())
                     .onTapGesture {
                         viewModel.closeFolder()
@@ -63,8 +56,7 @@ struct LaunchpadRootView: View {
                         metrics: folderMetrics,
                         panelFrame: centeredFrame(for: folderMetrics.panelSize, in: size),
                         anchor: viewModel.folderAnchor,
-                        isPresented: viewModel.folderIsPresented,
-                        glassNamespace: glassNamespace
+                        isPresented: viewModel.folderIsPresented
                     )
                 }
             }
@@ -77,7 +69,11 @@ struct LaunchpadRootView: View {
         // it shares one container, which lets the system batch them in a single
         // pass and morph shapes that share a `glassEffectID`.
         return ZStack(alignment: .topLeading) {
-            LaunchpadBackgroundView(viewModel: viewModel)
+            LaunchpadBackgroundView(
+                viewModel: viewModel,
+                screen: screenContext.screen,
+                viewport: screenContext.viewport
+            )
 
             GlassEffectContainer(spacing: 8) {
                 stack
@@ -108,14 +104,11 @@ struct LaunchpadRootView: View {
                     currentPage: viewModel.currentDisplayedPage,
                     diameter: Metrics.pageDotDiameter * metrics.scale,
                     spacing: Metrics.pageDotSpacing * metrics.scale,
-                    style: .glass,
                     onSelect: { page in
                         viewModel.goToPage(page)
                     }
                 )
                 .position(x: size.width / 2, y: metrics.pageDotCenterY)
-                .opacity(viewModel.isVisible ? 1 : 0)
-                .animation(visibilityAnimation, value: viewModel.isVisible)
             }
 
             if showsNoResults {
@@ -123,28 +116,9 @@ struct LaunchpadRootView: View {
                     .font(.system(size: 22 * metrics.scale, weight: .regular))
                     .foregroundStyle(.white.opacity(0.6))
                     .position(x: size.width / 2, y: size.height / 2)
-                    .opacity(viewModel.isVisible ? 1 : 0)
                     .accessibilityAddTraits(.isStaticText)
             }
         }
-    }
-
-    private var scaleForShow: CGFloat {
-        if viewModel.reduceMotion { return 1 }
-        return viewModel.isVisible ? 1 : 1.12
-    }
-
-    private var blurForShow: CGFloat {
-        if viewModel.reduceMotion { return 0 }
-        return viewModel.isVisible ? 0 : 10
-    }
-
-    private var showContentAnimation: Animation? {
-        if viewModel.reduceMotion { return Metrics.Motion.reduced }
-        if viewModel.isVisible {
-            return Metrics.Motion.showZoom
-        }
-        return .easeIn(duration: Metrics.Durations.hideBackground)
     }
 
     private func pageContainer(size: CGSize, metrics: LayoutMetrics) -> some View {
@@ -250,16 +224,8 @@ struct LaunchpadRootView: View {
         )
     }
 
-    private var folderAnimation: Animation? {
-        viewModel.reduceMotion ? Metrics.Motion.reduced : .easeInOut(duration: 0.25)
-    }
-
     private var searchAnimation: Animation? {
         viewModel.reduceMotion ? Metrics.Motion.reduced : .easeInOut(duration: Metrics.Durations.searchCrossFade)
-    }
-
-    private var visibilityAnimation: Animation? {
-        viewModel.reduceMotion ? Metrics.Motion.reduced : .easeInOut(duration: 0.2)
     }
 }
 

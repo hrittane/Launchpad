@@ -281,6 +281,16 @@
         }
       }
     },
+    "More options" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Plus d’options"
+          }
+        }
+      }
+    },
     "Move to Trash" : {
       "localizations" : {
         "fr" : {
@@ -481,12 +491,12 @@
         }
       }
     },
-    "Search" : {
+    "Search Applications" : {
       "localizations" : {
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Rechercher"
+            "value" : "Rechercher des applications"
           }
         }
       }
@@ -571,12 +581,12 @@
         }
       }
     },
-    "This restores alphabetical order and removes all folders. App files are not affected." : {
+    "This restores alphabetical order, removes all folders, and resets the icon size. App files are not affected." : {
       "localizations" : {
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Cela rétablit l’ordre alphabétique et supprime tous les dossiers. Les fichiers des apps ne sont pas modifiés."
+            "value" : "Cela rétablit l’ordre alphabétique, supprime tous les dossiers et réinitialise la taille des icônes. Les fichiers d’application ne sont pas affectés."
           }
         }
       }

@@ -44,27 +44,34 @@ final class WindowManager {
     func show() {
         guard !isShown else { return }
         hideTask?.cancel()
+        // Keep the cached blur across shows. `updateFrame` compares a cheap
+        // wallpaper signature and rebuilds only when the desktop wallpaper or
+        // appearance actually changed.
         prepare()
         guard let primary else { return }
 
         viewModel.prepareForShow()
-        isShown = true
-
         let screen = screenUnderCursor()
         primary.updateFrame(screen)
         primary.setInteractive(true)
+        primary.setAlpha(0)
+        isShown = true
+        viewModel.setVisible(true)
 
         NSApp.activate()
         // `orderFront` also raises the non-interactive Dock backdrop and the
         // side-Dock corner patch, which `makeKeyAndOrderFront` would leave out.
         primary.orderFront()
 
-        updateMirrors()
+        updateMirrors(fadeIn: true)
 
-        // Let SwiftUI render the hidden state once so the show transition is
-        // animated rather than appearing fully formed.
-        DispatchQueue.main.async { [weak self] in
-            self?.viewModel.setVisible(true)
+        // Cross-fade the windows themselves. This keeps the show smooth even
+        // when the content includes Liquid Glass, which is costly to re-render
+        // behind a SwiftUI opacity animation.
+        let duration = showFadeDuration
+        primary.animateAlpha(to: 1, duration: duration)
+        for mirror in mirrors {
+            mirror.animateAlpha(to: 1, duration: duration)
         }
     }
 
@@ -74,12 +81,23 @@ final class WindowManager {
         isShown = false
         viewModel.setVisible(false)
 
-        let delay = viewModel.reduceMotion ? 0.18 : 0.42
+        let duration = hideFadeDuration
+        primary?.animateAlpha(to: 0, duration: duration)
+        mirrors.forEach { $0.animateAlpha(to: 0, duration: duration) }
+
         hideTask = Task { [weak self] in
-            try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+            try? await Task.sleep(nanoseconds: UInt64((duration + 0.03) * 1_000_000_000))
             guard !Task.isCancelled, let self else { return }
             self.finishHide()
         }
+    }
+
+    private var showFadeDuration: TimeInterval {
+        viewModel.reduceMotion ? 0.08 : Metrics.Durations.showBackground
+    }
+
+    private var hideFadeDuration: TimeInterval {
+        viewModel.reduceMotion ? 0.08 : Metrics.Durations.hideBackground
     }
 
     func toggle() {
@@ -107,7 +125,7 @@ final class WindowManager {
         }
     }
 
-    private func updateMirrors() {
+    private func updateMirrors(fadeIn: Bool = false) {
         mirrors.forEach { $0.orderOut() }
         mirrors.removeAll()
 
@@ -116,6 +134,9 @@ final class WindowManager {
         for screen in NSScreen.screens where screen !== mainScreen {
             let controller = LaunchpadWindowController(viewModel: viewModel, interactive: false)
             controller.updateFrame(screen)
+            if fadeIn {
+                controller.setAlpha(0)
+            }
             controller.orderFront()
             mirrors.append(controller)
         }

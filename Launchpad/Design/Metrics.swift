@@ -22,13 +22,13 @@ enum Metrics {
 
     static let referenceSize = CGSize(width: 1440, height: 900)
     static let scaleRange: ClosedRange<CGFloat> = 0.8...1.6
-    static let gridHorizontalMarginRatio: CGFloat = 0.08
-    static let gridTopMargin: CGFloat = 110
-    static let gridBottomMargin: CGFloat = 90
+    static let gridHorizontalMarginRatio: CGFloat = 0.037
+    static let gridTopMargin: CGFloat = 105
+    static let gridBottomMargin: CGFloat = 59
 
     // MARK: Icons & labels
 
-    static let defaultIconSize: CGFloat = 96
+    static let defaultIconSize: CGFloat = 81
     static let iconShadowOpacity: Double = 0.35
     static let iconShadowRadius: CGFloat = 6
     static let iconShadowY: CGFloat = 3
@@ -40,7 +40,7 @@ enum Metrics {
     static let minimumVerticalGap: CGFloat = 32
 
     static let labelSpacing: CGFloat = 10
-    static let labelMaxLines = 2
+    static let labelMaxLines = 1
     static let labelLineHeightFactor: CGFloat = 1.2
     static let labelShadowOpacity: Double = 0.6
     static let labelShadowRadius: CGFloat = 2
@@ -48,18 +48,20 @@ enum Metrics {
 
     // MARK: Search
 
-    static let searchWidth: CGFloat = 280
+    static let searchWidth: CGFloat = 250
     static let searchFocusedWidth: CGFloat = 320
-    static let searchHeight: CGFloat = 30
-    static let searchTop: CGFloat = 36
+    static let searchHeight: CGFloat = 40
+    static let searchTop: CGFloat = 29
     static let searchFontSize: CGFloat = 14
     static let searchPlaceholderOpacity: Double = 0.55
+    /// Thin light rim that separates the glass pill from a bright wallpaper.
+    static let searchOutlineOpacity: Double = 0.30
 
     // MARK: Page dots
 
     static let pageDotDiameter: CGFloat = 8
     static let pageDotSpacing: CGFloat = 14
-    static let pageDotBottom: CGFloat = 40
+    static let pageDotBottom: CGFloat = 18
     static let pageDotActiveOpacity: Double = 1.0
     static let pageDotInactiveOpacity: Double = 0.35
     static let folderPageDotDiameter: CGFloat = 7
@@ -73,7 +75,6 @@ enum Metrics {
     /// The merge plate is a light sheen rather than a dark scrim, so it keeps
     /// the same white tint in both appearances.
     static let glassTintPlate: Double = 0.10
-    static let pageDotPillTint = GlassTint(light: 0.16, dark: 0.10)
 
     // MARK: Folder
 
@@ -91,14 +92,10 @@ enum Metrics {
 
     // MARK: Background
 
-    /// The window material has a fixed blur radius, so the backdrop's depth
-    /// comes from a black tint plus a cool ambient cast, a top sheen, and a
-    /// diagonal reflection.
+    /// Flat black dimming over the blurred wallpaper. Light mode needs slightly
+    /// less dimming because the wallpaper stays brighter to begin with.
     static let darkTintOpacity: Double = 0.25
     static let lightTintOpacity: Double = 0.22
-    static let backdropAmbient = GlassTint(light: 0.13, dark: 0.19)
-    static let backdropSheen: Double = 0.13
-    static let backdropHighlight: Double = 0.04
     /// Solid fill used when the system asks for reduced transparency.
     static let reduceTransparencyBackground: Double = 0.85
 
@@ -114,10 +111,6 @@ enum Metrics {
 
     enum Durations {
         static let showBackground: Double = 0.18
-        static let showIcons: Double = 0.26
-        static let showStagger: Double = 0.012
-        static let showStaggerMax: Double = 0.07
-        static let hideIcons: Double = 0.18
         static let hideBackground: Double = 0.14
         static let hover: Double = 0.15
         static let pressed: Double = 0.10
@@ -161,10 +154,6 @@ enum Metrics {
     // MARK: Animations
 
     enum Motion {
-        static let show = Animation.easeOut(duration: Durations.showBackground)
-        static let showIcons = Animation.spring(response: 0.34, dampingFraction: 0.8)
-        static let hideIcons = Animation.easeIn(duration: Durations.hideIcons)
-        static let hideBackground = Animation.easeIn(duration: Durations.hideBackground)
         static let page = Animation.timingCurve(0.22, 0.90, 0.25, 1.0, duration: Durations.pageSlide)
         static let folder = Animation.spring(response: 0.33, dampingFraction: 0.88)
         /// Reflow animation for tiles displaced by a drag. The blend duration
@@ -174,15 +163,14 @@ enum Metrics {
         static let hover = Animation.easeInOut(duration: Durations.hover)
         static let pressed = Animation.easeOut(duration: Durations.pressed)
         static let reduced = Animation.easeInOut(duration: Durations.reducedMotion)
-        static let showZoom = Animation.spring(response: 0.38, dampingFraction: 0.84)
     }
 }
 
 /// Layout math for the main grid at a concrete screen size.
 ///
 /// The effective icon size shrinks when the requested size, minimum gaps, or
-/// the two-line label block cannot fit a cell. This is the clarification that
-/// keeps a 7 × 5 grid usable on a 1440 × 900 display.
+/// the label block cannot fit a cell. This is the clarification that keeps a
+/// 7 × 5 grid usable on a 1440 × 900 display.
 struct LayoutMetrics {
     let screenSize: CGSize
     let scale: CGFloat

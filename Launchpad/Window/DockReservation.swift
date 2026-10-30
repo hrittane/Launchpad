@@ -137,6 +137,22 @@ struct DockReservation {
         }
     }
 
+    /// Converts a window frame in screen coordinates into the region of the
+    /// screen the window covers, using a top-left origin for SwiftUI.
+    ///
+    /// The wallpaper backdrop renders one full-screen image per display and
+    /// offsets it by this region, so the main window, Dock strip, and corner
+    /// patch line up into a single continuous surface.
+    func viewport(for frame: NSRect, on screen: NSScreen) -> CGRect {
+        let screenFrame = screen.frame
+        return CGRect(
+            x: frame.minX - screenFrame.minX,
+            y: screenFrame.maxY - frame.maxY,
+            width: frame.width,
+            height: frame.height
+        )
+    }
+
     private static func preferencesFallback() -> DockReservation {
         let defaults = UserDefaults(suiteName: "com.apple.dock")
         let edge: Edge

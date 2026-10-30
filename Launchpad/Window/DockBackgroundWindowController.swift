@@ -6,7 +6,15 @@ import SwiftUI
 /// and clickable while the area around it is blurred like the rest of the
 /// overlay.
 final class DockBackgroundWindowController: NSWindowController {
+    private let viewModel: LaunchpadViewModel
+    private let hostingView: NSHostingView<LaunchpadBackgroundView>
+
     init(viewModel: LaunchpadViewModel) {
+        self.viewModel = viewModel
+        self.hostingView = NSHostingView(
+            rootView: LaunchpadBackgroundView(viewModel: viewModel)
+        )
+
         let window = DockBackgroundWindow(
             contentRect: .zero,
             styleMask: [.borderless],
@@ -28,8 +36,6 @@ final class DockBackgroundWindowController: NSWindowController {
 
         super.init(window: window)
 
-        let background = LaunchpadBackgroundView(viewModel: viewModel, role: .dockStrip)
-        let hostingView = NSHostingView(rootView: background)
         hostingView.translatesAutoresizingMaskIntoConstraints = true
         hostingView.autoresizingMask = [.width, .height]
         hostingView.frame = window.contentView?.bounds ?? .zero
@@ -40,8 +46,15 @@ final class DockBackgroundWindowController: NSWindowController {
         fatalError("init(coder:) has not been implemented")
     }
 
-    func updateFrame(_ frame: NSRect) {
+    func updateFrame(_ frame: NSRect, screen: NSScreen, viewport: CGRect) {
         window?.setFrame(frame, display: true)
+        // Re-point the backdrop at the screen and the exact slice of it this
+        // window covers, so the strip matches the main window's wallpaper.
+        hostingView.rootView = LaunchpadBackgroundView(
+            viewModel: viewModel,
+            screen: screen,
+            viewport: viewport
+        )
     }
 
     func orderFront() {

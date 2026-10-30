@@ -11,18 +11,12 @@ struct PageView: View {
     let isInteractive: Bool
     let recordsFrames: Bool
 
-    @State private var hasShownOnce = false
-    /// Trigger the first appearance transition when the app shows and the view
-    /// is first laid out. Without this, the first show can skip the zoom if the
-    /// view appeared before `isVisible` changed.
-    @State private var readyForShow = false
-
-    private var tileScale: CGFloat {
-        if viewModel.reduceMotion { return 1 }
-        if viewModel.isVisible {
-            return 1
-        }
-        return hasShownOnce ? 1.06 : 1.14
+    /// The wiggle only runs on the page the user is looking at.
+    private var jiggleActive: Bool {
+        viewModel.isEditing
+            && !viewModel.reduceMotion
+            && pageIndex == viewModel.currentDisplayedPage
+            && isInteractive
     }
 
     var body: some View {
@@ -49,6 +43,7 @@ struct PageView: View {
                     isFocused: viewModel.focusedEntryID == entry.id,
                     isMergeTarget: viewModel.dragSession?.hoveredEntryID == entry.id,
                     isMergeArmed: viewModel.dragSession?.armedMergeTargetID == entry.id,
+                    jiggleActive: jiggleActive,
                     reduceMotion: viewModel.reduceMotion,
                     showDeleteBadge: entry.app?.isDeletable == true,
                     recordsFrame: recordsFrames,
@@ -91,45 +86,12 @@ struct PageView: View {
                 .opacity(isDragSource ? 0 : 1)
                 .allowsHitTesting(!isDragSource)
                 .animation(reorderAnimation, value: CGPoint(x: x, y: cell.midY))
-                .animation(visibilityAnimation(row: slot / max(1, metrics.columns)), value: viewModel.isVisible)
             }
         }
-        .onAppear {
-            if viewModel.isVisible {
-                hasShownOnce = true
-                readyForShow = true
-            }
-        }
-        .onChange(of: viewModel.isVisible) { _, visible in
-            if visible {
-                hasShownOnce = true
-                readyForShow = true
-            }
-        }
-    }
-
-    private func opacity(for isDragSource: Bool) -> Double {
-        guard viewModel.isVisible else { return 0 }
-        return 1
-    }
-
-    private var tileOpacity: Double {
-        if viewModel.reduceMotion { return 1 }
-        guard !viewModel.isVisible else { return 1 }
-        return hasShownOnce ? 0.7 : 0.4
     }
 
     private var reorderAnimation: Animation? {
         viewModel.reduceMotion ? Metrics.Motion.reduced : Metrics.Motion.reorder
-    }
-
-    private func visibilityAnimation(row: Int) -> Animation? {
-        if viewModel.reduceMotion { return Metrics.Motion.reduced }
-        if viewModel.isVisible {
-            let delay = min(Double(row) * Metrics.Durations.showStagger, Metrics.Durations.showStaggerMax)
-            return Metrics.Motion.showIcons.delay(delay)
-        }
-        return .easeIn(duration: Metrics.Durations.hideIcons)
     }
 
     private func handle(_ action: ItemContextAction, for entry: LaunchpadEntry) {

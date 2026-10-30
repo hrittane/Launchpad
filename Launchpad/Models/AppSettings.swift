@@ -90,7 +90,7 @@ struct AppSettings: Codable, Equatable, Sendable {
     static let `default` = AppSettings(
         columns: 7,
         rows: 5,
-        iconSize: 96,
+        iconSize: Double(Metrics.defaultIconSize),
         labelFontSize: 13,
         showOnAllDisplays: false,
         hotCorner: .bottomRight,

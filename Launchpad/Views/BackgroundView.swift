@@ -1,9 +1,9 @@
 import AppKit
 import SwiftUI
 
-/// Public AppKit blur material. A continuous 40–60 pt Gaussian radius is not
-/// exposed by AppKit, so the overlay combines a full-screen material with a
-/// light wash and specular highlights to achieve a glassy, legible backdrop.
+/// Public AppKit blur material, used only when the wallpaper cannot be loaded
+/// as a bitmap (dynamic or aerial wallpapers). The normal path blurs the
+/// desktop's image so color stays saturated.
 struct VisualEffectBackground: NSViewRepresentable {
     var material: NSVisualEffectView.Material = .fullScreenUI
     var blendingMode: NSVisualEffectView.BlendingMode = .behindWindow
@@ -27,113 +27,91 @@ struct VisualEffectBackground: NSViewRepresentable {
     }
 }
 
-/// Which part of the desktop the backdrop is covering. The main overlay can
-/// carry a specular sheen; the strip behind the Dock must stay flat so the two
-/// separate windows meet without a visible seam.
-enum BackdropRole {
-    case overlay
-    case dockStrip
-    case patch
-}
-
 struct LaunchpadBackgroundView: View {
     @ObservedObject var viewModel: LaunchpadViewModel
-    var role: BackdropRole = .overlay
+    var screen: NSScreen? = nil
+    /// The part of the screen this window covers, in top-left screen
+    /// coordinates. The Dock strip and menu-bar patch render the same
+    /// full-screen wallpaper offset by this region, so the pieces line up.
+    var viewport: CGRect? = nil
 
     var body: some View {
-        LaunchpadBackgroundSurface(viewModel: viewModel, role: role)
-            .opacity(viewModel.isVisible ? 1 : 0)
-            .animation(backgroundAnimation, value: viewModel.isVisible)
-    }
-
-    private var backgroundAnimation: Animation {
-        if viewModel.reduceMotion { return Metrics.Motion.reduced }
-        if viewModel.isVisible {
-            return .easeOut(duration: Metrics.Durations.showBackground)
-        }
-        return .easeIn(duration: Metrics.Durations.hideBackground)
-            .delay(Metrics.Durations.hideIcons)
+        LaunchpadBackgroundSurface(viewModel: viewModel, screen: screen, viewport: viewport)
     }
 }
 
-/// The blur and light layers shared by the main overlay, the Dock background,
-/// and the side-Dock menu-bar patch. Keeping them in one view guarantees every
-/// window renders the same backdrop.
+/// One continuous blurred-wallpaper surface for a single screen.
 ///
-/// The app background intentionally uses a standard material rather than
-/// Liquid Glass: glass cannot sample other glass, and Apple's HIG reserves it
-/// for the floating control and navigation layer. The glass look comes from a
-/// vibrant, low-opacity material plus a cool ambient wash and a soft specular
-/// highlight, instead of the flat gray tint that previously read as frost.
+/// The wallpaper is sharpened back up with a small saturation boost and dimmed
+/// with a flat black layer. There is no wash, sheen, or gradient over it, so the
+/// desktop's own colors carry the backdrop. When the wallpaper cannot be loaded
+/// the view falls back to the system material, still dimmed the same way.
 struct LaunchpadBackgroundSurface: View {
     @ObservedObject var viewModel: LaunchpadViewModel
-    var role: BackdropRole = .overlay
+    /// The window's own screen, so mirrored displays blur their own wallpaper.
+    var screen: NSScreen? = nil
+    /// The region of the screen the hosting window covers, in top-left screen
+    /// coordinates. `nil` renders the wallpaper to the view's own bounds.
+    var viewport: CGRect? = nil
+    /// Test seams: override the live accessibility setting and image source.
+    var reduceTransparencyOverride: Bool? = nil
+    var wallpaperImage: CGImage? = nil
+
     @Environment(\.colorScheme) private var colorScheme
+
+    private var isTransparencyReduced: Bool {
+        reduceTransparencyOverride ?? viewModel.reduceTransparency
+    }
+
+    private var wallpaper: CGImage? {
+        if let wallpaperImage { return wallpaperImage }
+        guard let screen = screen ?? NSScreen.main ?? NSScreen.screens.first else { return nil }
+        return WallpaperBackdrop.blurredImage(for: screen)
+    }
+
+    private var dim: Color {
+        Color.black.opacity(
+            colorScheme == .dark ? Metrics.darkTintOpacity : Metrics.lightTintOpacity
+        )
+    }
 
     var body: some View {
         GeometryReader { proxy in
-            ZStack {
-                if viewModel.reduceTransparency {
+            let screenSize = screen?.frame.size ?? proxy.size
+            let region = viewport ?? CGRect(origin: .zero, size: screenSize)
+
+            ZStack(alignment: .topLeading) {
+                if isTransparencyReduced {
                     Color(white: 0.12)
                         .opacity(Metrics.reduceTransparencyBackground)
+                } else if let wallpaper {
+                    fullScreenWallpaper(wallpaper, size: screenSize)
+                        .offset(x: -region.minX, y: -region.minY)
                 } else {
-                    VisualEffectBackground(
-                        material: .fullScreenUI,
-                        blendingMode: .behindWindow,
-                        state: .active,
-                        isEmphasized: true
-                    )
-                    liquidGlassWash(size: proxy.size)
+                    // Fallback for wallpapers that cannot be loaded as an image
+                    // (dynamic or aerial wallpapers).
+                    VisualEffectBackground(isEmphasized: true)
+                    dim
                 }
             }
-            .frame(width: proxy.size.width, height: proxy.size.height)
+            .frame(width: proxy.size.width, height: proxy.size.height, alignment: .topLeading)
+            .clipped()
         }
         .ignoresSafeArea()
         .accessibilityHidden(true)
     }
 
-    /// A light wash over the blurred desktop. The flat layers are identical in
-    /// every window, so the main overlay and the Dock strip join seamlessly;
-    /// the directional highlights fade to clear before the Dock edge.
-    private func liquidGlassWash(size: CGSize) -> some View {
-        let sheen = role == .dockStrip ? 0 : Metrics.backdropSheen
-
-        return ZStack {
-            // Cool ambient cast: keeps the blurred desktop from reading as
-            // neutral gray frost and gives the glass a subtle tint.
-            Color(red: 0.10, green: 0.17, blue: 0.32)
-                .opacity(Metrics.backdropAmbient.opacity(for: colorScheme))
-            Color.black.opacity(
-                colorScheme == .dark ? Metrics.darkTintOpacity : Metrics.lightTintOpacity
-            )
-
-            // Specular light catching the top of the glass. It fades out well
-            // above the Dock so the separate backdrop window is seamless.
-            if sheen > 0 {
-                VStack(spacing: 0) {
-                    LinearGradient(
-                        colors: [Color.white.opacity(sheen), .clear],
-                        startPoint: .top,
-                        endPoint: .bottom
-                    )
-                    .frame(height: min(180, size.height * 0.22))
-                    Spacer(minLength: 0)
-                }
-                .frame(maxWidth: .infinity, alignment: .top)
-            }
-
-            // A diagonal reflection across the main overlay. It is clear by
-            // the middle of the screen, so it never reaches the Dock seam.
-            if role == .overlay {
-                LinearGradient(
-                    stops: [
-                        .init(color: Color.white.opacity(Metrics.backdropHighlight), location: 0),
-                        .init(color: .clear, location: 0.55)
-                    ],
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
-                )
-            }
+    /// One full-screen wallpaper layer. Each window clips a different region of
+    /// it, so the main overlay, Dock strip, and corner patch reconstruct the
+    /// same continuous backdrop.
+    private func fullScreenWallpaper(_ image: CGImage, size: CGSize) -> some View {
+        ZStack {
+            Image(decorative: image, scale: 1)
+                .resizable()
+                .scaledToFill()
+            dim
         }
+        .frame(width: size.width, height: size.height)
+        .clipped()
     }
 }
