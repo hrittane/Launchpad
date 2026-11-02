@@ -440,6 +440,36 @@ final class LayoutMetricsTests: XCTestCase {
         XCTAssertEqual(large.maximumIconSize, normal.maximumIconSize, accuracy: 0.001)
         XCTAssertGreaterThan(large.itemBlockHeight, normal.itemBlockHeight)
     }
+
+    /// A folder page is the classic 7 × 3 = 21 slots, and folder tiles reuse
+    /// the main grid's rendered icon and label sizes instead of shrinking.
+    func testFolderMetricsUseTwentyOneSlotsAndTheMainGridIconSize() {
+        let grid = LayoutMetrics(screenSize: screen, settings: settings(iconSize: 100))
+        let folder = FolderMetrics(screenSize: screen, settings: settings(iconSize: 100))
+
+        XCTAssertEqual(folder.columns, 7)
+        XCTAssertEqual(folder.rows, 3)
+        XCTAssertEqual(folder.capacity, 21)
+        XCTAssertEqual(folder.iconSize, grid.iconSize, accuracy: 0.001)
+        XCTAssertEqual(folder.labelFontSize, grid.labelFontSize, accuracy: 0.001)
+    }
+
+    /// The panel grows around its fixed 7 × 3 cells, so every folder icon
+    /// frame must stay inside the rounded panel at both reference sizes.
+    func testFolderIconFramesStayInsideThePanel() {
+        for screen in [CGSize(width: 1440, height: 900), CGSize(width: 1920, height: 1200)] {
+            let folder = FolderMetrics(screenSize: screen, settings: settings(iconSize: 100))
+            let panel = CGRect(origin: .zero, size: folder.panelSize)
+
+            for index in 0..<folder.capacity {
+                let frame = folder.iconFrame(at: index)
+                XCTAssertTrue(
+                    panel.contains(frame),
+                    "Folder icon \(index) at \(frame) left the \(screen) panel"
+                )
+            }
+        }
+    }
 }
 
 /// Ratios for the macOS 26 full-bleed launcher: a 7 x 5 grid that runs nearly

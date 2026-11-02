@@ -85,6 +85,7 @@ struct PageView: View {
                 .position(x: x, y: cell.midY)
                 .opacity(isDragSource ? 0 : 1)
                 .allowsHitTesting(!isDragSource)
+                .transition(.scale(scale: 0.88).combined(with: .opacity))
                 .animation(reorderAnimation, value: CGPoint(x: x, y: cell.midY))
             }
         }

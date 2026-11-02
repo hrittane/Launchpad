@@ -229,9 +229,10 @@ an XCTest environment and skips runtime startup).
   folder-glass preview first. The new folder zooms open from its tile named
   “Untitled Folder”, with the name selected so typing replaces it; Return or a
   click outside commits, Escape restores the name. Click a folder to open it.
-  Double-click a folder tile to open it and edit its name. Drag apps out of an
-  open folder to return them to the main grid. A folder with fewer than two apps
-  dissolves.
+  Double-click a folder tile to open it and edit its name. A folder page shows
+  7 × 3 = 21 apps with the same icon and label size as the main grid. Drag apps
+  out of an open folder to return them to the main grid. A folder with fewer
+  than two apps dissolves.
 - **Edit mode:** long-press an icon (0.5 s), hold Option, or choose a delete
   action from an item's context menu. In edit mode, deletable user apps show an
   “×” badge. A blank click exits edit mode; a second blank click closes the
@@ -337,8 +338,13 @@ an XCTest environment and skips runtime startup).
       click outside commits, Escape restores the previous name.
 - [ ] Single-click a folder in the grid opens it. Double-click the folder tile
       opens it and focuses the title field. Return confirms a rename.
+- [ ] A folder page shows 7 × 3 = 21 apps. Folder icons and labels match the
+      main grid size; additional apps paginate and are reachable by swipe,
+      scroll, or the panel page dots.
+- [ ] Opening and closing the folder keeps every icon and label inside the
+      rounded glass panel; the close spring settles without overshoot.
 - [ ] Drag within an open folder to reorder with the reflow preview; swipe or
-      scroll pages inside folders with more than 12 apps.
+      scroll pages inside folders with more than 21 apps.
 - [ ] Drag an app out of the folder panel; the panel closes as the cursor
       leaves and the icon continues onto the main grid. The drop snaps to the
       nearest grid cell, including drops over a margin or the search field.
@@ -361,7 +367,8 @@ an XCTest environment and skips runtime startup).
 - [ ] Search cross-fades (0.2 s) and page dots hide.
 - [ ] Folder open scales from the folder icon center with a 0.35 s / 0.82
       spring and dims the grid behind it with a flat scrim. Close reverses in
-      0.25 s.
+      0.25 s with a critically damped spring, so the panel shrinks without
+      overshooting its tile.
 - [ ] Edit mode jiggles ±2° with a ±0.5 pt translation on the current page only;
       exiting eases back. Icons use a repeating layer animation rather than a
       60 fps timeline.
@@ -447,7 +454,9 @@ an XCTest environment and skips runtime startup).
   a scheme-aware tint for legibility), hosted in a single
   `GlassEffectContainer`. The app background deliberately does not use glass:
   the wallpaper blur needs a large radius and full saturation. Page dots are
-  bare, with no pill behind them. The folder panel does not use a glass-morph
+  bare, with no pill behind them. The folder panel is clipped to its rounded
+  shape before the glass effect and carries a subtle specular rim, so its
+  contents stay inside the panel while it scales. It does not use a glass-morph
   transition; it scales and dims the grid instead, which avoids re-sampling a
   large glass surface on every animation frame.
 - **Icon-size range:** `LayoutMetrics.iconSize` caps a request to the cell and

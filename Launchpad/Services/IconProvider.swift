@@ -10,8 +10,7 @@ final class IconProvider {
     private let cache = NSCache<NSString, NSImage>()
     private let queue = DispatchQueue(
         label: "com.soufiane.launchpad.icons",
-        qos: .userInitiated,
-        attributes: .concurrent
+        qos: .userInitiated
     )
     private let workspace = NSWorkspace.shared
 

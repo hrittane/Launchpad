@@ -50,18 +50,51 @@ struct FolderPanelView: View {
                     .contentShape(Rectangle())
                     .gesture(folderSwipeGesture)
             }
-            .liquidGlass(
-                .regular.tint(Metrics.glassTintPanel.color(for: colorScheme)),
-                in: panelShape
-            )
+            // Clip before the zoom transform. The mask is part of the same
+            // layer that gets scaled and moved, so tiles cannot outrun it.
+            .clipShape(panelShape)
+            // The glass is a background, not a wrapper around the content.
+            // `glassEffect` captures the view it decorates into the glass
+            // container; capturing the whole panel rasterized the tiles at a
+            // lower resolution and made the app icons look soft.
+            .background {
+                panelShape
+                    .fill(Color.clear)
+                    .liquidGlass(
+                        .regular.tint(Metrics.glassTintPanel.color(for: colorScheme)),
+                        in: panelShape
+                    )
+            }
+            .overlay {
+                // A fine specular rim keeps the large glass sheet legible on a
+                // bright wallpaper, where the system highlight alone is subtle.
+                panelShape
+                    .strokeBorder(
+                        LinearGradient(
+                            colors: [
+                                Color.white.opacity(colorScheme == .dark ? 0.20 : 0.42),
+                                Color.white.opacity(0.06),
+                                Color.white.opacity(colorScheme == .dark ? 0.10 : 0.18)
+                            ],
+                            startPoint: .top,
+                            endPoint: .bottom
+                        ),
+                        lineWidth: 0.8
+                    )
+                    .allowsHitTesting(false)
+            }
+            // The zoom is a plain layer transform, which SwiftUI runs off the
+            // main thread. Animating the glass geometry instead re-captured the
+            // panel every frame and made the transition lag.
             .scaleEffect(isPresented ? 1 : startScale)
             .position(isPresented ? endPoint : startPoint)
+            .opacity(isPresented ? 1 : 0)
             .animation(panelAnimation, value: isPresented)
             .onAppear {
                 // Present on the next run-loop turn, after this collapsed frame
                 // has been committed. Presenting earlier made the panel appear
                 // at full size with no zoom.
-                DispatchQueue.main.async {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.03) {
                     viewModel.presentFolder()
                 }
             }
@@ -74,7 +107,8 @@ struct FolderPanelView: View {
     }
 
     private var panelAnimation: Animation {
-        viewModel.reduceMotion ? Metrics.Motion.reduced : Metrics.Motion.folder
+        if viewModel.reduceMotion { return Metrics.Motion.reduced }
+        return isPresented ? Metrics.Motion.folder : Metrics.Motion.folderClose
     }
 
     private var panelContent: some View {
@@ -110,12 +144,18 @@ struct FolderPanelView: View {
 
     @ViewBuilder
     private var title: some View {
-        if viewModel.folderTitleEditing {
+        if viewModel.folderTitleEditing && isPresented {
             TextField("", text: $viewModel.folderTitleDraft)
                 .textFieldStyle(.plain)
                 .multilineTextAlignment(.center)
                 .font(.system(size: Metrics.folderTitleFontSize * metrics.scale, weight: .regular))
                 .foregroundStyle(.white)
+                .shadow(
+                    color: .black.opacity(Metrics.labelShadowOpacity),
+                    radius: Metrics.labelShadowRadius,
+                    x: 0,
+                    y: Metrics.labelShadowY
+                )
                 .padding(.horizontal, 16 * metrics.scale)
                 .padding(.vertical, 4 * metrics.scale)
                 .focused($titleIsFocused)
@@ -139,11 +179,17 @@ struct FolderPanelView: View {
                 }
                 .accessibilityLabel(Text("Folder name", comment: "Folder title field accessibility label"))
         } else {
-            Text(folder.name)
+            Text(viewModel.folderTitleEditing ? viewModel.folderTitleDraft : folder.name)
                 .font(.system(size: Metrics.folderTitleFontSize * metrics.scale, weight: .regular))
                 .foregroundStyle(.white)
                 .lineLimit(1)
                 .truncationMode(.tail)
+                .shadow(
+                    color: .black.opacity(Metrics.labelShadowOpacity),
+                    radius: Metrics.labelShadowRadius,
+                    x: 0,
+                    y: Metrics.labelShadowY
+                )
                 .padding(.horizontal, 12 * metrics.scale)
                 .contentShape(Rectangle())
                 .onTapGesture {

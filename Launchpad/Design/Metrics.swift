@@ -70,24 +70,29 @@ enum Metrics {
 
     /// Tint layered over `.regular` glass. The material supplies depth and
     /// refraction; the tint only guarantees contrast for the white label text.
-    static let glassTintSoft = GlassTint(light: 0.16, dark: 0.10)
-    static let glassTintPanel = GlassTint(light: 0.20, dark: 0.14)
+    /// Keep this light: a heavy black scrim turns the glass into a flat panel
+    /// and hides the wallpaper refraction that makes Liquid Glass feel liquid.
+    static let glassTintSoft = GlassTint(light: 0.10, dark: 0.07)
+    static let glassTintPanel = GlassTint(light: 0.14, dark: 0.09)
     /// The merge plate is a light sheen rather than a dark scrim, so it keeps
     /// the same white tint in both appearances.
     static let glassTintPlate: Double = 0.10
 
     // MARK: Folder
 
-    static let folderPanelWidth: CGFloat = 560
-    static let folderPanelHeight: CGFloat = 460
-    static let folderPanelCornerRadius: CGFloat = 32
-    static let folderColumns = 4
+    /// The classic Launchpad folder grid: 7 × 3 = 21 apps per page, with the
+    /// same app-icon size as the main grid (the panel itself grows to fit).
+    static let folderColumns = 7
     static let folderRows = 3
-    static let folderIconSize: CGFloat = 80
-    static let folderLabelFontSize: CGFloat = 12
+    static let folderColumnGap: CGFloat = 56
+    static let folderRowGap: CGFloat = 48
+    static let folderHorizontalInset: CGFloat = 60
+    static let folderTitleHeight: CGFloat = 84
+    static let folderFooterHeight: CGFloat = 60
+    static let folderPanelCornerRadius: CGFloat = 40
     static let folderPreviewIconSize: CGFloat = 24
     static let folderPreviewPadding: CGFloat = 8
-    static let folderTitleFontSize: CGFloat = 24
+    static let folderTitleFontSize: CGFloat = 26
     static let folderMaximumApps = 100
 
     // MARK: Background
@@ -155,7 +160,10 @@ enum Metrics {
 
     enum Motion {
         static let page = Animation.timingCurve(0.22, 0.90, 0.25, 1.0, duration: Durations.pageSlide)
-        static let folder = Animation.spring(response: 0.33, dampingFraction: 0.88)
+        static let folder = Animation.spring(response: 0.35, dampingFraction: 0.82)
+        /// Critically damped: a closing panel must never overshoot its tile,
+        /// which used to push the shrinking content past the panel edge.
+        static let folderClose = Animation.spring(response: 0.28, dampingFraction: 1.0)
         /// Reflow animation for tiles displaced by a drag. The blend duration
         /// lets a new target take over mid-flight instead of restarting the
         /// spring from rest, which is what made rapid slot changes feel stuttery.
@@ -316,35 +324,59 @@ struct LayoutMetrics {
 }
 
 /// Layout math for the opened folder panel.
+///
+/// A folder always shows 7 × 3 = 21 apps, exactly like the classic Launchpad
+/// folder, and reuses the main grid's icon size so an app does not shrink when
+/// it moves into a folder. The panel grows around that fixed cell size instead.
 struct FolderMetrics {
     let panelSize: CGSize
     let scale: CGFloat
     let iconSize: CGFloat
     let labelFontSize: CGFloat
+    let labelBlockHeight: CGFloat
+    let labelSpacing: CGFloat
     let columns: Int
     let rows: Int
+    let titleHeight: CGFloat
+    let footerHeight: CGFloat
+    let horizontalInset: CGFloat
 
     init(screenSize: CGSize, settings: AppSettings) {
         let raw = screenSize.width / Metrics.referenceSize.width
         let scale = min(max(raw, Metrics.scaleRange.lowerBound), Metrics.scaleRange.upperBound)
         self.scale = scale
-        let width = min(Metrics.folderPanelWidth * scale, screenSize.width * 0.92)
-        let height = min(Metrics.folderPanelHeight * scale, screenSize.height * 0.9)
-        self.panelSize = CGSize(width: width, height: height)
         self.columns = Metrics.folderColumns
         self.rows = Metrics.folderRows
-        self.iconSize = Metrics.folderIconSize * scale
-        self.labelFontSize = Metrics.folderLabelFontSize * scale
+
+        // Same icon and label metrics as the main grid. This is the rule that
+        // keeps an app icon from shrinking when it is shown inside a folder.
+        let grid = LayoutMetrics(screenSize: screenSize, settings: settings)
+        self.iconSize = grid.iconSize
+        self.labelFontSize = grid.labelFontSize
+        let lineHeight = (grid.labelFontSize * Metrics.labelLineHeightFactor).rounded(.up)
+        self.labelBlockHeight = lineHeight * CGFloat(Metrics.labelMaxLines)
+        self.labelSpacing = Metrics.labelSpacing * scale
+
+        self.titleHeight = Metrics.folderTitleHeight * scale
+        self.footerHeight = Metrics.folderFooterHeight * scale
+        self.horizontalInset = Metrics.folderHorizontalInset * scale
+
+        // Size the panel around the fixed 7 × 3 cells. The title and footer
+        // bands keep the same proportions on every display.
+        let cellWidth = iconSize + Metrics.folderColumnGap * scale
+        let cellHeight = iconSize + labelSpacing + labelBlockHeight + Metrics.folderRowGap * scale
+        let preferredWidth = cellWidth * CGFloat(columns) + horizontalInset * 2
+        let preferredHeight = cellHeight * CGFloat(rows) + titleHeight + footerHeight
+        let width = min(preferredWidth, screenSize.width * 0.94)
+        let height = min(preferredHeight, screenSize.height * 0.90)
+        self.panelSize = CGSize(width: width, height: height)
     }
 
     var capacity: Int { columns * rows }
 
     /// Region available to the folder's grid inside the panel.
     var gridRect: CGRect {
-        let titleHeight: CGFloat = 76 * scale
-        let footerHeight: CGFloat = 42 * scale
-        let horizontalInset: CGFloat = 34 * scale
-        return CGRect(
+        CGRect(
             x: horizontalInset,
             y: titleHeight,
             width: panelSize.width - horizontalInset * 2,
@@ -365,11 +397,15 @@ struct FolderMetrics {
         )
     }
 
+    /// Icon frame within a cell, aligned with the icon-and-label block used by
+    /// `ItemIconView` instead of nudged upward by a magic offset.
     func iconFrame(at index: Int) -> CGRect {
         let cell = cellRect(at: index)
+        let blockHeight = iconSize + labelSpacing + labelBlockHeight
+        let blockTop = cell.midY - blockHeight / 2
         return CGRect(
             x: cell.midX - iconSize / 2,
-            y: cell.midY - iconSize / 2 - 8 * scale,
+            y: blockTop,
             width: iconSize,
             height: iconSize
         )

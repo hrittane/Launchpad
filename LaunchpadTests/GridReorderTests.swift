@@ -385,6 +385,34 @@ final class LaunchpadDragCommitTests: XCTestCase {
         viewModel.endFolderDrag()
     }
 
+    /// A point inside `slot` that is also outside the opened folder panel.
+    ///
+    /// The 7 × 3 panel is large enough to cover the centers of the main grid's
+    /// top row, including the drag hysteresis band around its edge. Drag-out
+    /// tests therefore aim near the cell's leading edge, where the drop still
+    /// resolves to the same slot but the pointer is genuinely over the grid.
+    private func outsideDropPoint(
+        inSlot slot: Int,
+        in viewModel: LaunchpadViewModel
+    ) -> CGPoint {
+        let metrics = LayoutMetrics(screenSize: viewModel.screenSize, settings: viewModel.settings)
+        let cell = metrics.cellRect(at: slot)
+        // Match the view model's 10-pt hysteresis with a little slack.
+        let panel = viewModel.folderPanelFrame().insetBy(dx: -11, dy: -11)
+        let candidates = [
+            CGPoint(x: cell.midX, y: cell.minY + 4),
+            CGPoint(x: cell.minX + 4, y: cell.minY + 4),
+            CGPoint(x: cell.maxX - 4, y: cell.minY + 4),
+            CGPoint(x: cell.midX, y: cell.maxY - 4)
+        ]
+        for candidate in candidates
+        where metrics.slot(at: candidate) == slot && !panel.contains(candidate) {
+            return candidate
+        }
+        XCTFail("No drop point outside the folder panel for slot \(slot)")
+        return CGPoint(x: cell.midX, y: cell.minY + 4)
+    }
+
     func testDraggingAnAppOutOfALargeFolderInsertsItAtTheDropSlot() {
         let viewModel = makeViewModel()
         let alpha = app("Alpha")
@@ -395,8 +423,8 @@ final class LaunchpadDragCommitTests: XCTestCase {
         openFolder(folder, in: viewModel)
 
         let metrics = LayoutMetrics(screenSize: viewModel.screenSize, settings: viewModel.settings)
-        let cell = metrics.cellRect(at: 1)
-        let drop = CGPoint(x: cell.midX, y: cell.midY)
+        let drop = outsideDropPoint(inSlot: 1, in: viewModel)
+        XCTAssertEqual(metrics.slot(at: drop), 1)
         XCTAssertFalse(viewModel.folderPanelFrame().contains(drop))
 
         dragOut(app: alpha, folder: folder, sourceIndex: 0, to: drop, in: viewModel)
@@ -421,8 +449,8 @@ final class LaunchpadDragCommitTests: XCTestCase {
         openFolder(folder, in: viewModel)
 
         let metrics = LayoutMetrics(screenSize: viewModel.screenSize, settings: viewModel.settings)
-        let cell = metrics.cellRect(at: 3)
-        let drop = CGPoint(x: cell.midX, y: cell.midY)
+        let drop = outsideDropPoint(inSlot: 3, in: viewModel)
+        XCTAssertEqual(metrics.slot(at: drop), 3)
 
         dragOut(app: alpha, folder: folder, sourceIndex: 0, to: drop, in: viewModel)
 
@@ -467,12 +495,13 @@ final class LaunchpadDragCommitTests: XCTestCase {
         openFolder(folder, in: viewModel)
 
         let metrics = LayoutMetrics(screenSize: viewModel.screenSize, settings: viewModel.settings)
-        let cell = metrics.cellRect(at: 1)
+        let drop = outsideDropPoint(inSlot: 1, in: viewModel)
+        XCTAssertEqual(metrics.slot(at: drop), 1)
         dragOut(
             app: alpha,
             folder: folder,
             sourceIndex: 0,
-            to: CGPoint(x: cell.midX, y: cell.midY),
+            to: drop,
             in: viewModel
         )
 

@@ -9,11 +9,27 @@ struct AppIconImage: View {
     var fallbackName: String = ""
 
     @State private var image: NSImage?
+    /// Tracks the identity that produced the current image so a recycled view
+    /// does not flash a stale icon before the new `.task` fires.
+    @State private var loadedIdentity: String = ""
+
+    private var targetPointSize: CGFloat { max(16, size.rounded()) }
+    private var identity: String { "\(path)|\(Int(targetPointSize))" }
+
+    private var currentImage: NSImage? {
+        if let cached = IconProvider.shared.cachedIcon(for: path, pointSize: targetPointSize) {
+            return cached
+        }
+        if loadedIdentity == identity {
+            return image
+        }
+        return nil
+    }
 
     var body: some View {
         Group {
-            if let image {
-                Image(nsImage: image)
+            if let img = currentImage {
+                Image(nsImage: img)
                     .resizable()
                     .interpolation(.high)
                     .aspectRatio(contentMode: .fit)
@@ -22,8 +38,18 @@ struct AppIconImage: View {
             }
         }
         .frame(width: size, height: size)
-        .task(id: "\(path)|\(Int(size.rounded()))") {
-            await load()
+        .onChange(of: identity) { _, newValue in
+            if loadedIdentity != newValue {
+                image = nil
+            }
+        }
+        .task(id: identity) {
+            if IconProvider.shared.cachedIcon(for: path, pointSize: targetPointSize) == nil {
+                let loaded = await IconProvider.shared.icon(for: path, pointSize: targetPointSize)
+                guard !Task.isCancelled else { return }
+                image = loaded
+            }
+            loadedIdentity = identity
         }
     }
 
@@ -41,16 +67,5 @@ struct AppIconImage: View {
                         .foregroundStyle(.white.opacity(0.5))
                 }
             }
-    }
-
-    private func load() async {
-        let pointSize = max(16, size.rounded())
-        if let cached = IconProvider.shared.cachedIcon(for: path, pointSize: pointSize) {
-            image = cached
-            return
-        }
-        let loaded = await IconProvider.shared.icon(for: path, pointSize: pointSize)
-        guard !Task.isCancelled else { return }
-        image = loaded
     }
 }

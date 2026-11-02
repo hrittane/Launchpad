@@ -85,6 +85,7 @@ final class LaunchpadViewModel: ObservableObject {
     // Folder presentation is split into identity and visibility so the close
     // animation can finish before the panel leaves the view tree.
     @Published private(set) var openFolderID: UUID?
+    @Published private(set) var activeFolderCache: FolderItem?
     @Published private(set) var folderIsPresented = false
     @Published private(set) var folderAnchor: CGRect = .zero
     @Published private(set) var folderPage = 0
@@ -342,7 +343,7 @@ final class LaunchpadViewModel: ObservableObject {
 
     var activeFolder: FolderItem? {
         guard let openFolderID else { return nil }
-        return folder(withID: openFolderID)
+        return folder(withID: openFolderID) ?? activeFolderCache
     }
 
     var folderPageCapacity: Int {
@@ -711,6 +712,7 @@ final class LaunchpadViewModel: ObservableObject {
         folderPresentationGeneration &+= 1
         folderIsClosing = false
         openFolderID = folder.id
+        activeFolderCache = folder
         folderAnchor = anchor
         folderPage = 0
         folderTitleEditing = false
@@ -719,9 +721,13 @@ final class LaunchpadViewModel: ObservableObject {
         // Insert the panel collapsed. `FolderPanelView` asks for presentation
         // on the next run-loop turn, after this collapsed frame has been
         // committed, so the zoom always starts from the folder's tile.
-        var transaction = Transaction()
-        transaction.disablesAnimations = true
-        withTransaction(transaction) {
+        if folderIsPresented {
+            var transaction = Transaction()
+            transaction.disablesAnimations = true
+            withTransaction(transaction) {
+                folderIsPresented = false
+            }
+        } else {
             folderIsPresented = false
         }
     }
@@ -762,23 +768,27 @@ final class LaunchpadViewModel: ObservableObject {
     }
 
     func closeFolder(animated: Bool = true) {
-        guard openFolderID != nil else { return }
+        guard openFolderID != nil, !folderIsClosing else { return }
         folderPresentationGeneration &+= 1
         folderIsClosing = true
         folderTitleEditing = false
         renameOnPresent = false
         if animated && !reduceMotion {
             let generation = folderPresentationGeneration
-            withAnimation(animation(.folder)) {
+            withAnimation(animation(.folderClose)) {
                 folderIsPresented = false
             } completion: {
                 guard self.folderPresentationGeneration == generation else { return }
                 self.finishFolderClose()
             }
         } else {
-            var transaction = Transaction()
-            transaction.disablesAnimations = true
-            withTransaction(transaction) {
+            if folderIsPresented {
+                var transaction = Transaction()
+                transaction.disablesAnimations = true
+                withTransaction(transaction) {
+                    folderIsPresented = false
+                }
+            } else {
                 folderIsPresented = false
             }
             finishFolderClose()
@@ -787,6 +797,7 @@ final class LaunchpadViewModel: ObservableObject {
 
     private func finishFolderClose() {
         openFolderID = nil
+        activeFolderCache = nil
         folderAnchor = .zero
         folderPage = 0
         folderDrag.offset = 0
@@ -887,18 +898,29 @@ final class LaunchpadViewModel: ObservableObject {
     func removeFolder(folderID: UUID) {
         guard let location = entryLocation(id: "folder:\(folderID.uuidString)"),
               let folder = folder(withID: folderID) else { return }
-        pages[location.page].remove(at: location.index)
-        for (offset, app) in folder.apps.enumerated() {
-            LayoutEngine.insert(
-                .app(app),
-                at: location.page,
-                index: location.index + offset,
-                in: &pages,
-                capacity: settings.pageCapacity
-            )
+
+        // If the folder being deleted is currently open, animate the panel closing first.
+        let wasOpen = (openFolderID == folderID)
+        if wasOpen {
+            closeFolder(animated: true)
         }
-        if openFolderID == folderID { closeFolder(animated: false) }
-        cleanupAfterLayoutChange()
+
+        // Animate the folder dissolving on the grid and its apps unpacking.
+        withAnimation(animation(.folder)) {
+            pages[location.page].remove(at: location.index)
+            for (offset, app) in folder.apps.enumerated() {
+                LayoutEngine.insert(
+                    .app(app),
+                    at: location.page,
+                    index: location.index + offset,
+                    in: &pages,
+                    capacity: settings.pageCapacity
+                )
+            }
+            clampPagesAfterMutation()
+            clampSearchPage()
+            folderPage = min(max(folderPage, 0), folderPageCount - 1)
+        }
         persist()
     }
 
@@ -1361,7 +1383,7 @@ final class LaunchpadViewModel: ObservableObject {
     private func setFolderPanelVisible(_ visible: Bool, animated: Bool) {
         guard folderIsPresented != visible else { return }
         if animated {
-            withAnimation(animation(.folder)) {
+            withAnimation(animation(visible ? .folder : .folderClose)) {
                 folderIsPresented = visible
             }
         } else {
@@ -1962,12 +1984,13 @@ final class LaunchpadViewModel: ObservableObject {
         switch kind {
         case .page: return Metrics.Motion.page
         case .folder: return Metrics.Motion.folder
+        case .folderClose: return Metrics.Motion.folderClose
         case .reorder: return Metrics.Motion.reorder
         }
     }
 
     private enum AnimationKind {
-        case page, folder, reorder
+        case page, folder, folderClose, reorder
     }
 
     // MARK: Persistence
@@ -2020,7 +2043,7 @@ final class LaunchpadViewModel: ObservableObject {
         clampPagesAfterMutation()
         clampSearchPage()
         folderPage = min(max(folderPage, 0), folderPageCount - 1)
-        if openFolderID != nil && activeFolder == nil {
+        if openFolderID != nil && activeFolder == nil && !folderIsClosing {
             closeFolder(animated: false)
         }
     }

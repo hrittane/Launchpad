@@ -37,9 +37,24 @@ struct LaunchpadRootView: View {
         let metrics = LayoutMetrics(screenSize: size, settings: viewModel.settings)
         let folderOpen = viewModel.openFolderID != nil
 
-        let stack = ZStack(alignment: .topLeading) {
-            mainContent(size: size, metrics: metrics)
+        // The backdrop stays outside the glass container so its window material
+        // keeps sampling the desktop directly. The main grid's controls share
+        // one container, which lets the system batch them in a single pass.
+        return ZStack(alignment: .topLeading) {
+            LaunchpadBackgroundView(
+                viewModel: viewModel,
+                screen: screenContext.screen,
+                viewport: screenContext.viewport
+            )
 
+            GlassEffectContainer(spacing: 8) {
+                mainContent(size: size, metrics: metrics)
+            }
+
+            // The folder panel is deliberately outside the glass container.
+            // The container renders glass shapes in its own pass, so a child
+            // transform does not scale the glass with the tiles. Keeping the
+            // panel standalone lets the zoom be a cheap layer transform.
             if folderOpen {
                 // The scrim fades with the panel instead of popping. It also
                 // fades out while an app is dragged out of the folder so the
@@ -72,22 +87,6 @@ struct LaunchpadRootView: View {
             }
 
             dragLayer(metrics: metrics)
-        }
-
-        // The backdrop stays outside the glass container so its window material
-        // keeps sampling the desktop directly. Every custom glass surface above
-        // it shares one container, which lets the system batch them in a single
-        // pass and morph shapes that share a `glassEffectID`.
-        return ZStack(alignment: .topLeading) {
-            LaunchpadBackgroundView(
-                viewModel: viewModel,
-                screen: screenContext.screen,
-                viewport: screenContext.viewport
-            )
-
-            GlassEffectContainer(spacing: 8) {
-                stack
-            }
         }
     }
 
@@ -241,7 +240,12 @@ struct LaunchpadRootView: View {
     }
 
     private var folderAnimation: Animation? {
-        viewModel.reduceMotion ? Metrics.Motion.reduced : Metrics.Motion.folder
+        if viewModel.reduceMotion { return Metrics.Motion.reduced }
+        // The scrim must use the same curve as the panel. Mixing the bouncy
+        // open spring with the critically damped close spring left the dark
+        // scrim visible for a few frames after the panel had already landed,
+        // which made the close feel ragged.
+        return viewModel.folderIsPresented ? Metrics.Motion.folder : Metrics.Motion.folderClose
     }
 }
 

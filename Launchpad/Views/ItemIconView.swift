@@ -371,75 +371,26 @@ struct FolderIconContent: View {
 
     private var cornerRadius: CGFloat { Metrics.iconCornerRadius * scale }
 
+    @Environment(\.colorScheme) private var colorScheme
+
     var body: some View {
         ZStack {
-            RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                .fill(.ultraThinMaterial)
-            RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                .fill(
-                    LinearGradient(
-                        colors: [
-                            Color.white.opacity(0.18),
-                            Color.white.opacity(0.05),
-                            Color.black.opacity(0.04)
-                        ],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    )
-                )
-            // A narrow specular band along the top-left edge. This is what
-            // separates a glass tile from a uniformly milky material.
-            RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                .fill(
-                    LinearGradient(
-                        colors: [
-                            Color.white.opacity(0.40),
-                            Color.white.opacity(0.06),
-                            Color.clear
-                        ],
-                        startPoint: .topLeading,
-                        endPoint: UnitPoint(x: 0.55, y: 0.55)
-                    )
-                )
-                .blendMode(.plusLighter)
+            Color.clear
             preview
                 .padding(Metrics.folderPreviewPadding * scale)
         }
-        .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                .stroke(
-                    LinearGradient(
-                        colors: [
-                            Color.white.opacity(0.62),
-                            Color.white.opacity(0.08),
-                            Color.white.opacity(0.20)
-                        ],
-                        startPoint: .top,
-                        endPoint: .bottom
-                    ),
-                    lineWidth: max(1, scale)
-                )
-        }
-        .overlay(alignment: .bottom) {
-            // Inner bottom edge shadow gives the pane a sense of thickness.
-            RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                .stroke(
-                    LinearGradient(
-                        colors: [Color.clear, Color.black.opacity(0.12)],
-                        startPoint: .top,
-                        endPoint: .bottom
-                    ),
-                    lineWidth: max(1, scale)
-                )
-        }
+        .frame(width: iconSize, height: iconSize)
+        .liquidGlass(
+            .regular.tint(Metrics.glassTintSoft.color(for: colorScheme)),
+            in: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+        )
         .animation(Metrics.Motion.folder, value: folder.apps.count)
     }
 
     private var preview: some View {
         let padding = Metrics.folderPreviewPadding * scale
         let available = max(1, iconSize - padding * 2)
-        let gap = max(1, 3 * scale)
+        let gap = max(1, 2.5 * scale)
         let mini = max(6, (available - gap * 2) / 3)
         let miniRadius = mini * 0.22
         let apps = Array(folder.apps.prefix(9))
@@ -455,6 +406,7 @@ struct FolderIconContent: View {
                                 size: mini,
                                 fallbackName: apps[index].name
                             )
+                            .id(apps[index].id)
                             .frame(width: mini, height: mini)
                             .clipShape(RoundedRectangle(cornerRadius: miniRadius, style: .continuous))
                             .shadow(color: .black.opacity(0.18), radius: 0.6 * scale, y: 0.5 * scale)
