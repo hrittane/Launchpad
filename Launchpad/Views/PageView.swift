@@ -41,7 +41,7 @@ struct PageView: View {
                     scale: metrics.scale,
                     isEditing: viewModel.isEditing,
                     isFocused: viewModel.focusedEntryID == entry.id,
-                    isMergeTarget: viewModel.dragSession?.hoveredEntryID == entry.id,
+                    isMergeTarget: viewModel.dragSession?.mergeHighlightID == entry.id,
                     isMergeArmed: viewModel.dragSession?.armedMergeTargetID == entry.id,
                     jiggleActive: jiggleActive,
                     reduceMotion: viewModel.reduceMotion,

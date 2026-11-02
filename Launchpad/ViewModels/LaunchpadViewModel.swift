@@ -11,6 +11,13 @@ struct DragSession: Equatable {
     var hoveredEntryID: String?
     var armedMergeTargetID: String?
     var mergeCandidateID: String?
+
+    /// The tile that should show the pre-merge highlight. A direct icon hit
+    /// highlights immediately; a halo candidate highlights while its dwell is
+    /// pending, so the user can see that holding will create a folder.
+    var mergeHighlightID: String? {
+        hoveredEntryID ?? mergeCandidateID
+    }
 }
 
 /// A drag that starts inside an opened folder. Keeping it separate from the
@@ -1042,61 +1049,69 @@ final class LaunchpadViewModel: ObservableObject {
 
         // 1. Hit-test against the original entry positions, never the projected
         // preview. The preview pushes tiles aside to open a gap, so testing the
-        // previewed centres would always leave the cursor over empty space and
-        // make every merge target unreachable.
-        let engageRadius = metrics.iconSize * 0.5
-        let disengageRadius = metrics.iconSize * 0.62
+        // previewed frames would leave the cursor over empty space and make
+        // every merge target unreachable.
+        //
+        // Merging has two tiers:
+        // - Direct: the icon itself merges immediately, so an intentional drop
+        //   on a tile is always easy.
+        // - Halo: the wider icon-and-label area merges only after a short dwell.
+        //   A quick drag through it stays a reorder, so arrangement is not
+        //   constantly hijacked into folder creation.
+        let directTargetID = session.entry.app == nil
+            ? nil
+            : mergeTarget(
+                in: currentEntries,
+                at: location,
+                metrics: metrics,
+                excluding: session.entry.id,
+                currentID: session.hoveredEntryID,
+                frame: { metrics.mergeFrame(at: $0) }
+            )
 
-        var hoveredTargetID: String?
-        if session.entry.app != nil {
-            // Hysteresis: keep the current target until the cursor clearly
-            // leaves it, so a pointer wobbling at the edge does not flicker
-            // between neighbouring tiles.
-            if let currentID = session.hoveredEntryID,
-               currentID != session.entry.id,
-               let index = currentEntries.firstIndex(where: { $0.id == currentID }) {
-                let center = metrics.iconCenter(at: index)
-                if hypot(center.x - location.x, center.y - location.y) <= disengageRadius {
-                    hoveredTargetID = currentID
-                }
+        let haloCandidateID = directTargetID != nil || session.entry.app == nil
+            ? nil
+            : mergeTarget(
+                in: currentEntries,
+                at: location,
+                metrics: metrics,
+                excluding: session.entry.id,
+                currentID: session.mergeCandidateID,
+                frame: { metrics.mergeHaloFrame(at: $0) }
+            )
+
+        session.hoveredEntryID = directTargetID
+
+        // 2. Only the halo needs a dwell. Entering the direct icon zone cancels
+        // any pending halo arm so the drop uses exactly what is under the
+        // pointer.
+        if directTargetID != nil {
+            if session.mergeCandidateID != nil || session.armedMergeTargetID != nil {
+                session.mergeCandidateID = nil
+                session.armedMergeTargetID = nil
+                cancelMergeArm()
             }
-
-            if hoveredTargetID == nil {
-                for (index, item) in currentEntries.enumerated()
-                where item.id != session.entry.id && isMergeableTarget(item) {
-                    let center = metrics.iconCenter(at: index)
-                    if hypot(center.x - location.x, center.y - location.y) <= engageRadius {
-                        hoveredTargetID = item.id
-                        break
-                    }
-                }
-            }
-        }
-
-        session.hoveredEntryID = hoveredTargetID
-
-        // 2. Merge arming is only the dwell-driven shrink affordance. The drop
-        // itself targets whatever is under the cursor, so an app-on-app drop
-        // creates a folder immediately instead of requiring a pause.
-        if let targetID = hoveredTargetID {
-            if session.armedMergeTargetID != targetID {
+        } else if let targetID = haloCandidateID {
+            if session.mergeCandidateID != targetID {
                 // Leaving an armed target for another one drops the old arm so
                 // the drop always uses the item currently under the cursor.
                 session.armedMergeTargetID = nil
-                if session.mergeCandidateID != targetID {
-                    session.mergeCandidateID = targetID
-                    mergeArmTask?.cancel()
-                    mergeArmTask = Task { [weak self] in
-                        try? await Task.sleep(nanoseconds: UInt64(Metrics.Durations.dragHoverFolder * 1_000_000_000))
-                        guard !Task.isCancelled else { return }
-                        await MainActor.run {
-                            guard let self,
-                                  var sess = self.dragSession,
-                                  sess.mergeCandidateID == targetID,
-                                  sess.hoveredEntryID == targetID else { return }
-                            sess.armedMergeTargetID = targetID
-                            self.dragSession = sess
-                        }
+                session.mergeCandidateID = targetID
+                mergeArmTask?.cancel()
+                mergeArmTask = Task { [weak self] in
+                    try? await Task.sleep(nanoseconds: UInt64(Metrics.Durations.dragHoverFolder * 1_000_000_000))
+                    guard !Task.isCancelled else { return }
+                    await MainActor.run {
+                        guard let self,
+                              var sess = self.dragSession,
+                              sess.mergeCandidateID == targetID,
+                              sess.hoveredEntryID == nil else { return }
+                        sess.armedMergeTargetID = targetID
+                        self.dragSession = sess
+                        // The halo may have been showing the reorder preview;
+                        // hide it when the merge intent wins so the target
+                        // returns under the pointer before the drop.
+                        self.reorderPreview = nil
                     }
                 }
             }
@@ -1163,10 +1178,9 @@ final class LaunchpadViewModel: ObservableObject {
         let hoveredID = session.hoveredEntryID
         let draggedEntry = session.entry
 
-        // The drop always targets the item under the cursor. The dwell-driven
-        // arm only supplies the shrink affordance; an immediate app-on-app drop
-        // must still create a folder, just like macOS.
-        let mergeTargetID = armedMergeID ?? hoveredID
+        // A direct icon hit merges immediately. Otherwise only a dwell-armed
+        // halo merges; a quick drop in the halo stays a reorder.
+        let mergeTargetID = hoveredID ?? armedMergeID
 
         var targetLocationBefore: (page: Int, index: Int)?
         if let mergeTargetID {
@@ -2102,6 +2116,50 @@ final class LaunchpadViewModel: ObservableObject {
             return folder.apps.count < FolderItem.maximumAppCount
         }
         return entry.app != nil
+    }
+
+    /// The merge target under the pointer, tested against the original layout.
+    ///
+    /// Callers choose the frame: the immediate icon zone or the wider dwell
+    /// halo. Keeping the hit test on original positions means the target never
+    /// slides away while the user aims at it.
+    private func mergeTarget(
+        in entries: [LaunchpadEntry],
+        at location: CGPoint,
+        metrics: LayoutMetrics,
+        excluding excludedID: String,
+        currentID: String?,
+        frame: (Int) -> CGRect
+    ) -> String? {
+        let hysteresis = metrics.iconSize * Metrics.folderMergeHysteresisRatio
+
+        // Keep the current target until the pointer clearly leaves it. Without
+        // this, a pointer wobbling at the edge of a zone could flip between
+        // merging and reordering.
+        if let currentID,
+           currentID != excludedID,
+           let index = entries.firstIndex(where: { $0.id == currentID }),
+           isMergeableTarget(entries[index]) {
+            let zone = frame(index).insetBy(dx: -hysteresis, dy: -hysteresis)
+            if zone.contains(location) {
+                return currentID
+            }
+        }
+
+        // Zones are clamped inside their cells, so this normally matches at
+        // most one entry. Picking the nearest centre keeps the result
+        // deterministic if two zones ever graze each other.
+        var best: (id: String, distance: CGFloat)?
+        for (index, item) in entries.enumerated()
+        where item.id != excludedID && isMergeableTarget(item) {
+            guard frame(index).contains(location) else { continue }
+            let center = metrics.iconCenter(at: index)
+            let distance = hypot(center.x - location.x, center.y - location.y)
+            if best == nil || distance < best!.distance {
+                best = (item.id, distance)
+            }
+        }
+        return best?.id
     }
 
     private func entry(withID id: String) -> LaunchpadEntry? {

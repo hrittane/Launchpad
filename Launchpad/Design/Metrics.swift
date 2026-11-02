@@ -151,7 +151,23 @@ enum Metrics {
     /// turns ordinary clicks into drags, which swallows the click and enters
     /// edit mode instead of launching the app.
     static let itemDragThreshold: CGFloat = 8
-    static let folderMergeDistanceRatio: CGFloat = 0.4
+    /// Direct folder-merge hit zone as a multiple of the icon. Dropping right
+    /// on the icon merges immediately; this stays close to the icon so a
+    /// reorder aimed at the surrounding cell does not turn into a folder.
+    static let folderMergeDirectRatio: CGFloat = 1.25
+    /// The wider halo around the icon and label. A drop here merges only after
+    /// a deliberate dwell, which is what lets quick reorder drags pass through.
+    static let folderMergeHaloWidthRatio: CGFloat = 1.6
+    /// Extra height above and below the icon-and-label block for the halo.
+    static let folderMergeHaloHeightPaddingRatio: CGFloat = 0.10
+    /// Caps on the merge zone as a fraction of the cell. They guarantee that a
+    /// band remains around every tile for reorder drops, even at the largest
+    /// icon size.
+    static let folderMergeMaxWidthRatio: CGFloat = 0.78
+    static let folderMergeMaxHeightRatio: CGFloat = 0.86
+    /// Hysteresis around the merge zone so a pointer wobbling at its edge does
+    /// not flip between merging and reordering.
+    static let folderMergeHysteresisRatio: CGFloat = 0.08
     static let edgeFlipThreshold: CGFloat = 60
     static let hotCornerMargin: CGFloat = 3
 
@@ -297,6 +313,53 @@ struct LayoutMetrics {
     func iconCenter(at index: Int) -> CGPoint {
         let frame = iconFrame(at: index)
         return CGPoint(x: frame.midX, y: frame.midY)
+    }
+
+    /// Immediate merge hit area: the icon plus a small margin.
+    ///
+    /// Aiming anywhere at the icon creates a folder on release. It deliberately
+    /// ignores the label and the wider cell so a reorder dropped beside the
+    /// tile still reorders.
+    func mergeFrame(at index: Int) -> CGRect {
+        let cell = cellRect(at: index)
+        let icon = iconFrame(at: index)
+        let width = min(
+            icon.width * Metrics.folderMergeDirectRatio,
+            cell.width * Metrics.folderMergeMaxWidthRatio
+        )
+        let height = min(
+            icon.height * Metrics.folderMergeDirectRatio,
+            cell.height * Metrics.folderMergeMaxHeightRatio
+        )
+        let center = iconCenter(at: index)
+        return CGRect(
+            x: center.x - width / 2,
+            y: center.y - height / 2,
+            width: width,
+            height: height
+        )
+    }
+
+    /// Deliberate merge halo: the icon, its label, and a margin.
+    ///
+    /// This area only merges after the short dwell handled by the view model.
+    /// A quick drop in the same place remains a reorder, which is the common
+    /// ground between forgiving folder creation and precise arrangement.
+    func mergeHaloFrame(at index: Int) -> CGRect {
+        let cell = cellRect(at: index)
+        let icon = iconFrame(at: index)
+        let width = min(
+            icon.width * Metrics.folderMergeHaloWidthRatio,
+            cell.width * Metrics.folderMergeMaxWidthRatio
+        )
+        let paddedHeight = itemBlockHeight + icon.height * Metrics.folderMergeHaloHeightPaddingRatio
+        let height = min(paddedHeight, cell.height * Metrics.folderMergeMaxHeightRatio)
+        return CGRect(
+            x: cell.midX - width / 2,
+            y: cell.midY - height / 2,
+            width: width,
+            height: height
+        )
     }
 
     /// Returns the flat slot nearest to a point, or nil when the point is

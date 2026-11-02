@@ -365,6 +365,133 @@ final class LaunchpadDragCommitTests: XCTestCase {
         XCTAssertTrue(viewModel.folderIsPresented)
     }
 
+    /// The direct merge zone covers the icon plus a small margin. Aiming near
+    /// the edge of an icon must still create a folder; the old half-icon-radius
+    /// circle only accepted drops near the exact centre.
+    func testHoveringTheEdgeOfAnAppStillCreatesAFolder() {
+        let viewModel = makeViewModel()
+        let alpha = app("Alpha")
+        let bravo = app("Bravo")
+        let charlie = app("Charlie")
+        viewModel.seedLayoutForTesting([[.app(alpha), .app(bravo), .app(charlie)]], page: 0)
+
+        viewModel.beginDrag(entry: .app(alpha), page: 0, index: 0)
+        let metrics = LayoutMetrics(screenSize: viewModel.screenSize, settings: viewModel.settings)
+        let center = metrics.iconCenter(at: 1)
+        // Just outside the old 50% engage radius, inside the direct icon zone.
+        let hover = CGPoint(x: center.x + metrics.iconSize * 0.58, y: center.y)
+        XCTAssertTrue(metrics.mergeFrame(at: 1).contains(hover))
+
+        viewModel.updateDrag(location: hover)
+
+        XCTAssertEqual(viewModel.dragSession?.hoveredEntryID, LaunchpadEntry.app(bravo).id)
+        XCTAssertNil(viewModel.reorderPreview, "the merge target stays under the cursor")
+
+        viewModel.endDrag()
+
+        guard case .folder(let folder) = viewModel.pages[0].first else {
+            return XCTFail("Expected the edge hover to create a folder")
+        }
+        XCTAssertEqual(Set(folder.apps.map(\.name)), ["Alpha", "Bravo"])
+    }
+
+    /// The merge zone must not swallow the whole cell: the gap between icons is
+    /// still a reorder target, and the target does not shift while approaching
+    /// from that gap.
+    func testHoveringTheGapBetweenIconsKeepsTheReorderPreview() {
+        let viewModel = makeViewModel()
+        let apps = (0..<22).map { app("Item\($0)") }
+        let layout = LayoutEngine.paginate(
+            apps.map(LaunchpadEntry.app),
+            capacity: viewModel.settings.pageCapacity
+        )
+        viewModel.seedLayoutForTesting(layout, page: 0)
+        viewModel.beginDrag(entry: .app(apps[0]), page: 0, index: 0)
+
+        let metrics = LayoutMetrics(screenSize: viewModel.screenSize, settings: viewModel.settings)
+        let cell = metrics.cellRect(at: 4)
+        let gap = CGPoint(x: cell.minX + 4, y: cell.midY)
+        XCTAssertFalse(metrics.mergeFrame(at: 4).contains(gap))
+
+        viewModel.updateDrag(location: gap)
+
+        XCTAssertNil(viewModel.dragSession?.hoveredEntryID)
+        XCTAssertNotNil(viewModel.reorderPreview)
+        XCTAssertEqual(
+            viewModel.reorderPreview?.locations[viewModel.dragSession!.entry.id],
+            .init(page: 0, index: 4)
+        )
+    }
+
+    /// A quick drop in the wider halo still reorders. Only a deliberate pause
+    /// there should turn into folder creation.
+    func testQuickDropOnAFolderLabelStillReorders() {
+        let viewModel = makeViewModel()
+        let alpha = app("Alpha")
+        let bravo = app("Bravo")
+        let charlie = app("Charlie")
+        let folder = FolderItem(name: "Tools", apps: [alpha, bravo])
+        viewModel.seedLayoutForTesting([[.folder(folder), .app(charlie)]], page: 0)
+
+        viewModel.beginDrag(entry: .app(charlie), page: 0, index: 1)
+        let metrics = LayoutMetrics(screenSize: viewModel.screenSize, settings: viewModel.settings)
+        let icon = metrics.iconFrame(at: 0)
+        let labelDrop = CGPoint(x: icon.midX, y: icon.maxY + metrics.iconSize * 0.2)
+        XCTAssertFalse(metrics.mergeFrame(at: 0).contains(labelDrop))
+        XCTAssertTrue(metrics.mergeHaloFrame(at: 0).contains(labelDrop))
+
+        viewModel.updateDrag(location: labelDrop)
+
+        XCTAssertNil(viewModel.dragSession?.hoveredEntryID)
+        XCTAssertEqual(
+            viewModel.dragSession?.mergeCandidateID,
+            LaunchpadEntry.folder(folder).id,
+            "the halo starts a dwell but does not merge yet"
+        )
+        XCTAssertNotNil(viewModel.reorderPreview, "a quick halo drop keeps reordering")
+
+        viewModel.endDrag()
+
+        guard case .app(let moved) = viewModel.pages[0].first else {
+            return XCTFail("Expected a reorder rather than a merge")
+        }
+        XCTAssertEqual(moved.id, charlie.id)
+        XCTAssertEqual(viewModel.pages[0].last, .folder(folder))
+    }
+
+    /// Holding in the halo is the deliberate folder gesture: it arms after the
+    /// dwell, hides the reorder preview, and appends on release.
+    func testHoldingOnAFolderLabelArmsAndAppendsToTheFolder() async throws {
+        let viewModel = makeViewModel()
+        let alpha = app("Alpha")
+        let bravo = app("Bravo")
+        let charlie = app("Charlie")
+        let folder = FolderItem(name: "Tools", apps: [alpha, bravo])
+        viewModel.seedLayoutForTesting([[.folder(folder), .app(charlie)]], page: 0)
+
+        viewModel.beginDrag(entry: .app(charlie), page: 0, index: 1)
+        let metrics = LayoutMetrics(screenSize: viewModel.screenSize, settings: viewModel.settings)
+        let icon = metrics.iconFrame(at: 0)
+        let labelDrop = CGPoint(x: icon.midX, y: icon.maxY + metrics.iconSize * 0.2)
+
+        viewModel.updateDrag(location: labelDrop)
+        XCTAssertEqual(viewModel.dragSession?.mergeCandidateID, LaunchpadEntry.folder(folder).id)
+        XCTAssertNil(viewModel.dragSession?.armedMergeTargetID)
+
+        try await Task.sleep(nanoseconds: 600_000_000)
+
+        XCTAssertEqual(viewModel.dragSession?.armedMergeTargetID, LaunchpadEntry.folder(folder).id)
+        XCTAssertNil(viewModel.reorderPreview, "arming returns the target under the pointer")
+
+        viewModel.endDrag()
+
+        guard case .folder(let updated) = viewModel.pages[0].first else {
+            return XCTFail("Expected the folder to remain")
+        }
+        XCTAssertEqual(updated.apps.map(\.name), ["Alpha", "Bravo", "Charlie"])
+        XCTAssertEqual(viewModel.pages[0].count, 1)
+    }
+
     // MARK: Folder drag-out
 
     private func openFolder(_ folder: FolderItem, in viewModel: LaunchpadViewModel) {
