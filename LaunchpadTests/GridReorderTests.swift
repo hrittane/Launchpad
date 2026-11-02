@@ -180,6 +180,16 @@ final class LaunchpadDragCommitTests: XCTestCase {
         return viewModel
     }
 
+    /// A point inside an item's dwell halo but outside its immediate icon
+    /// zone: the boundary where a quick drop reorders and a hold merges.
+    private func haloDropPoint(for index: Int, metrics: LayoutMetrics) -> CGPoint {
+        let icon = metrics.iconFrame(at: index)
+        let direct = metrics.mergeFrame(at: index)
+        let halo = metrics.mergeHaloFrame(at: index)
+        let y = min(halo.maxY - 1, direct.maxY + (halo.maxY - direct.maxY) / 2)
+        return CGPoint(x: icon.midX, y: y)
+    }
+
     func testCrossPageDropCommitsExactlyThePreviewedLayout() {
         let viewModel = makeViewModel()
         let apps = (0..<22).map { app("Item\($0)") }
@@ -395,6 +405,50 @@ final class LaunchpadDragCommitTests: XCTestCase {
         XCTAssertEqual(Set(folder.apps.map(\.name)), ["Alpha", "Bravo"])
     }
 
+    /// The hover affordance is a folder preview, not a ring or an empty folder
+    /// shape. It shows only the app already in the target: the dragged app is
+    /// drawn by the floating drag preview, so repeating it inside the folder
+    /// would show the same icon twice.
+    func testHoveringAnAppPreviewsTheFolderWithTheTargetApp() {
+        let viewModel = makeViewModel()
+        let alpha = app("Alpha")
+        let bravo = app("Bravo")
+        let charlie = app("Charlie")
+        viewModel.seedLayoutForTesting([[.app(alpha), .app(bravo), .app(charlie)]], page: 0)
+
+        viewModel.beginDrag(entry: .app(alpha), page: 0, index: 0)
+        let metrics = LayoutMetrics(screenSize: viewModel.screenSize, settings: viewModel.settings)
+        viewModel.updateDrag(location: metrics.iconCenter(at: 1))
+
+        let preview = viewModel.mergePreviewApps(for: .app(bravo))
+        XCTAssertEqual(preview?.map(\.name), ["Bravo"])
+        XCTAssertNil(
+            viewModel.mergePreviewApps(for: .app(charlie)),
+            "only the hovered target should render a folder preview"
+        )
+
+        viewModel.endDrag()
+        XCTAssertNil(viewModel.mergePreviewApps(for: .app(bravo)))
+    }
+
+    /// Dropping into an existing folder previews its current contents. The
+    /// incoming app floats above the folder, so it is not repeated inside.
+    func testHoveringAFolderPreviewsItsCurrentContents() {
+        let viewModel = makeViewModel()
+        let alpha = app("Alpha")
+        let bravo = app("Bravo")
+        let charlie = app("Charlie")
+        let folder = FolderItem(name: "Tools", apps: [alpha, bravo])
+        viewModel.seedLayoutForTesting([[.folder(folder), .app(charlie)]], page: 0)
+
+        viewModel.beginDrag(entry: .app(charlie), page: 0, index: 1)
+        let metrics = LayoutMetrics(screenSize: viewModel.screenSize, settings: viewModel.settings)
+        viewModel.updateDrag(location: metrics.iconCenter(at: 0))
+
+        let preview = viewModel.mergePreviewApps(for: .folder(folder))
+        XCTAssertEqual(preview?.map(\.name), ["Alpha", "Bravo"])
+    }
+
     /// The merge zone must not swallow the whole cell: the gap between icons is
     /// still a reorder target, and the target does not shift while approaching
     /// from that gap.
@@ -435,8 +489,7 @@ final class LaunchpadDragCommitTests: XCTestCase {
 
         viewModel.beginDrag(entry: .app(charlie), page: 0, index: 1)
         let metrics = LayoutMetrics(screenSize: viewModel.screenSize, settings: viewModel.settings)
-        let icon = metrics.iconFrame(at: 0)
-        let labelDrop = CGPoint(x: icon.midX, y: icon.maxY + metrics.iconSize * 0.2)
+        let labelDrop = haloDropPoint(for: 0, metrics: metrics)
         XCTAssertFalse(metrics.mergeFrame(at: 0).contains(labelDrop))
         XCTAssertTrue(metrics.mergeHaloFrame(at: 0).contains(labelDrop))
 
@@ -447,6 +500,10 @@ final class LaunchpadDragCommitTests: XCTestCase {
             viewModel.dragSession?.mergeCandidateID,
             LaunchpadEntry.folder(folder).id,
             "the halo starts a dwell but does not merge yet"
+        )
+        XCTAssertNil(
+            viewModel.dragSession?.mergeHighlightID,
+            "a pending dwell must not promise a merge it will not commit"
         )
         XCTAssertNotNil(viewModel.reorderPreview, "a quick halo drop keeps reordering")
 
@@ -471,16 +528,21 @@ final class LaunchpadDragCommitTests: XCTestCase {
 
         viewModel.beginDrag(entry: .app(charlie), page: 0, index: 1)
         let metrics = LayoutMetrics(screenSize: viewModel.screenSize, settings: viewModel.settings)
-        let icon = metrics.iconFrame(at: 0)
-        let labelDrop = CGPoint(x: icon.midX, y: icon.maxY + metrics.iconSize * 0.2)
+        let labelDrop = haloDropPoint(for: 0, metrics: metrics)
 
         viewModel.updateDrag(location: labelDrop)
         XCTAssertEqual(viewModel.dragSession?.mergeCandidateID, LaunchpadEntry.folder(folder).id)
         XCTAssertNil(viewModel.dragSession?.armedMergeTargetID)
+        XCTAssertNil(viewModel.dragSession?.mergeHighlightID)
 
         try await Task.sleep(nanoseconds: 600_000_000)
 
         XCTAssertEqual(viewModel.dragSession?.armedMergeTargetID, LaunchpadEntry.folder(folder).id)
+        XCTAssertEqual(
+            viewModel.dragSession?.mergeHighlightID,
+            LaunchpadEntry.folder(folder).id,
+            "the folder preview appears once the hold is armed"
+        )
         XCTAssertNil(viewModel.reorderPreview, "arming returns the target under the pointer")
 
         viewModel.endDrag()

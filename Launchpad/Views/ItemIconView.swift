@@ -18,12 +18,16 @@ struct ItemIconView: View {
     let scale: CGFloat
     let isEditing: Bool
     let isFocused: Bool
-    /// Any item currently under the pointer during a drag. Shows a light
-    /// highlight so the user can see what a drop would land on.
+    /// Any item currently under the pointer during a drag. Shows a folder
+    /// preview containing this tile's apps so the user can see what the drop
+    /// would land on.
     let isMergeTarget: Bool
     /// The hovered target after the dwell delay. Turns the tile into the
-    /// folder-creation affordance (shrink / folder glass).
+    /// folder-creation affordance (folder preview / folder glass).
     var isMergeArmed: Bool = false
+    /// The apps to draw in the hovered folder preview. The dragged app floats
+    /// above the grid already, so this only holds apps already in the target.
+    var mergePreviewApps: [AppItem]? = nil
     /// Only the current page animates its wiggle. Driving this from the page
     /// instead of `isEditing` keeps off-screen pages static.
     var jiggleActive: Bool = false
@@ -97,34 +101,13 @@ struct ItemIconView: View {
     private var content: some View {
         VStack(spacing: Metrics.labelSpacing * scale) {
             ZStack(alignment: .center) {
-                if isMergeArmed {
-                    if isFolder {
-                        RoundedRectangle(cornerRadius: Metrics.iconCornerRadius * scale, style: .continuous)
-                            .stroke(Color.white.opacity(0.75), lineWidth: 2.5 * scale)
-                            .frame(width: iconSize * 1.08, height: iconSize * 1.08)
-                            .transition(.scale.combined(with: .opacity))
-                    } else {
-                        // The glass plate the dragged tile folds into.
-                        Color.clear
-                            .frame(width: iconSize, height: iconSize)
-                            .liquidGlass(
-                                .regular.tint(Color.white.opacity(Metrics.glassTintPlate)),
-                                in: RoundedRectangle(
-                                    cornerRadius: Metrics.iconCornerRadius * scale,
-                                    style: .continuous
-                                )
-                            )
-                            .transition(.scale(scale: 0.9).combined(with: .opacity))
-                    }
-                }
-
                 iconContent
                     .frame(width: iconSize, height: iconSize)
                     .background(frameReporter)
                     .scaleEffect(tileScale)
                     .brightness(isPressed ? Metrics.iconPressedBrightness : 0)
                     .shadow(
-                        color: .black.opacity(isPressed ? 0.25 : (isMergeArmed && !isFolder ? 0 : Metrics.iconShadowOpacity)),
+                        color: .black.opacity(isPressed ? 0.25 : Metrics.iconShadowOpacity),
                         radius: Metrics.iconShadowRadius * scale,
                         x: 0,
                         y: Metrics.iconShadowY * scale
@@ -136,16 +119,6 @@ struct ItemIconView: View {
                                     x: -Metrics.deleteBadgeOffset * scale,
                                     y: -Metrics.deleteBadgeOffset * scale
                                 )
-                        }
-                    }
-                    .overlay {
-                        if isMergeTarget && !isMergeArmed {
-                            // Light ring while the pointer is over a target,
-                            // before the dwell delay arms the folder gesture.
-                            RoundedRectangle(cornerRadius: Metrics.iconCornerRadius * scale, style: .continuous)
-                                .stroke(Color.white.opacity(0.5), lineWidth: 2 * scale)
-                                .frame(width: iconSize * 1.04, height: iconSize * 1.04)
-                                .transition(.opacity)
                         }
                     }
                     .overlay {
@@ -179,7 +152,13 @@ struct ItemIconView: View {
 
     @ViewBuilder
     private var iconContent: some View {
-        if let folder = entry.folder {
+        if let mergePreviewApps, isMergeTarget || isMergeArmed {
+            // Morph the app into the folder the drop would create. Only the
+            // target's own apps are drawn here; the app being dragged is
+            // already floating above the grid under the cursor.
+            FolderIconContent(apps: mergePreviewApps, iconSize: iconSize, scale: scale)
+                .transition(.scale(scale: 0.92).combined(with: .opacity))
+        } else if let folder = entry.folder {
             FolderIconContent(folder: folder, iconSize: iconSize, scale: scale)
         } else if let app = entry.app {
             AppIconImage(path: app.filePath, size: iconSize, fallbackName: app.name)
@@ -188,11 +167,12 @@ struct ItemIconView: View {
 
     private var tileScale: CGFloat {
         if isMergeArmed {
-            return isFolder ? 1.08 : 0.40
+            return 1.08
         }
         if isMergeTarget {
-            // Subtle acknowledgement before the dwell timer arms the merge.
-            return isFolder ? 1.04 : 0.94
+            // The folder preview is already a clear acknowledgement; a small
+            // lift keeps it feeling attached to the cursor.
+            return 1.04
         }
         let hover: CGFloat = isHovered && !isEditing ? Metrics.iconHoverScale : 1
         let pressed: CGFloat = isPressed ? Metrics.iconPressedScale : 1
@@ -365,9 +345,19 @@ struct IconFramePreferenceKey: PreferenceKey {
 /// The 3 × 3 miniature preview drawn inside a folder tile. Styled after the
 /// frosted glass square macOS uses for Launchpad folders.
 struct FolderIconContent: View {
-    let folder: FolderItem
+    let apps: [AppItem]
     let iconSize: CGFloat
     let scale: CGFloat
+
+    init(folder: FolderItem, iconSize: CGFloat, scale: CGFloat) {
+        self.init(apps: folder.apps, iconSize: iconSize, scale: scale)
+    }
+
+    init(apps: [AppItem], iconSize: CGFloat, scale: CGFloat) {
+        self.apps = apps
+        self.iconSize = iconSize
+        self.scale = scale
+    }
 
     private var cornerRadius: CGFloat { Metrics.iconCornerRadius * scale }
 
@@ -384,7 +374,7 @@ struct FolderIconContent: View {
             .regular.tint(Metrics.glassTintSoft.color(for: colorScheme)),
             in: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
         )
-        .animation(Metrics.Motion.folder, value: folder.apps.count)
+        .animation(Metrics.Motion.folder, value: apps.count)
     }
 
     private var preview: some View {
@@ -393,20 +383,20 @@ struct FolderIconContent: View {
         let gap = max(1, 2.5 * scale)
         let mini = max(6, (available - gap * 2) / 3)
         let miniRadius = mini * 0.22
-        let apps = Array(folder.apps.prefix(9))
+        let visibleApps = Array(apps.prefix(9))
 
         return VStack(spacing: gap) {
             ForEach(0..<3, id: \.self) { row in
                 HStack(spacing: gap) {
                     ForEach(0..<3, id: \.self) { column in
                         let index = row * 3 + column
-                        if apps.indices.contains(index) {
+                        if visibleApps.indices.contains(index) {
                             AppIconImage(
-                                path: apps[index].filePath,
+                                path: visibleApps[index].filePath,
                                 size: mini,
-                                fallbackName: apps[index].name
+                                fallbackName: visibleApps[index].name
                             )
-                            .id(apps[index].id)
+                            .id(visibleApps[index].id)
                             .frame(width: mini, height: mini)
                             .clipShape(RoundedRectangle(cornerRadius: miniRadius, style: .continuous))
                             .shadow(color: .black.opacity(0.18), radius: 0.6 * scale, y: 0.5 * scale)

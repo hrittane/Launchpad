@@ -12,11 +12,14 @@ struct DragSession: Equatable {
     var armedMergeTargetID: String?
     var mergeCandidateID: String?
 
-    /// The tile that should show the pre-merge highlight. A direct icon hit
-    /// highlights immediately; a halo candidate highlights while its dwell is
-    /// pending, so the user can see that holding will create a folder.
+    /// The tile that should show the folder preview.
+    ///
+    /// Only a direct icon hit or an already-armed halo target qualifies. A
+    /// pending halo dwell is deliberately not highlighted: showing the folder
+    /// preview there would promise a merge that a quick release turns into a
+    /// reorder, which is what made folder creation feel unreliable.
     var mergeHighlightID: String? {
-        hoveredEntryID ?? mergeCandidateID
+        hoveredEntryID ?? armedMergeTargetID
     }
 }
 
@@ -2116,6 +2119,28 @@ final class LaunchpadViewModel: ObservableObject {
             return folder.apps.count < FolderItem.maximumAppCount
         }
         return entry.app != nil
+    }
+
+    /// Apps to draw in the folder preview for a hovered merge target.
+    ///
+    /// The dragged app is already painted by the floating drag preview above
+    /// the grid, so it is deliberately left out here. Showing it again inside
+    /// the folder would draw the same icon twice. The preview therefore shows
+    /// only the apps that are already seated in the target: the app being
+    /// hovered over, or an existing folder's current contents.
+    func mergePreviewApps(for entry: LaunchpadEntry) -> [AppItem]? {
+        guard let session = dragSession,
+              session.mergeHighlightID == entry.id,
+              session.entry.app != nil else {
+            return nil
+        }
+
+        if let folder = entry.folder {
+            return folder.apps
+        }
+
+        guard let targetApp = entry.app else { return nil }
+        return [targetApp]
     }
 
     /// The merge target under the pointer, tested against the original layout.

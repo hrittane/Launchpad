@@ -86,7 +86,7 @@ Launchpad/
 ├── LaunchpadTests/
 │   ├── BackdropTests.swift            # 3 wallpaper pixel/cache checks
 │   ├── CoreTests.swift                # 41 unit tests
-│   ├── GridReorderTests.swift         # 24 reorder/folder-drop tests
+│   ├── GridReorderTests.swift         # 26 reorder/folder-drop tests
 │   ├── SystemWallpaperTests.swift     # 5 wallpaper-source tests
 │   └── SmokeTests.swift               # 5 window-layout tests
 ├── README.md
@@ -162,7 +162,7 @@ xcodebuild -project Launchpad.xcodeproj -scheme Launchpad \
 # Run the built app
 open .build/Build/Products/Debug/Launchpad.app
 
-# Test suite (78 unit tests)
+# Test suite (80 unit tests)
 xcodebuild -project Launchpad.xcodeproj -scheme Launchpad \
   -configuration Debug -derivedDataPath .build test \
   CODE_SIGNING_ALLOWED=NO
@@ -227,8 +227,12 @@ an XCTest environment and skips runtime startup).
 - **Folders:** drop an app directly on another app's icon to create a folder
   immediately. Dropping on the wider tile area around it (including the label)
   creates a folder only after a short deliberate hold; a quick drop there still
-  reorders. The target highlights under the pointer; holding shrinks it into
-  the folder-glass preview first. The new folder zooms open from its tile named
+  reorders. A direct hit turns the target into a folder preview at once, and
+  holding over the wider halo arms the same preview after 0.3 s; a quick drop
+  there is still a reorder, and the preview only appears once the merge will
+  actually happen. The preview shows only the apps already in the target,
+  because the app being dragged floats above the grid on its own. The new
+  folder zooms open from its tile named
   “Untitled Folder”, with the name selected so typing replaces it; Return or a
   click outside commits, Escape restores the name. Click a folder to open it.
   Double-click a folder tile to open it and edit its name. A folder page shows
@@ -331,11 +335,12 @@ an XCTest environment and skips runtime startup).
 
 ### Folders
 
-- [ ] Drag an app onto another: the target gets a light ring. Dropping directly
-      on the icon creates and opens the new folder immediately. Dropping on the
-      surrounding tile or label only merges after a short dwell and the
-      folder-glass shrink; a quick drop there reorders. This keeps arrangement
-      from being hijacked while still making folder creation forgiving.
+- [ ] Drag an app onto another: the target turns into a folder preview.
+      Dropping directly on the icon creates and opens the new folder
+      immediately. Dropping on the surrounding tile or label only merges after
+      a 0.3 s hold, at which point the folder preview appears; a quick drop
+      there reorders. This keeps arrangement from being hijacked while still
+      making folder creation forgiving.
 - [ ] Drop an app onto an existing folder to append it (maximum 100 apps; a full
       folder is not treated as a drop target, so the app is not lost). Direct
       icon drops append immediately; the tile halo appends after the dwell.
@@ -504,7 +509,7 @@ an XCTest environment and skips runtime startup).
 - **Launch at login:** uses `SMAppService.mainApp`; registration may fail for
   ad-hoc builds outside `/Applications`. The toggle reflects the actual system
   status after the attempt.
-- **Tests:** 78 unit tests cover search ranking, pagination math, reorder
+- **Tests:** 80 unit tests cover search ranking, pagination math, reorder
   preview/commit parity, drag-state isolation, folder creation/merge/dissolve
   rules, app-removal return semantics, normalization, JSON persistence,
   page-snap geometry, layout ratios, window coverage, Dock-strip levels and

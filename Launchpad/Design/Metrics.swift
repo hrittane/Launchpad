@@ -74,9 +74,6 @@ enum Metrics {
     /// and hides the wallpaper refraction that makes Liquid Glass feel liquid.
     static let glassTintSoft = GlassTint(light: 0.10, dark: 0.07)
     static let glassTintPanel = GlassTint(light: 0.14, dark: 0.09)
-    /// The merge plate is a light sheen rather than a dark scrim, so it keeps
-    /// the same white tint in both appearances.
-    static let glassTintPlate: Double = 0.10
 
     // MARK: Folder
 
@@ -128,7 +125,7 @@ enum Metrics {
         static let folderClose: Double = 0.25
         static let jiggle: Double = 0.13
         static let jiggleReturn: Double = 0.15
-        static let dragHoverFolder: Double = 0.45
+        static let dragHoverFolder: Double = 0.3
         static let dragEdgeFlip: Double = 0.7
         static let removeItem: Double = 0.2
         static let reducedMotion: Double = 0.15
@@ -154,7 +151,8 @@ enum Metrics {
     /// Direct folder-merge hit zone as a multiple of the icon. Dropping right
     /// on the icon merges immediately; this stays close to the icon so a
     /// reorder aimed at the surrounding cell does not turn into a folder.
-    static let folderMergeDirectRatio: CGFloat = 1.25
+    /// Generous enough that aiming at the icon's edge still works.
+    static let folderMergeDirectRatio: CGFloat = 1.45
     /// The wider halo around the icon and label. A drop here merges only after
     /// a deliberate dwell, which is what lets quick reorder drags pass through.
     static let folderMergeHaloWidthRatio: CGFloat = 1.6

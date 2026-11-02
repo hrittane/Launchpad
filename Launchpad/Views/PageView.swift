@@ -43,6 +43,7 @@ struct PageView: View {
                     isFocused: viewModel.focusedEntryID == entry.id,
                     isMergeTarget: viewModel.dragSession?.mergeHighlightID == entry.id,
                     isMergeArmed: viewModel.dragSession?.armedMergeTargetID == entry.id,
+                    mergePreviewApps: viewModel.mergePreviewApps(for: entry),
                     jiggleActive: jiggleActive,
                     reduceMotion: viewModel.reduceMotion,
                     showDeleteBadge: entry.app?.isDeletable == true,
