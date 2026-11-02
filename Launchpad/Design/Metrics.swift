@@ -90,6 +90,10 @@ enum Metrics {
     static let folderTitleHeight: CGFloat = 84
     static let folderFooterHeight: CGFloat = 60
     static let folderPanelCornerRadius: CGFloat = 40
+    /// A light blur on the grid behind an open folder. The wallpaper backdrop
+    /// is already blurred, so this only softens the grid and controls that
+    /// would otherwise compete with the panel.
+    static let folderBackgroundBlur: CGFloat = 5
     static let folderPreviewIconSize: CGFloat = 24
     static let folderPreviewPadding: CGFloat = 8
     static let folderTitleFontSize: CGFloat = 26

@@ -100,6 +100,12 @@ struct LaunchpadRootView: View {
                 .gesture(pageSwipeGesture)
 
             pageContainer(size: size, metrics: metrics)
+                // Only the grid blurs. Blurring the whole main content
+                // (including the glass search field) produced dark smears
+                // because the glass and the transparent blur layer composited
+                // over each other.
+                .blur(radius: backgroundBlurRadius(metrics))
+                .animation(folderAnimation, value: viewModel.folderIsPresented)
 
             SearchBar(viewModel: viewModel, scale: metrics.scale)
                 .position(
@@ -118,6 +124,8 @@ struct LaunchpadRootView: View {
                     }
                 )
                 .position(x: size.width / 2, y: metrics.pageDotCenterY)
+                .blur(radius: backgroundBlurRadius(metrics))
+                .animation(folderAnimation, value: viewModel.folderIsPresented)
             }
 
             if showsNoResults {
@@ -237,6 +245,10 @@ struct LaunchpadRootView: View {
 
     private var searchAnimation: Animation? {
         viewModel.reduceMotion ? Metrics.Motion.reduced : .easeInOut(duration: Metrics.Durations.searchCrossFade)
+    }
+
+    private func backgroundBlurRadius(_ metrics: LayoutMetrics) -> CGFloat {
+        viewModel.folderIsPresented ? Metrics.folderBackgroundBlur * metrics.scale : 0
     }
 
     private var folderAnimation: Animation? {
