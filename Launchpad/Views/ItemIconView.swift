@@ -31,6 +31,11 @@ struct ItemIconView: View {
     /// Only the current page animates its wiggle. Driving this from the page
     /// instead of `isEditing` keeps off-screen pages static.
     var jiggleActive: Bool = false
+    /// Shared wiggle half-cycle toggled by the page. A tile inserted while edit
+    /// mode is already running (an app dropped out of a folder) can inherit a
+    /// stale `@State` and a dead repeating animation from a previous placement,
+    /// so the swing has to be driven by a value the tile does not own.
+    var jigglePhase: Bool = false
     /// The tile currently being dragged. Its content is replaced by an empty
     /// placeholder rather than faded with opacity: the Liquid Glass layer draws
     /// in its own compositing pass that ignores an ancestor's opacity, so a
@@ -52,30 +57,23 @@ struct ItemIconView: View {
 
     @State private var isHovered = false
     @State private var isPressed = false
-    /// Drives the wiggle through a repeating Core Animation transaction instead
-    /// of a 60 fps `TimelineView`, which used to rebuild every tile each frame.
-    @State private var jiggleSwing = false
 
     private var isFolder: Bool { entry.isFolder }
 
     var body: some View {
-        content
-            .rotationEffect(.degrees(jiggleActive ? (jiggleSwing ? Metrics.jiggleAngle : -Metrics.jiggleAngle) : 0))
-            .offset(y: jiggleActive ? (jiggleSwing ? Metrics.jiggleTranslation : -Metrics.jiggleTranslation) : 0)
-            .animation(jiggleAnimation, value: jiggleSwing)
-            .animation(.easeOut(duration: 0.15), value: jiggleActive)
-            .onChange(of: jiggleActive) { _, active in
-                jiggleSwing = active ? !jiggleSwing : false
-            }
-            .onAppear {
-                if jiggleActive { jiggleSwing = true }
-            }
+        jiggleAnimatedContent
+            .rotationEffect(.degrees(jiggleActive ? (swing ? Metrics.jiggleAngle : -Metrics.jiggleAngle) : 0))
+            .offset(y: jiggleActive ? (swing ? Metrics.jiggleTranslation : -Metrics.jiggleTranslation) : 0)
+            .animation(.easeInOut(duration: jiggleHalfPeriod), value: swing)
+            .animation(.easeOut(duration: Metrics.Durations.jiggleReturn), value: jiggleActive)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .contentShape(Rectangle())
             .onHover { isHovered = $0 }
             .gesture(pointerGesture)
-            .simultaneousGesture(longPressGesture)
             .contextMenu { contextMenu }
+            .onDisappear {
+                longPressTask?.cancel()
+            }
             .accessibilityElement(children: .ignore)
             .accessibilityLabel(entry.displayName)
             .accessibilityHint(accessibilityHint)
@@ -83,17 +81,52 @@ struct ItemIconView: View {
             .accessibilityAction(named: Text("Open", comment: "Accessibility action")) { onTap() }
     }
 
-    /// A small random offset per icon keeps the grid from wiggling in lockstep.
-    private static let jigglePeriod: Double = 0.26
+    /// Split the grid into two groups that swing in opposite directions, so the
+    /// page does not wiggle in lockstep. The value is derived from the shared
+    /// page phase, never stored locally.
+    private var swing: Bool {
+        jigglePhase != (abs(entry.id.hashValue) % 2 == 0)
+    }
 
-    private var jiggleAnimation: Animation? {
-        guard jiggleActive, !reduceMotion else {
-            return .easeOut(duration: 0.15)
-        }
+    /// A small per-tile duration variation keeps the two groups from settling
+    /// into an exact mirror rhythm.
+    private var jiggleHalfPeriod: Double {
         let seed = Double(abs(entry.id.hashValue % 100)) / 100
-        return .easeInOut(duration: Self.jigglePeriod / 2)
-            .repeatForever(autoreverses: true)
-            .delay(seed * Self.jigglePeriod / 2)
+        return Metrics.Durations.jiggle + seed * 0.02
+    }
+
+    /// Rasterizes an app tile into a single texture before the wiggle rotates
+    /// it. Without this, every tile re-blurred its icon shadow and re-rendered
+    /// its label text on every frame, which is what made edit mode stutter.
+    ///
+    /// Folder tiles stay live: Liquid Glass samples the desktop behind the tile
+    /// and cannot be flattened into a static texture.
+    @ViewBuilder
+    private var jiggleAnimatedContent: some View {
+        // The merge preview draws a folder with a material inside it. Nesting
+        // that in `drawingGroup` forces an offscreen pass over a live material
+        // every wiggle frame, which stalled the main thread exactly when the
+        // folder appeared under the cursor. Those tiles render live instead.
+        let rasterizable = jiggleActive
+            && !isFolder
+            && !reduceMotion
+            && !isMergeTarget
+            && !isMergeArmed
+        if rasterizable {
+            content
+                .padding(rasterPadding)
+                .drawingGroup()
+                .padding(-rasterPadding)
+        } else {
+            content
+        }
+    }
+
+    /// Transparent margin baked into the rasterized tile. The delete badge and
+    /// the icon shadow extend past the tile frame, so rasterizing without it
+    /// clipped the badge in edit mode.
+    private var rasterPadding: CGFloat {
+        (Metrics.deleteBadgeOffset + Metrics.iconShadowRadius + 4) * scale
     }
 
     private var accessibilityHint: String {
@@ -167,10 +200,21 @@ struct ItemIconView: View {
             // Morph the app into the folder the drop would create. Only the
             // target's own apps are drawn here; the app being dragged is
             // already floating above the grid under the cursor.
-            FolderIconContent(apps: mergePreviewApps, iconSize: iconSize, scale: scale)
-                .transition(.scale(scale: 0.92).combined(with: .opacity))
+            FolderIconContent(
+                apps: mergePreviewApps,
+                iconSize: iconSize,
+                scale: scale,
+                isJiggling: jiggleActive,
+                usesPlainSurface: true
+            )
+            .transition(.scale(scale: 0.92).combined(with: .opacity))
         } else if let folder = entry.folder {
-            FolderIconContent(folder: folder, iconSize: iconSize, scale: scale)
+            FolderIconContent(
+                folder: folder,
+                iconSize: iconSize,
+                scale: scale,
+                isJiggling: jiggleActive
+            )
         } else if let app = entry.app {
             AppIconImage(path: app.filePath, size: iconSize, fallbackName: app.name)
         }
@@ -222,25 +266,46 @@ struct ItemIconView: View {
 
     @State private var isDraggingGestureActive = false
     @State private var didLongPress = false
+    @State private var longPressTask: Task<Void, Never>?
     @State private var pendingFolderClick: DispatchWorkItem?
+    @State private var lastPointerEventTime = Date.distantPast
 
-    /// A single pointer gesture handles press feedback, dragging, and clicks.
+    /// A single pointer gesture handles press feedback, long-press intent,
+    /// dragging, and clicks.
     ///
     /// Competing gesture recognizers are the classic reason a macOS SwiftUI
     /// tile "ignores" clicks: a `DragGesture(minimumDistance: 0)` attached for
     /// pressed-state feedback wins the arbitration and the tap never fires. One
     /// gesture that measures travel itself cannot lose that race.
+    ///
+    /// Long press is folded into the same gesture instead of using a separate
+    /// `LongPressGesture`. Two recognizers on one tile could fight mid-drag:
+    /// once the press timer elapsed SwiftUI re-arbitrated the gestures and the
+    /// in-flight drag silently stopped receiving pointer updates, which left
+    /// the floating icon frozen under the cursor.
     private var pointerGesture: some Gesture {
         DragGesture(minimumDistance: 0, coordinateSpace: .named("launchpad"))
             .onChanged { value in
+                // A cancelled drag can end without ever calling `onEnded`,
+                // which used to leave this flag stuck on and made the tile
+                // ignore every later drag. If the view model no longer treats
+                // this tile as the source and the pointer was quiet for a
+                // moment, this is a fresh press: recover.
+                if isDraggingGestureActive,
+                   !isDragSource,
+                   value.time.timeIntervalSince(lastPointerEventTime) > 0.25 {
+                    isDraggingGestureActive = false
+                }
+                lastPointerEventTime = value.time
                 if !isPressed {
                     isPressed = true
-                    didLongPress = false
+                    beginLongPressCountdown()
                 }
 
                 if !isDraggingGestureActive {
                     let distance = hypot(value.translation.width, value.translation.height)
                     guard distance >= Metrics.itemDragThreshold else { return }
+                    cancelLongPressCountdown()
                     isDraggingGestureActive = true
                     onDragBegan()
                 }
@@ -248,6 +313,7 @@ struct ItemIconView: View {
             }
             .onEnded { value in
                 isPressed = false
+                cancelLongPressCountdown()
                 if isDraggingGestureActive {
                     isDraggingGestureActive = false
                     onDragEnded()
@@ -261,6 +327,22 @@ struct ItemIconView: View {
                 guard distance < Metrics.itemDragThreshold else { return }
                 handleClick()
             }
+    }
+
+    private func beginLongPressCountdown() {
+        didLongPress = false
+        longPressTask?.cancel()
+        longPressTask = Task { @MainActor in
+            try? await Task.sleep(for: .seconds(Metrics.Durations.longPress))
+            guard !Task.isCancelled, isPressed, !isDraggingGestureActive else { return }
+            didLongPress = true
+            onLongPress()
+        }
+    }
+
+    private func cancelLongPressCountdown() {
+        longPressTask?.cancel()
+        longPressTask = nil
     }
 
     /// Folders open on a single click, but the first click is held for the
@@ -287,15 +369,6 @@ struct ItemIconView: View {
             deadline: .now() + Metrics.Durations.folderDoubleClick,
             execute: work
         )
-    }
-
-    private var longPressGesture: some Gesture {
-        LongPressGesture(minimumDuration: Metrics.Durations.longPress)
-            .onEnded { _ in
-                guard !isDraggingGestureActive else { return }
-                didLongPress = true
-                onLongPress()
-            }
     }
 
     @ViewBuilder
@@ -359,15 +432,30 @@ struct FolderIconContent: View {
     let apps: [AppItem]
     let iconSize: CGFloat
     let scale: CGFloat
+    /// Uses a still material instead of live Liquid Glass while the tile is
+    /// rotating in edit mode. Live glass cannot rotate smoothly.
+    var isJiggling: Bool = false
+    /// Draws the folder with plain shapes only. Used for the transient merge
+    /// preview: inserting a material/glass-backed view under an in-flight drag
+    /// cancels the gesture, so the preview must not create one.
+    var usesPlainSurface: Bool = false
 
-    init(folder: FolderItem, iconSize: CGFloat, scale: CGFloat) {
-        self.init(apps: folder.apps, iconSize: iconSize, scale: scale)
+    init(folder: FolderItem, iconSize: CGFloat, scale: CGFloat, isJiggling: Bool = false) {
+        self.init(apps: folder.apps, iconSize: iconSize, scale: scale, isJiggling: isJiggling)
     }
 
-    init(apps: [AppItem], iconSize: CGFloat, scale: CGFloat) {
+    init(
+        apps: [AppItem],
+        iconSize: CGFloat,
+        scale: CGFloat,
+        isJiggling: Bool = false,
+        usesPlainSurface: Bool = false
+    ) {
         self.apps = apps
         self.iconSize = iconSize
         self.scale = scale
+        self.isJiggling = isJiggling
+        self.usesPlainSurface = usesPlainSurface
     }
 
     private var cornerRadius: CGFloat { Metrics.iconCornerRadius * scale }
@@ -375,17 +463,28 @@ struct FolderIconContent: View {
     @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
-        ZStack {
+        let shape = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+        let tint = Metrics.glassTintSoft.color(for: colorScheme)
+        let base = ZStack {
             Color.clear
             preview
                 .padding(Metrics.folderPreviewPadding * scale)
         }
         .frame(width: iconSize, height: iconSize)
-        .liquidGlass(
-            .regular.tint(Metrics.glassTintSoft.color(for: colorScheme)),
-            in: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-        )
-        .animation(Metrics.Motion.folder, value: apps.count)
+
+        surface(base, shape: shape, tint: tint)
+            .animation(Metrics.Motion.folder, value: apps.count)
+    }
+
+    @ViewBuilder
+    private func surface<S: Shape>(_ base: some View, shape: S, tint: Color) -> some View {
+        if usesPlainSurface {
+            base.plainGlass(tint: tint, in: shape)
+        } else if isJiggling {
+            base.stillGlass(tint: tint, in: shape)
+        } else {
+            base.liquidGlass(.regular.tint(tint), in: shape)
+        }
     }
 
     private var preview: some View {

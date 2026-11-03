@@ -24,6 +24,7 @@ final class LaunchpadWindowController: NSWindowController {
 
     private var keyMonitor: Any?
     private var flagsMonitor: Any?
+    private var dragMonitor: Any?
     private var dockBackground: DockBackgroundWindowController?
     private var menuBarPatch: MenuBarPatchWindowController?
     private let screenContext = OverlayScreenContext()
@@ -82,6 +83,7 @@ final class LaunchpadWindowController: NSWindowController {
     deinit {
         if let keyMonitor { NSEvent.removeMonitor(keyMonitor) }
         if let flagsMonitor { NSEvent.removeMonitor(flagsMonitor) }
+        if let dragMonitor { NSEvent.removeMonitor(dragMonitor) }
     }
 
     func updateFrame(_ screen: NSScreen) {
@@ -206,6 +208,39 @@ final class LaunchpadWindowController: NSWindowController {
                   event.window === self.window else { return event }
             self.viewModel.handleModifierFlags(event)
             return event
+        }
+
+        // SwiftUI can cancel the tile's DragGesture mid-drag when the hovered
+        // tile morphs into a folder preview. The AppKit event stream keeps
+        // running even when that happens, so the drag is fed from here too.
+        // Without this the floating icon stranded wherever the gesture died
+        // and the drop never committed, even though the rest of the overlay was
+        // still responsive.
+        dragMonitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDragged, .leftMouseUp]) {
+            [weak self] event in
+            self?.handleDragMonitorEvent(event)
+            return event
+        }
+    }
+
+    private func handleDragMonitorEvent(_ event: NSEvent) {
+        guard viewModel.isVisible,
+              viewModel.dragSession != nil,
+              event.window === window,
+              let contentView = window?.contentView else { return }
+
+        // SwiftUI's "launchpad" space is top-left origin; AppKit window
+        // coordinates are bottom-left.
+        let point = event.locationInWindow
+        let location = CGPoint(x: point.x, y: contentView.bounds.height - point.y)
+
+        switch event.type {
+        case .leftMouseDragged:
+            viewModel.updateDragFromMonitor(location: location)
+        case .leftMouseUp:
+            viewModel.endDrag()
+        default:
+            break
         }
     }
 }

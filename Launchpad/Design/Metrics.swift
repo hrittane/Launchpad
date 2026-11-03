@@ -164,8 +164,9 @@ enum Metrics {
     static let folderMergeMaxWidthRatio: CGFloat = 0.78
     static let folderMergeMaxHeightRatio: CGFloat = 0.86
     /// Hysteresis around the merge zone so a pointer wobbling at its edge does
-    /// not flip between merging and reordering.
-    static let folderMergeHysteresisRatio: CGFloat = 0.08
+    /// not flip between merging and reordering. A slightly wider band keeps the
+    /// folder preview from flickering on and off while the user aims.
+    static let folderMergeHysteresisRatio: CGFloat = 0.16
     static let edgeFlipThreshold: CGFloat = 60
     static let hotCornerMargin: CGFloat = 3
 
@@ -186,6 +187,10 @@ enum Metrics {
         /// lets a new target take over mid-flight instead of restarting the
         /// spring from rest, which is what made rapid slot changes feel stuttery.
         static let reorder = Animation.spring(response: 0.30, dampingFraction: 0.85, blendDuration: 0.10)
+        /// Smoother reflow while a drag is in flight. A little more damped than
+        /// `reorder` so a stream of slot changes glides instead of bouncing,
+        /// which made the grid look volatile under the cursor.
+        static let dragReorder = Animation.spring(response: 0.30, dampingFraction: 0.95, blendDuration: 0.18)
         static let hover = Animation.easeInOut(duration: Durations.hover)
         static let pressed = Animation.easeOut(duration: Durations.pressed)
         static let reduced = Animation.easeInOut(duration: Durations.reducedMotion)

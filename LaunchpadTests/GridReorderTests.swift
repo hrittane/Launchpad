@@ -203,10 +203,12 @@ final class LaunchpadDragCommitTests: XCTestCase {
         viewModel.beginDrag(entry: dragged, page: 0, index: 0)
 
         let metrics = LayoutMetrics(screenSize: viewModel.screenSize, settings: viewModel.settings)
-        // Aim at the cell, not the icon: dropping directly on an app now
-        // merges into a folder, so a reorder drop targets the surrounding gap.
+        // Aim well inside the cell, not at its edge: the reorder dead zone
+        // deliberately keeps the previous slot until the pointer has clearly
+        // crossed the boundary. Stay at the top of the cell so the drop is a
+        // reorder rather than a merge.
         let cell = metrics.cellRect(at: 1)
-        viewModel.updateDrag(location: CGPoint(x: cell.minX + 4, y: cell.midY))
+        viewModel.updateDrag(location: CGPoint(x: cell.midX, y: cell.minY + 4))
 
         let expected = GridReorder.preview(
             moving: dragged.id,
@@ -497,7 +499,7 @@ final class LaunchpadDragCommitTests: XCTestCase {
 
         XCTAssertNil(viewModel.dragSession?.hoveredEntryID)
         XCTAssertEqual(
-            viewModel.dragSession?.mergeCandidateID,
+            viewModel.pendingMergeCandidateID,
             LaunchpadEntry.folder(folder).id,
             "the halo starts a dwell but does not merge yet"
         )
@@ -531,7 +533,7 @@ final class LaunchpadDragCommitTests: XCTestCase {
         let labelDrop = haloDropPoint(for: 0, metrics: metrics)
 
         viewModel.updateDrag(location: labelDrop)
-        XCTAssertEqual(viewModel.dragSession?.mergeCandidateID, LaunchpadEntry.folder(folder).id)
+        XCTAssertEqual(viewModel.pendingMergeCandidateID, LaunchpadEntry.folder(folder).id)
         XCTAssertNil(viewModel.dragSession?.armedMergeTargetID)
         XCTAssertNil(viewModel.dragSession?.mergeHighlightID)
 

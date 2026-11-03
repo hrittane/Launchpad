@@ -18,6 +18,46 @@ extension View {
                 LiquidGlassEdge(shape: shape)
             }
     }
+
+    /// A static stand-in for the system glass while a tile is being transformed
+    /// continuously, as in the edit-mode wiggle.
+    ///
+    /// `glassEffect` re-captures its backdrop for every transformed frame. On a
+    /// folder tile that reads as a pulsing highlight instead of a rotation and
+    /// costs a full glass pass per frame. A material with the same tint and rim
+    /// rotates as one ordinary layer.
+    func stillGlass<S: Shape>(tint: Color, in shape: S) -> some View {
+        background {
+            shape
+                .fill(.regularMaterial)
+                .overlay {
+                    shape.fill(tint)
+                }
+                .overlay {
+                    LiquidGlassEdge(shape: shape)
+                }
+        }
+    }
+
+    /// A completely AppKit-free folder surface for the merge preview.
+    ///
+    /// Inserting a material-backed view into the grid *while a drag gesture is
+    /// in flight* makes AppKit rebuild its tracking hierarchy and cancels the
+    /// gesture: the floating icon stops following the cursor and `onEnded`
+    /// never runs. The preview only needs to read as a folder for a moment, so
+    /// it is drawn with plain shapes that do not create a visual-effect view.
+    func plainGlass<S: Shape>(tint: Color, in shape: S) -> some View {
+        background {
+            shape
+                .fill(Color.black.opacity(0.16))
+                .overlay {
+                    shape.fill(tint)
+                }
+                .overlay {
+                    LiquidGlassEdge(shape: shape)
+                }
+        }
+    }
 }
 
 /// Restores the specular edge that the system highlight loses on bright

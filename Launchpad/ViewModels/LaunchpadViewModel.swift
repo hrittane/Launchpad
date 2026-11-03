@@ -1,4 +1,5 @@
 import AppKit
+import QuartzCore
 import SwiftUI
 
 /// A custom drag that is rendered above the grid. The icon follows the cursor
@@ -7,10 +8,13 @@ struct DragSession: Equatable {
     var entry: LaunchpadEntry
     var sourcePage: Int
     var sourceIndex: Int
-    var targetInsertionSlot: Int?
     var hoveredEntryID: String?
     var armedMergeTargetID: String?
-    var mergeCandidateID: String?
+    // Transient hit-testing state (`targetInsertionSlot`, `mergeCandidateID`)
+    // deliberately lives outside this struct. It changes on every cell and halo
+    // boundary, and publishing it here re-rendered the whole grid mid-drag:
+    // each publish blocked the main thread for ~50 ms right when the reflow
+    // animation should have started, which is what made displaced tiles snap.
 
     /// The tile that should show the folder preview.
     ///
@@ -123,6 +127,13 @@ final class LaunchpadViewModel: ObservableObject {
     let folderItemDrag = FolderDragState()
     private var isDraggingPage = false
     @Published private(set) var dragSession: DragSession?
+    /// Hit-testing state for the drag. Not published: it changes at every cell
+    /// and halo boundary, and only the reorder preview (which has its own
+    /// publication) mirrors the visible consequence.
+    private var dragTargetInsertionSlot: Int?
+    private var dragMergeCandidateID: String?
+    /// Test-only window into the unpublished halo dwell state.
+    var pendingMergeCandidateID: String? { dragMergeCandidateID }
     /// The exact layout a drop would commit, rendered while dragging. Nil when
     /// no drag is active or when hovering a folder merge target (the drop will
     /// not reorder the grid in that case).
@@ -152,6 +163,10 @@ final class LaunchpadViewModel: ObservableObject {
     private var scanTask: Task<Void, Never>?
     private var mergeArmTask: Task<Void, Never>?
     private var edgeFlipTask: Task<Void, Never>?
+    /// Timestamp of the last pointer update delivered by the tile's SwiftUI
+    /// gesture. The AppKit monitor only takes over once this goes stale, so a
+    /// healthy drag is never fed by two slightly different sources at once.
+    private var lastGestureDragUpdate: CFTimeInterval = 0
     private var scrollCommitTask: Task<Void, Never>?
     private var pageSnapTask: Task<Void, Never>?
     private var pendingPageSnap: PendingPageSnap?
@@ -1020,11 +1035,12 @@ final class LaunchpadViewModel: ObservableObject {
         isEditing = true
         focusedEntryID = entry.id
         itemDrag.location = .zero
+        dragTargetInsertionSlot = index
+        dragMergeCandidateID = nil
         dragSession = DragSession(
             entry: entry,
             sourcePage: page,
-            sourceIndex: index,
-            targetInsertionSlot: index
+            sourceIndex: index
         )
         // The initial preview is the untouched layout; the first pointer update
         // replaces it with the projected reflow.
@@ -1037,7 +1053,34 @@ final class LaunchpadViewModel: ObservableObject {
         )
     }
 
+    /// Pointer updates from the tile's SwiftUI gesture.
     func updateDrag(location: CGPoint) {
+        lastGestureDragUpdate = CACurrentMediaTime()
+        applyDrag(location: location)
+    }
+
+    /// Reflow animation used while a tile is being dragged.
+    ///
+    /// Slightly more damped than the resting `reorder` spring so a stream of
+    /// slot changes glides instead of bouncing.
+    private var dragReorderAnimation: Animation {
+        reduceMotion ? Metrics.Motion.reduced : Metrics.Motion.dragReorder
+    }
+
+    /// Pointer updates from the AppKit monitor.
+    ///
+    /// SwiftUI occasionally cancels the tile gesture mid-drag. The monitor is
+    /// the fallback that keeps the preview alive, but while the gesture is
+    /// healthy it is the better source (it uses the same coordinate space as
+    /// the rest of the grid), so ignore monitor updates until the gesture has
+    /// been quiet for a moment.
+    func updateDragFromMonitor(location: CGPoint) {
+        guard dragSession != nil else { return }
+        guard CACurrentMediaTime() - lastGestureDragUpdate > 0.1 else { return }
+        applyDrag(location: location)
+    }
+
+    private func applyDrag(location: CGPoint) {
         guard var session = dragSession else { return }
         // Cursor tracking is isolated from the grid: only the floating preview
         // observes this value, so moving inside one cell does not re-render any
@@ -1079,7 +1122,7 @@ final class LaunchpadViewModel: ObservableObject {
                 at: location,
                 metrics: metrics,
                 excluding: session.entry.id,
-                currentID: session.mergeCandidateID,
+                currentID: dragMergeCandidateID,
                 frame: { metrics.mergeHaloFrame(at: $0) }
             )
 
@@ -1089,17 +1132,17 @@ final class LaunchpadViewModel: ObservableObject {
         // any pending halo arm so the drop uses exactly what is under the
         // pointer.
         if directTargetID != nil {
-            if session.mergeCandidateID != nil || session.armedMergeTargetID != nil {
-                session.mergeCandidateID = nil
+            if dragMergeCandidateID != nil || session.armedMergeTargetID != nil {
+                dragMergeCandidateID = nil
                 session.armedMergeTargetID = nil
                 cancelMergeArm()
             }
         } else if let targetID = haloCandidateID {
-            if session.mergeCandidateID != targetID {
+            if dragMergeCandidateID != targetID {
                 // Leaving an armed target for another one drops the old arm so
                 // the drop always uses the item currently under the cursor.
                 session.armedMergeTargetID = nil
-                session.mergeCandidateID = targetID
+                dragMergeCandidateID = targetID
                 mergeArmTask?.cancel()
                 mergeArmTask = Task { [weak self] in
                     try? await Task.sleep(nanoseconds: UInt64(Metrics.Durations.dragHoverFolder * 1_000_000_000))
@@ -1107,28 +1150,36 @@ final class LaunchpadViewModel: ObservableObject {
                     await MainActor.run {
                         guard let self,
                               var sess = self.dragSession,
-                              sess.mergeCandidateID == targetID,
+                              self.dragMergeCandidateID == targetID,
                               sess.hoveredEntryID == nil else { return }
                         sess.armedMergeTargetID = targetID
                         self.dragSession = sess
                         // The halo may have been showing the reorder preview;
                         // hide it when the merge intent wins so the target
                         // returns under the pointer before the drop.
-                        self.reorderPreview = nil
+                        withAnimation(self.dragReorderAnimation) {
+                            self.reorderPreview = nil
+                        }
                     }
                 }
             }
         } else {
             session.armedMergeTargetID = nil
-            session.mergeCandidateID = nil
+            dragMergeCandidateID = nil
             cancelMergeArm()
         }
 
         // 3. Project the layout for the cell under the cursor. This preview is
         // also what `endDrag` commits, so the drop can never disagree with it.
         if session.armedMergeTargetID == nil {
-            let targetSlot = metrics.nearestSlot(at: location)
-            session.targetInsertionSlot = targetSlot
+            let rawSlot = metrics.nearestSlot(at: location)
+            let targetSlot = stableInsertionSlot(
+                rawSlot,
+                current: dragTargetInsertionSlot,
+                at: location,
+                metrics: metrics
+            )
+            dragTargetInsertionSlot = targetSlot
 
             var targetPage = page
             var preview = GridReorder.preview(
@@ -1155,10 +1206,18 @@ final class LaunchpadViewModel: ObservableObject {
             // underneath the cursor.
             let projectedPreview: GridReorderPreview? = session.hoveredEntryID == nil ? preview : nil
             if reorderPreview != projectedPreview {
-                reorderPreview = projectedPreview
+                // Animate the reflow explicitly. The spring on the tile is a
+                // safety net, but the state change itself has to carry the
+                // animation so every displaced tile slides from its current
+                // position instead of snapping to the new slot.
+                withAnimation(dragReorderAnimation) {
+                    reorderPreview = projectedPreview
+                }
             }
         } else if reorderPreview != nil {
-            reorderPreview = nil
+            withAnimation(dragReorderAnimation) {
+                reorderPreview = nil
+            }
         }
 
         // Publish only when something visible actually changed. A drag used to
@@ -1168,6 +1227,26 @@ final class LaunchpadViewModel: ObservableObject {
             dragSession = session
         }
         updateEdgeFlip(location: location)
+    }
+
+    /// Keeps the previous insertion slot until the pointer has clearly left
+    /// that cell.
+    ///
+    /// Mapping the raw point to a cell makes the reorder preview flip back and
+    /// forth whenever the cursor rests near a cell boundary, which reads as
+    /// the tiles vibrating under the dragged icon. The dead zone turns that
+    /// boundary noise into a single, deliberate move.
+    private func stableInsertionSlot(
+        _ slot: Int,
+        current: Int?,
+        at location: CGPoint,
+        metrics: LayoutMetrics
+    ) -> Int {
+        guard let current, current != slot else { return slot }
+        let marginX = metrics.cellWidth * 0.14
+        let marginY = metrics.cellHeight * 0.14
+        let sticky = metrics.cellRect(at: current).insetBy(dx: -marginX, dy: -marginY)
+        return sticky.contains(location) ? current : slot
     }
 
     func endDrag() {
@@ -1253,8 +1332,11 @@ final class LaunchpadViewModel: ObservableObject {
         } else if let preview {
             // Commit exactly the layout the user saw. Using the preview pages
             // (not a remove/insert reconstruction) is what keeps the icon from
-            // jumping to a neighbouring slot on drop.
-            pages = preview.pages
+            // jumping to a neighbouring slot on drop. Animate the commit so a
+            // drop that lands mid-flight settles instead of snapping.
+            withAnimation(dragReorderAnimation) {
+                pages = preview.pages
+            }
         } else {
             // Defensive fallback for a drag that ends before any pointer update
             // produced a preview.
@@ -1265,7 +1347,7 @@ final class LaunchpadViewModel: ObservableObject {
                 LayoutEngine.remove(entryID: draggedEntry.id, from: &pages)
             }
             let fallbackPage = min(max(currentPage, 0), max(0, pages.count - 1))
-            let insertionIndex = session.targetInsertionSlot
+            let insertionIndex = dragTargetInsertionSlot
                 ?? (pages.indices.contains(fallbackPage) ? pages[fallbackPage].count : 0)
             LayoutEngine.insert(
                 draggedEntry,
@@ -1287,6 +1369,8 @@ final class LaunchpadViewModel: ObservableObject {
         }
 
         dragSession = nil
+        dragTargetInsertionSlot = nil
+        dragMergeCandidateID = nil
         reorderPreview = nil
         itemDrag.location = .zero
         pageDrag.offset = 0
@@ -1308,6 +1392,8 @@ final class LaunchpadViewModel: ObservableObject {
         edgeFlipTask?.cancel()
         edgeFlipTask = nil
         dragSession = nil
+        dragTargetInsertionSlot = nil
+        dragMergeCandidateID = nil
         reorderPreview = nil
         itemDrag.location = .zero
     }
@@ -1544,9 +1630,7 @@ final class LaunchpadViewModel: ObservableObject {
                 dragSession?.armedMergeTargetID = nil
             }
         }
-        if dragSession?.mergeCandidateID != nil {
-            dragSession?.mergeCandidateID = nil
-        }
+        dragMergeCandidateID = nil
     }
 
     private func updateEdgeFlip(location: CGPoint) {
