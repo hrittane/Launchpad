@@ -83,6 +83,8 @@ struct AppSettings: Codable, Equatable, Sendable {
     var iconSize: Double
     var labelFontSize: Double
     var showOnAllDisplays: Bool
+    /// Draws the soft drop shadow under every app and folder icon.
+    var showIconShadow: Bool
     var hotCorner: HotCorner
     var shortcut: KeyShortcut
     var launchAtLogin: Bool
@@ -93,6 +95,7 @@ struct AppSettings: Codable, Equatable, Sendable {
         iconSize: Double(Metrics.defaultIconSize),
         labelFontSize: 13,
         showOnAllDisplays: false,
+        showIconShadow: true,
         hotCorner: .bottomRight,
         shortcut: .launchpadDefault,
         launchAtLogin: false
@@ -104,6 +107,7 @@ struct AppSettings: Codable, Equatable, Sendable {
         iconSize: Double,
         labelFontSize: Double,
         showOnAllDisplays: Bool,
+        showIconShadow: Bool = true,
         hotCorner: HotCorner,
         shortcut: KeyShortcut,
         launchAtLogin: Bool
@@ -113,6 +117,7 @@ struct AppSettings: Codable, Equatable, Sendable {
         self.iconSize = Self.clampDouble(iconSize, 64...128)
         self.labelFontSize = Self.clampDouble(labelFontSize, 6...15)
         self.showOnAllDisplays = showOnAllDisplays
+        self.showIconShadow = showIconShadow
         self.hotCorner = hotCorner
         self.shortcut = shortcut
         self.launchAtLogin = launchAtLogin
@@ -136,6 +141,7 @@ struct AppSettings: Codable, Equatable, Sendable {
         let iconSize = try container.decodeIfPresent(Double.self, forKey: .iconSize) ?? defaults.iconSize
         let labelFontSize = try container.decodeIfPresent(Double.self, forKey: .labelFontSize) ?? defaults.labelFontSize
         let showOnAllDisplays = try container.decodeIfPresent(Bool.self, forKey: .showOnAllDisplays) ?? defaults.showOnAllDisplays
+        let showIconShadow = try container.decodeIfPresent(Bool.self, forKey: .showIconShadow) ?? defaults.showIconShadow
         let hotCorner = try container.decodeIfPresent(HotCorner.self, forKey: .hotCorner) ?? defaults.hotCorner
         let shortcut = try container.decodeIfPresent(KeyShortcut.self, forKey: .shortcut) ?? defaults.shortcut
         let launchAtLogin = try container.decodeIfPresent(Bool.self, forKey: .launchAtLogin) ?? defaults.launchAtLogin
@@ -146,6 +152,7 @@ struct AppSettings: Codable, Equatable, Sendable {
             iconSize: iconSize,
             labelFontSize: labelFontSize,
             showOnAllDisplays: showOnAllDisplays,
+            showIconShadow: showIconShadow,
             hotCorner: hotCorner,
             shortcut: shortcut,
             launchAtLogin: launchAtLogin

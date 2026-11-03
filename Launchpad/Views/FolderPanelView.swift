@@ -246,6 +246,7 @@ struct FolderPanelView: View {
                     isMergeArmed: false,
                     reduceMotion: viewModel.reduceMotion,
                     showDeleteBadge: false,
+                    showIconShadow: viewModel.settings.showIconShadow,
                     recordsFrame: false,
                     onTap: {
                         if let app = entry.app { viewModel.launch(app) }

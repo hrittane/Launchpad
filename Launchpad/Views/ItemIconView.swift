@@ -43,6 +43,9 @@ struct ItemIconView: View {
     var isDragSource: Bool = false
     let reduceMotion: Bool
     let showDeleteBadge: Bool
+    /// Whether the tile draws a drop shadow. Off gives a completely flat icon
+    /// for wallpapers where the default shadow looks muddy.
+    var showIconShadow: Bool = true
     let recordsFrame: Bool
     let onTap: () -> Void
     let onDelete: () -> Void
@@ -55,7 +58,6 @@ struct ItemIconView: View {
     /// immediately focus the folder title for renaming.
     var onDoubleTap: (() -> Void)? = nil
 
-    @State private var isHovered = false
     @State private var isPressed = false
 
     private var isFolder: Bool { entry.isFolder }
@@ -68,7 +70,6 @@ struct ItemIconView: View {
             .animation(.easeOut(duration: Metrics.Durations.jiggleReturn), value: jiggleActive)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .contentShape(Rectangle())
-            .onHover { isHovered = $0 }
             .gesture(pointerGesture)
             .contextMenu { contextMenu }
             .onDisappear {
@@ -145,10 +146,12 @@ struct ItemIconView: View {
                     .scaleEffect(tileScale)
                     .brightness(isPressed ? Metrics.iconPressedBrightness : 0)
                     .shadow(
-                        color: .black.opacity(isPressed ? 0.25 : Metrics.iconShadowOpacity),
-                        radius: Metrics.iconShadowRadius * scale,
+                        color: showIconShadow
+                            ? .black.opacity(isPressed ? 0.25 : Metrics.iconShadowOpacity)
+                            : .clear,
+                        radius: showIconShadow ? Metrics.iconShadowRadius * scale : 0,
                         x: 0,
-                        y: Metrics.iconShadowY * scale
+                        y: showIconShadow ? Metrics.iconShadowY * scale : 0
                     )
                     .overlay(alignment: .topLeading) {
                         if isEditing && showDeleteBadge {
@@ -184,7 +187,6 @@ struct ItemIconView: View {
         }
         .animation(.spring(response: 0.32, dampingFraction: 0.78), value: isMergeTarget)
         .animation(.spring(response: 0.32, dampingFraction: 0.78), value: isMergeArmed)
-        .animation(Metrics.Motion.hover, value: isHovered)
         .animation(Metrics.Motion.pressed, value: isPressed)
     }
 
@@ -229,9 +231,8 @@ struct ItemIconView: View {
             // lift keeps it feeling attached to the cursor.
             return 1.04
         }
-        let hover: CGFloat = isHovered && !isEditing ? Metrics.iconHoverScale : 1
         let pressed: CGFloat = isPressed ? Metrics.iconPressedScale : 1
-        return hover * pressed
+        return pressed
     }
 
     private var deleteBadge: some View {

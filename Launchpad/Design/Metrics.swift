@@ -32,7 +32,6 @@ enum Metrics {
     static let iconShadowOpacity: Double = 0.35
     static let iconShadowRadius: CGFloat = 6
     static let iconShadowY: CGFloat = 3
-    static let iconHoverScale: CGFloat = 1.05
     static let iconPressedScale: CGFloat = 0.92
     static let iconPressedBrightness: Double = -0.15
     static let iconCornerRadius: CGFloat = 22
@@ -118,7 +117,6 @@ enum Metrics {
     enum Durations {
         static let showBackground: Double = 0.18
         static let hideBackground: Double = 0.14
-        static let hover: Double = 0.15
         static let pressed: Double = 0.10
         static let searchCrossFade: Double = 0.2
         static let folderOpen: Double = 0.35
@@ -191,7 +189,6 @@ enum Metrics {
         /// `reorder` so a stream of slot changes glides instead of bouncing,
         /// which made the grid look volatile under the cursor.
         static let dragReorder = Animation.spring(response: 0.30, dampingFraction: 0.95, blendDuration: 0.18)
-        static let hover = Animation.easeInOut(duration: Durations.hover)
         static let pressed = Animation.easeOut(duration: Durations.pressed)
         static let reduced = Animation.easeInOut(duration: Durations.reducedMotion)
     }

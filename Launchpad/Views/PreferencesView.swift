@@ -66,6 +66,11 @@ struct PreferencesView: View {
                         step: 1,
                         valueText: "\(Int(viewModel.settings.labelFontSize)) pt"
                     )
+                    Toggle(
+                        isOn: binding(\.showIconShadow)
+                    ) {
+                        Text("Show icon shadows", comment: "Preferences toggle")
+                    }
                 }
 
                 section(Text("Activation", comment: "Preferences section")) {

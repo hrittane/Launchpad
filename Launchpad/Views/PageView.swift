@@ -67,6 +67,7 @@ struct PageView: View {
                     isDragSource: isDragSource,
                     reduceMotion: viewModel.reduceMotion,
                     showDeleteBadge: entry.app?.isDeletable == true,
+                    showIconShadow: viewModel.settings.showIconShadow,
                     recordsFrame: recordsFrames,
                     onTap: {
                         if let folder = entry.folder {
