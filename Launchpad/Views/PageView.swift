@@ -45,6 +45,7 @@ struct PageView: View {
                     isMergeArmed: viewModel.dragSession?.armedMergeTargetID == entry.id,
                     mergePreviewApps: viewModel.mergePreviewApps(for: entry),
                     jiggleActive: jiggleActive,
+                    isDragSource: isDragSource,
                     reduceMotion: viewModel.reduceMotion,
                     showDeleteBadge: entry.app?.isDeletable == true,
                     recordsFrame: recordsFrames,

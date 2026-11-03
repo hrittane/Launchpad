@@ -31,6 +31,11 @@ struct ItemIconView: View {
     /// Only the current page animates its wiggle. Driving this from the page
     /// instead of `isEditing` keeps off-screen pages static.
     var jiggleActive: Bool = false
+    /// The tile currently being dragged. Its content is replaced by an empty
+    /// placeholder rather than faded with opacity: the Liquid Glass layer draws
+    /// in its own compositing pass that ignores an ancestor's opacity, so a
+    /// faded folder still left a second ghost sliding around the grid.
+    var isDragSource: Bool = false
     let reduceMotion: Bool
     let showDeleteBadge: Bool
     let recordsFrame: Bool
@@ -152,7 +157,13 @@ struct ItemIconView: View {
 
     @ViewBuilder
     private var iconContent: some View {
-        if let mergePreviewApps, isMergeTarget || isMergeArmed {
+        if isDragSource {
+            // The glass layer draws in its own compositing pass and ignores an
+            // ancestor's opacity, so the source tile must not build the folder
+            // view at all. Only this leaf is swapped; the gesture lives on the
+            // enclosing view, so the drag keeps running.
+            Color.clear
+        } else if let mergePreviewApps, isMergeTarget || isMergeArmed {
             // Morph the app into the folder the drop would create. Only the
             // target's own apps are drawn here; the app being dragged is
             // already floating above the grid under the cursor.
