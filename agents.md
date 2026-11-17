@@ -1,0 +1,2 @@
+- always build and compile after modifications
+- if something need to be tested ask me to do it do not do it yourself !
