@@ -188,4 +188,49 @@ struct AppModelEditingTests {
         #expect(model.items.count == 1)
         #expect(model.items[0].appIDs == [apps[1].id])
     }
+
+    @Test
+    func movingAnAppInsideAFolderReordersItsChildren() throws {
+        let apps = ["Alpha", "Bravo", "Charlie", "Delta"].map { makeApp($0) }
+        let model = makeModel(apps: apps)
+
+        model.performDrop(itemID: model.items[0].id, slot: 1, ontoIcon: true)
+        model.performDrop(itemID: model.items[1].id, slot: 0, ontoIcon: true)
+        #expect(model.items[0].folder?.appIDs == [apps[1].id, apps[0].id, apps[2].id])
+
+        let folder = try #require(model.items[0].folder)
+        model.moveApp(inFolder: folder.id, appID: apps[2].id, toIndex: 0)
+
+        #expect(model.items.count == 2)
+        #expect(model.items[0].folder?.appIDs == [apps[2].id, apps[1].id, apps[0].id])
+    }
+
+    @Test
+    func movingAnAppInsideAFolderClampsTheSlot() throws {
+        let apps = ["Alpha", "Bravo", "Charlie"].map { makeApp($0) }
+        let model = makeModel(apps: apps)
+
+        model.performDrop(itemID: model.items[0].id, slot: 1, ontoIcon: true)
+        model.performDrop(itemID: model.items[1].id, slot: 0, ontoIcon: true)
+        let folder = try #require(model.items[0].folder)
+
+        model.moveApp(inFolder: folder.id, appID: apps[0].id, toIndex: 99)
+
+        #expect(model.items[0].folder?.appIDs.last == apps[0].id)
+        #expect(model.items[0].folder?.appIDs.count == 3)
+    }
+
+    @Test
+    func movingAnAppToItsOwnSlotInAFolderIsANoOp() throws {
+        let apps = ["Alpha", "Bravo", "Charlie"].map { makeApp($0) }
+        let model = makeModel(apps: apps)
+        model.performDrop(itemID: model.items[0].id, slot: 1, ontoIcon: true)
+        model.performDrop(itemID: model.items[1].id, slot: 0, ontoIcon: true)
+        let folder = try #require(model.items[0].folder)
+        let before = model.items[0]
+
+        model.moveApp(inFolder: folder.id, appID: apps[1].id, toIndex: 0)
+
+        #expect(model.items[0] == before)
+    }
 }

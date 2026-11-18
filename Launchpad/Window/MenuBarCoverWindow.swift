@@ -59,6 +59,7 @@ final class MenuBarCoverWindow: NSWindow {
         setFrame(strip, display: false)
 
         clip.frame = NSRect(origin: .zero, size: strip.size)
+        backdrop.present(on: screen)
         backdrop.frame = NSRect(
             x: 0,
             y: strip.height - screen.frame.height,

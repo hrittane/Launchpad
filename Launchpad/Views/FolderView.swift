@@ -160,6 +160,9 @@ struct FolderView: View {
             }
         }
         .frame(width: metrics.folderPanelWidth, height: metrics.folderPanelHeight, alignment: .topLeading)
+        // Reordering inside the folder animates the remaining icons into their
+        // new slots, so the gap under the pointer moves with the drag.
+        .animation(.spring(response: 0.26, dampingFraction: 0.82), value: apps.map(\.id))
     }
 
     private func commitName() {
@@ -199,21 +202,20 @@ private struct FolderAppIcon: View {
                     .frame(width: iconSize, height: iconSize)
                     .rotationEffect(.degrees(jiggleAngle(context.date)), anchor: .center)
             }
-            .opacity(isDragging ? 0.3 : 1)
-                .contentShape(Rectangle())
-                .onTapGesture(perform: onLaunch)
-                .simultaneousGesture(
-                    DragGesture(
-                        minimumDistance: 5,
-                        coordinateSpace: .named(LaunchpadCanvas.space)
-                    )
-                    .onChanged { onDragChanged($0.location) }
-                    .onEnded { onDragEnded($0.location) }
+            .contentShape(Rectangle())
+            .onTapGesture(perform: onLaunch)
+            .simultaneousGesture(
+                DragGesture(
+                    minimumDistance: 5,
+                    coordinateSpace: .named(LaunchpadCanvas.space)
                 )
-                .accessibilityElement(children: .ignore)
-                .accessibilityLabel(item.name)
-                .accessibilityAddTraits(.isButton)
-                .accessibilityAction { onLaunch() }
+                .onChanged { onDragChanged($0.location) }
+                .onEnded { onDragEnded($0.location) }
+            )
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(item.name)
+            .accessibilityAddTraits(.isButton)
+            .accessibilityAction { onLaunch() }
 
             Text(item.name)
                 .font(.system(size: labelFontSize, weight: .medium))
@@ -224,6 +226,9 @@ private struct FolderAppIcon: View {
                 .frame(width: labelWidth, height: metricsLabelHeight)
                 .accessibilityHidden(true)
         }
+        // The tile is represented by the floating drag preview: the whole cell,
+        // name included, disappears so the live gap is completely empty.
+        .opacity(isDragging ? 0 : 1)
     }
 
     private var metricsLabelHeight: CGFloat {

@@ -61,6 +61,11 @@ final class LaunchpadContentView: NSView {
         backdrop.frame = NSRect(x: 0, y: 0, width: bounds.width, height: bounds.height)
     }
 
+    /// Draws the desktop picture of `screen` behind the interface.
+    func presentBackdrop(on screen: NSScreen) {
+        backdrop.present(on: screen)
+    }
+
     #if DEBUG
     /// Swaps the live blur for the opaque gradient and rebuilds the interface
     /// without the glass container so it can be rendered into a bitmap.
@@ -273,6 +278,7 @@ final class LaunchpadPanelController {
 
         window.setFrame(screen.frame, display: false)
         window.alphaValue = 0
+        (window.contentView as? LaunchpadContentView)?.presentBackdrop(on: screen)
         model.notePresented()
         IconProvider.shared.prefetch(Array(model.catalog.apps.prefix(35)))
 

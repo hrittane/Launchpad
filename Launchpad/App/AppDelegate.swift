@@ -33,6 +33,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             onQuit: { NSApp.terminate(nil) }
         )
 
+        // Compose and blur the backdrop now: the first panel presentation then
+        // only has to hand the finished image to the window.
+        BackdropView.preheat()
+
         #if DEBUG
         if !CommandLine.arguments.contains("--no-panel") {
             controller.show()

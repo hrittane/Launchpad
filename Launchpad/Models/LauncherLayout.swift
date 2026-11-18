@@ -166,6 +166,24 @@ struct LauncherLayout: Codable, Equatable, Sendable {
         items[index] = .folder(folder)
     }
 
+    /// Reorders an app inside its folder. `slot` is an index into the folder's
+    /// current child list, matching the preview the panel draws while dragging.
+    @discardableResult
+    mutating func moveApp(inFolder folderID: UUID, appID: String, toSlot slot: Int) -> Bool {
+        guard let folderIndex = index(ofFolder: folderID),
+              case .folder(var folder) = items[folderIndex],
+              let from = folder.appIDs.firstIndex(of: appID),
+              folder.appIDs.count > 1 else { return false }
+
+        let target = min(max(slot, 0), folder.appIDs.count - 1)
+        guard target != from else { return false }
+
+        let child = folder.appIDs.remove(at: from)
+        folder.appIDs.insert(child, at: target)
+        items[folderIndex] = .folder(folder)
+        return true
+    }
+
     /// Removes an app from a folder (used by editing inside a folder). The app
     /// is re-inserted at `slot` when it is given one.
     @discardableResult

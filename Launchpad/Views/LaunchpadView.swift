@@ -99,7 +99,7 @@ struct LaunchpadView: View {
                 if let folder = model.openFolder {
                     FolderView(
                         folder: folder,
-                        apps: model.apps(in: folder),
+                        apps: folderPreview(metrics: metrics)?.apps ?? model.apps(in: folder),
                         metrics: metrics,
                         isEditing: model.isEditing,
                         draggingAppID: folderDrag?.app.id,
@@ -108,6 +108,9 @@ struct LaunchpadView: View {
                         onClose: { model.closeFolder() },
                         onRename: { model.renameFolder(folder.id, to: $0) },
                         onAppDragChanged: { app, location in
+                            // Pulling an icon inside the folder switches to
+                            // jiggle mode exactly like a grid drag does.
+                            if !model.isEditing { model.beginEditing() }
                             folderDrag = FolderDrag(app: app, location: location)
                         },
                         onAppDragEnded: { app, location in
@@ -414,22 +417,70 @@ struct LaunchpadView: View {
         model.performDrop(itemID: itemID, slot: slot, ontoIcon: target.ontoIcon)
     }
 
-    /// Ends a drag that started inside the open folder. Dropping outside the
-    /// panel moves the app onto the grid at the nearest slot; dropping back on
-    /// the panel simply cancels.
+    /// Ends a drag that started inside the open folder. Dropping back on the
+    /// panel reorders the folder's apps; dropping outside it moves the app onto
+    /// the grid at the nearest slot and closes the folder.
     private func handleFolderDragEnded(
         app: AppItem,
         at location: CGPoint,
         metrics: LaunchpadMetrics
     ) {
         defer { folderDrag = nil }
-        guard folderPanelFrame != .zero, !folderPanelFrame.contains(location) else { return }
+        guard folderPanelFrame != .zero else { return }
+
+        if folderPanelFrame.contains(location) {
+            guard let folder = model.openFolder,
+                  let slot = folderSlot(at: location, metrics: metrics) else { return }
+            model.moveApp(inFolder: folder.id, appID: app.id, toIndex: slot)
+            return
+        }
+
         guard let target = dropSlot(at: location, metrics: metrics, page: model.currentPage) else {
             return
         }
         let slot = min(max(target.index, 0), max(model.items.count - 1, 0))
         model.moveAppOutOfFolder(appID: app.id, toSlot: slot)
         model.closeFolder()
+    }
+
+    /// The folder's app order as it would look if the app under the pointer
+    /// landed in the slot it hovers. Icons slide aside and leave the live gap
+    /// the drop will fill, with nothing written until the drag ends.
+    private func folderPreview(metrics: LaunchpadMetrics) -> (apps: [AppItem], slot: Int)? {
+        guard let drag = folderDrag,
+              let folder = model.openFolder,
+              let slot = folderSlot(at: drag.location, metrics: metrics) else { return nil }
+
+        let apps = model.apps(in: folder)
+        guard apps.count > 1,
+              let from = apps.firstIndex(where: { $0.id == drag.app.id }) else { return nil }
+        let target = min(max(slot, 0), apps.count - 1)
+        guard target != from else { return nil }
+
+        var reordered = apps
+        let moved = reordered.remove(at: from)
+        reordered.insert(moved, at: target)
+        return (reordered, target)
+    }
+
+    /// Slot index inside the folder panel under `location`, or nil when the
+    /// pointer is outside the panel's grid.
+    private func folderSlot(at location: CGPoint, metrics: LaunchpadMetrics) -> Int? {
+        guard folderPanelFrame != .zero, folderPanelFrame.contains(location) else { return nil }
+        let local = CGPoint(
+            x: location.x - folderPanelFrame.minX,
+            y: location.y - folderPanelFrame.minY
+        )
+        let columnPitch = metrics.folderPanelWidth / CGFloat(metrics.folderColumns)
+        let rowPitch = (metrics.folderPanelHeight - metrics.folderGridTop - metrics.folderGridBottom)
+            / CGFloat(metrics.folderRows)
+        guard columnPitch > 0, rowPitch > 0 else { return nil }
+
+        let column = Int((local.x / columnPitch).rounded(.down))
+        let row = Int(((local.y - metrics.folderGridTop) / rowPitch).rounded(.down))
+        guard (0..<metrics.folderColumns).contains(column),
+              (0..<metrics.folderRows).contains(row) else { return nil }
+        return row * metrics.folderColumns + column
     }
 
     /// Switches pages when the dragged icon rests near the left or right edge.
@@ -509,7 +560,9 @@ struct LaunchpadView: View {
             } else if let drag = folderDrag {
                 AppIconImage(
                     item: drag.app,
-                    size: metrics.iconSize,
+                    size: folderPanelFrame.contains(drag.location)
+                        ? metrics.folderIconSize
+                        : metrics.iconSize,
                     artworkScale: metrics.iconArtworkScale
                 )
                 .scaleEffect(1.12)

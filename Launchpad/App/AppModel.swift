@@ -223,6 +223,13 @@ final class AppModel {
         commit()
     }
 
+    /// Reorders an app inside the open folder, dropping it on `index` in the
+    /// folder's child list.
+    func moveApp(inFolder folderID: UUID, appID: String, toIndex index: Int) {
+        guard layout.moveApp(inFolder: folderID, appID: appID, toSlot: index) else { return }
+        commit()
+    }
+
     // MARK: - Folders
 
     func openFolder(_ folderID: UUID) {

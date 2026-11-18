@@ -301,9 +301,9 @@ page 0.35 s, folder morph 0.40 s, hover 0.12 s, badge pop 0.20 s.
   they can blend/morph with shared sampling.
 - `glassEffectID(_:in:)` + `@Namespace` for the folder icon ↔ panel morph and search focus.
 - `NSGlassEffectView` / `NSGlassEffectContainerView` for the full-screen glass backdrop if the
-  SwiftUI path cannot blur the desktop wallpaper (the wallpaper behind the window must be
-  sampled by a window-level effect; `NSVisualEffectView(.behindWindow, .hudWindow/.underWindowBackground)`
-  is the fallback if `NSGlassEffectView` does not support behind-window sampling).
+  SwiftUI path cannot blur the desktop wallpaper. **Superseded**: the backdrop is drawn from the
+  desktop *picture* (see *Backdrop* in section 7), which is also what keeps other windows from
+  showing through.
 - `@Environment(\.accessibilityReduceTransparency/.accessibilityReduceMotion)` fallbacks to
   solid frost / fades.
 - macOS 15 fallback: `.ultraThinMaterial`, `.background(.regularMaterial)`, `NSVisualEffectView`,
@@ -377,6 +377,24 @@ The Dock must stay visible while the panel is up (user requirement, and the refe
   over the following 10 pt, which blends the two renderings into an invisible gradient.
 - A window whose backdrop simply ended above the Dock would be wrong too: the Dock is translucent,
   so the blur must continue behind it.
+
+### Backdrop
+
+The backdrop is **not** a window-server material. `BackdropView` reads the screen's desktop
+picture (`NSWorkspace.desktopImageURL(for:)`), composes it the way the Finder does (scaling and
+fill colour from `desktopImageOptions`), blurs it with `CIGaussianBlur` and draws the result.
+Launchpad thus *replaces* the desktop instead of looking through it: other applications'
+windows, their video, and the desktop icons are all invisible behind the panel. The tint
+(0.22 black) and vignette are untouched, so only what is behind the glass changed.
+
+The picture is rendered at a quarter of the pixel size — the blur makes the difference
+invisible and it costs ~20 ms instead of ~600 ms on this integrated GPU — and cached per
+picture and screen size. Core Image's one-off shader compilation is paid at launch
+(`BackdropView.preheat()`), so the first presentation is instant. If no picture can be read
+(video/dynamic wallpaper) or Reduce Transparency is on, the opaque gradient takes over;
+either way nothing from behind the panel shows through. Both the panel and the menu-bar cover
+call `present(on:)` with the same screen, so they draw the same cached image and join without
+a seam.
 
 ### Focus
 
@@ -518,9 +536,20 @@ a dashed ring marks the target slot. Releasing on the grid calls
 `LauncherLayout.moveAppOutOfFolder(appID:toSlot:)` (wired through
 `AppModel.moveAppOutOfFolder`), which closes the sheet, inserts the app at the nearest slot
 and collapses a two-app folder back to its survivor or removes an empty folder. Dropping
-back on the panel cancels. Verified on a two-app folder (collapsed to one app at slot 0
-while the dragged app landed at slot 3) and on a three-app folder (folder stayed, now
-holding two apps). Reordering *within* the opened folder is not implemented.
+back on the panel reorders instead (below).
+
+**Reordering inside the panel.** Dragging an icon that stays within the panel never closes
+it and never touches the grid: the pointer's cell (`row × 7 + column` of the panel's inner
+grid, computed in `LaunchpadView.folderSlot(at:metrics:)`) becomes the destination, and
+`folderPreview(metrics:)` re-renders the panel from a reordered copy of the folder's apps —
+icons slide aside over a 0.26 s spring and leave a real gap, exactly like the grid's live
+preview. The dragged cell (icon *and* label) is invisible; the floating 1.12× tile is drawn
+in the panel's own icon size at the pointer. Nothing is committed until release, when
+`LauncherLayout.moveApp(inFolder:appID:toSlot:)` writes the new order (clamped to the child
+range) through `AppModel.moveApp(inFolder:appID:toIndex:)`. A drag that starts inside a
+resting (non-jiggling) folder switches edit mode on, the same way a grid drag does.
+Verified: three apps dragged from slot 1 to slot 3 and back, order persisted, panel stayed
+open; dragging past the panel edge still lifts the app out onto the grid.
 
 ### 8.4 Search
 
