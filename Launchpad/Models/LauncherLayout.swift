@@ -188,26 +188,69 @@ struct LauncherLayout: Codable, Equatable, Sendable {
     /// is re-inserted at `slot` when it is given one.
     @discardableResult
     mutating func moveAppOutOfFolder(appID: String, toSlot slot: Int?) -> Bool {
-        guard let folderIndex = items.firstIndex(where: {
-            $0.folder?.appIDs.contains(appID) == true
-        }) else { return false }
-        guard case .folder(var folder) = items[folderIndex],
-              let childIndex = folder.appIDs.firstIndex(of: appID) else { return false }
-
-        let appID = folder.appIDs.remove(at: childIndex)
-        switch folder.appIDs.count {
-        case 0:
-            items.remove(at: folderIndex)
-        case 1:
-            items[folderIndex] = .app(folder.appIDs[0])
-        default:
-            items[folderIndex] = .folder(folder)
-        }
-
+        guard let lifted = liftingAppOutOfFolder(appID) else { return false }
+        items = lifted
         if let slot {
             let clamped = min(max(slot, 0), items.count)
             items.insert(.app(appID), at: clamped)
         }
         return true
+    }
+
+    /// The grid with `appID` lifted out of its folder.
+    ///
+    /// The folder collapses to its survivor when only one app would remain, or
+    /// disappears when empty — exactly as it will once the drop lands, so the
+    /// live drag preview and the committed layout agree on every index.
+    ///
+    /// - Returns: `nil` when `appID` is not inside a folder.
+    func liftingAppOutOfFolder(_ appID: String) -> [LauncherItem]? {
+        guard let folderIndex = items.firstIndex(where: {
+            $0.folder?.appIDs.contains(appID) == true
+        }) else { return nil }
+        guard case .folder(var folder) = items[folderIndex],
+              let child = folder.appIDs.firstIndex(of: appID) else { return nil }
+
+        folder.appIDs.remove(at: child)
+        var lifted = items
+        switch folder.appIDs.count {
+        case 0:
+            lifted.remove(at: folderIndex)
+        case 1:
+            lifted[folderIndex] = .app(folder.appIDs[0])
+        default:
+            lifted[folderIndex] = .folder(folder)
+        }
+        return lifted
+    }
+
+    /// Drops an app that is being lifted out of its folder onto another app or
+    /// folder: a folder is created, or the app joins the existing one.
+    @discardableResult
+    mutating func dropAppOutOfFolder(
+        appID: String,
+        onto targetID: String,
+        newFolderName: String
+    ) -> UUID? {
+        guard let lifted = liftingAppOutOfFolder(appID),
+              let target = lifted.firstIndex(where: { $0.id == targetID }) else { return nil }
+
+        switch lifted[target] {
+        case .folder(var folder):
+            guard !folder.appIDs.contains(appID) else { return nil }
+            folder.appIDs.append(appID)
+            var result = lifted
+            result[target] = .folder(folder)
+            items = result
+            return folder.id
+
+        case .app(let targetApp):
+            guard targetApp != appID else { return nil }
+            let folder = AppFolder(name: newFolderName, appIDs: [targetApp, appID])
+            var result = lifted
+            result[target] = .folder(folder)
+            items = result
+            return folder.id
+        }
     }
 }

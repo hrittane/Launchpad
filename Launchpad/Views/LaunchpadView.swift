@@ -111,6 +111,11 @@ struct LaunchpadView: View {
                             // Pulling an icon inside the folder switches to
                             // jiggle mode exactly like a grid drag does.
                             if !model.isEditing { model.beginEditing() }
+                            // The grid previews the app in its future slot, so
+                            // the real tile has to be suppressed there. Grid
+                            // drags use the `LauncherItem` id ("app:…"), not the
+                            // bundle id, and the preview matches on that.
+                            model.draggingID = LauncherItem.app(app.id).id
                             folderDrag = FolderDrag(app: app, location: location)
                         },
                         onAppDragEnded: { app, location in
@@ -128,7 +133,7 @@ struct LaunchpadView: View {
                     .zIndex(2)
                 }
 
-                dragOverlay(metrics: metrics, currentPage: currentPage)
+                dragOverlay(metrics: metrics)
                     .zIndex(3)
             }
             .frame(width: proxy.size.width, height: proxy.size.height, alignment: .topLeading)
@@ -222,13 +227,25 @@ struct LaunchpadView: View {
     /// A reorder in progress: the whole grid re-ordered as if the dragged item
     /// had already landed in `slot`. Nothing is committed until the drop.
     private struct DragPreview: Equatable {
-        var slot: Int
+        /// Slot the tiles animate towards; `nil` when the layout only changes
+        /// because an item left a folder (nothing slides).
+        var slot: Int?
         var items: [LauncherItem]
     }
 
     private func dragPreview(metrics: LaunchpadMetrics, page: Int) -> DragPreview? {
-        guard let session = dragSession,
-              model.items.count > 1,
+        if let session = dragSession {
+            return gridDragPreview(session: session, metrics: metrics, page: page)
+        }
+        return folderDragPreview(metrics: metrics, page: page)
+    }
+
+    private func gridDragPreview(
+        session: DragSession,
+        metrics: LaunchpadMetrics,
+        page: Int
+    ) -> DragPreview? {
+        guard model.items.count > 1,
               let target = dropSlot(at: session.location, metrics: metrics, page: page)
         else { return nil }
 
@@ -253,19 +270,56 @@ struct LaunchpadView: View {
         return DragPreview(slot: slot, items: items)
     }
 
+    /// The grid as it looks while an app is being dragged out of the open
+    /// folder: the app has already left the folder (which collapses exactly as
+    /// it will on drop) and sits in the slot under the pointer, leaving the
+    /// same live gap a grid reorder does.
+    private func folderDragPreview(metrics: LaunchpadMetrics, page: Int) -> DragPreview? {
+        guard let drag = folderDrag,
+              isDraggingOutOfFolder,
+              let target = dropSlot(at: drag.location, metrics: metrics, page: page),
+              let lifted = model.liftedItems(appID: drag.app.id) else { return nil }
+
+        // The lift is previewed from the moment the pointer leaves the panel and
+        // never flips back: a two-app folder becomes its survivor (or vanishes)
+        // right away, so the tile cannot pulse while the pointer crosses icon
+        // centres.
+        if target.ontoIcon, model.item(atSlot: target.index) != nil {
+            // Hovering a tile means "fold it in there": the app is not on the
+            // grid at all, so only the lift is shown.
+            return DragPreview(slot: nil, items: lifted)
+        }
+
+        var items = lifted
+        let slot = min(max(target.index, 0), items.count)
+        items.insert(.app(drag.app.id), at: slot)
+        return DragPreview(slot: slot, items: items)
+    }
+
     /// The item a dragged app is hovering right now, when dropping there would
     /// create a folder or add to one. The grid stays still in that case, so a
     /// plain index lookup matches the tile actually under the pointer.
     private func folderTargetID(metrics: LaunchpadMetrics, page: Int) -> String? {
-        guard let session = dragSession,
-              let dragged = model.item(withID: session.itemID),
-              !dragged.isFolder,
-              let target = dropSlot(at: session.location, metrics: metrics, page: page),
+        guard let location = dragSession?.location ?? folderDrag?.location,
+              let target = dropSlot(at: location, metrics: metrics, page: page),
               target.ontoIcon,
-              let hovered = model.item(atSlot: target.index),
-              hovered.id != session.itemID
+              let hovered = model.item(atSlot: target.index)
         else { return nil }
-        return hovered.id
+
+        if let session = dragSession {
+            guard let dragged = model.item(withID: session.itemID), !dragged.isFolder,
+                  hovered.id != session.itemID else { return nil }
+            return hovered.id
+        }
+
+        if let drag = folderDrag, isDraggingOutOfFolder {
+            // Dropping back on the folder it came from just returns the app.
+            guard hovered.folder?.id != model.openFolder?.id,
+                  !hovered.appIDs.contains(drag.app.id) else { return nil }
+            return hovered.id
+        }
+
+        return nil
     }
 
     private func pageSlice(
@@ -418,14 +472,18 @@ struct LaunchpadView: View {
     }
 
     /// Ends a drag that started inside the open folder. Dropping back on the
-    /// panel reorders the folder's apps; dropping outside it moves the app onto
-    /// the grid at the nearest slot and closes the folder.
+    /// panel reorders the folder's apps; dropping outside it acts exactly like
+    /// a grid drag: another app or folder folds the app into a folder, and any
+    /// other slot simply reorders the grid.
     private func handleFolderDragEnded(
         app: AppItem,
         at location: CGPoint,
         metrics: LaunchpadMetrics
     ) {
-        defer { folderDrag = nil }
+        defer {
+            folderDrag = nil
+            model.draggingID = nil
+        }
         guard folderPanelFrame != .zero else { return }
 
         if folderPanelFrame.contains(location) {
@@ -438,8 +496,15 @@ struct LaunchpadView: View {
         guard let target = dropSlot(at: location, metrics: metrics, page: model.currentPage) else {
             return
         }
-        let slot = min(max(target.index, 0), max(model.items.count - 1, 0))
-        model.moveAppOutOfFolder(appID: app.id, toSlot: slot)
+        // Only an icon is a folder target; a gap between icons is a plain
+        // reorder even when the nearest slot happens to hold an app.
+        let hovered = target.ontoIcon ? model.item(atSlot: target.index) : nil
+
+        // Dropping on the folder it came from just returns the app: the sheet
+        // fades back in unchanged.
+        if hovered?.folder?.id == model.openFolder?.id { return }
+
+        model.dropAppFromFolder(appID: app.id, slot: target.index, onto: hovered)
         model.closeFolder()
     }
 
@@ -537,21 +602,8 @@ struct LaunchpadView: View {
     // MARK: - Drag overlay
 
     @ViewBuilder
-    private func dragOverlay(metrics: LaunchpadMetrics, currentPage: Int) -> some View {
+    private func dragOverlay(metrics: LaunchpadMetrics) -> some View {
         ZStack(alignment: .topLeading) {
-            if let target = dropIndicator(metrics: metrics, currentPage: currentPage) {
-                RoundedRectangle(cornerRadius: metrics.iconSize * 0.26, style: .continuous)
-                    .strokeBorder(
-                        .white.opacity(0.5),
-                        style: StrokeStyle(lineWidth: 2, dash: [6, 5])
-                    )
-                    .frame(width: metrics.iconSize + 18, height: metrics.iconSize + 18)
-                    .position(
-                        x: metrics.columnX(target % metrics.columns),
-                        y: metrics.rowTop(target / metrics.columns) + metrics.iconSize / 2
-                    )
-            }
-
             if let session = dragSession, let item = model.item(withID: session.itemID) {
                 draggedTile(item: item, metrics: metrics)
                     .scaleEffect(1.12)
@@ -571,28 +623,6 @@ struct LaunchpadView: View {
             }
         }
         .allowsHitTesting(false)
-    }
-
-    /// Grid-local slot of the folder drag-out drop target, or nil.
-    ///
-    /// Plain reorders draw no marker at all: the live preview already opens a
-    /// gap under the pointer, so a highlight would just sit on top of an icon.
-    private func dropIndicator(metrics: LaunchpadMetrics, currentPage: Int) -> Int? {
-        guard let drag = folderDrag, isDraggingOutOfFolder,
-              let target = dropSlot(at: drag.location, metrics: metrics, page: currentPage)
-        else { return nil }
-        let clamped = min(target.index, max(model.items.count - 1, 0))
-        return localSlot(clamped, metrics: metrics, currentPage: currentPage)
-    }
-
-    private func localSlot(
-        _ index: Int,
-        metrics: LaunchpadMetrics,
-        currentPage: Int
-    ) -> Int? {
-        let local = index - currentPage * metrics.pageCapacity
-        guard local >= 0, local < metrics.pageCapacity else { return nil }
-        return local
     }
 
     @ViewBuilder

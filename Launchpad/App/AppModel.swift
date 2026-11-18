@@ -223,6 +223,48 @@ final class AppModel {
         commit()
     }
 
+    /// The grid as it would look if `appID` stepped out of its folder. Used by
+    /// the live drag preview; nothing is written.
+    func liftedItems(appID: String) -> [LauncherItem]? {
+        layout.liftingAppOutOfFolder(appID)
+    }
+
+    /// Resolves a drop of an app dragged out of its folder: dropping it on
+    /// another app creates a folder, dropping it on a folder adds it there and
+    /// anything else is a plain reorder on the grid.
+    func dropAppFromFolder(appID: String, slot: Int, onto target: LauncherItem?) {
+        defer { draggingID = nil }
+
+        if let target {
+            if target.isFolder {
+                if layout.dropAppOutOfFolder(
+                    appID: appID,
+                    onto: target.id,
+                    newFolderName: "Folder"
+                ) != nil {
+                    commit()
+                }
+                return
+            }
+            if case .app(let targetApp) = target, targetApp != appID {
+                let involved = [targetApp, appID].compactMap { appsByID[$0] }
+                let name = FolderNaming.suggestedName(for: involved)
+                if layout.dropAppOutOfFolder(
+                    appID: appID,
+                    onto: target.id,
+                    newFolderName: name
+                ) != nil {
+                    commit()
+                }
+                return
+            }
+        }
+
+        if layout.moveAppOutOfFolder(appID: appID, toSlot: slot) {
+            commit()
+        }
+    }
+
     /// Reorders an app inside the open folder, dropping it on `index` in the
     /// folder's child list.
     func moveApp(inFolder folderID: UUID, appID: String, toIndex index: Int) {

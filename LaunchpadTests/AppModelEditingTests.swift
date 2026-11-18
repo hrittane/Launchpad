@@ -179,6 +179,76 @@ struct AppModelEditingTests {
     }
 
     @Test
+    func liftingAnAppOutOfItsFolderPreviewsTheCollapseWithoutWriting() throws {
+        let alpha = makeApp("Alpha")
+        let bravo = makeApp("Bravo")
+        let charlie = makeApp("Charlie")
+        let model = makeModel(apps: [alpha, bravo, charlie])
+
+        model.performDrop(itemID: model.items[0].id, slot: 1, ontoIcon: true)
+        #expect(model.items[0].folder?.appIDs.count == 2)
+
+        let lifted = try #require(model.liftedItems(appID: alpha.id))
+
+        #expect(lifted.count == 2)
+        #expect(lifted[0].appIDs == [bravo.id])
+        #expect(lifted[1].appIDs == [charlie.id])
+        // The preview left the real layout alone.
+        #expect(model.items[0].folder?.appIDs.count == 2)
+        #expect(model.items.count == 2)
+    }
+
+    @Test
+    func droppingAFolderAppOntoAnotherAppCreatesAFolder() {
+        let alpha = makeApp("Alpha")
+        let bravo = makeApp("Bravo")
+        let charlie = makeApp("Charlie")
+        let delta = makeApp("Delta")
+        let model = makeModel(apps: [alpha, bravo, charlie, delta])
+
+        model.performDrop(itemID: model.items[0].id, slot: 1, ontoIcon: true)
+        model.dropAppFromFolder(appID: alpha.id, slot: 1, onto: model.items[1])
+
+        #expect(model.items.count == 3)
+        #expect(model.items[0].appIDs == [bravo.id])
+        #expect(model.items[1].folder?.appIDs == [charlie.id, alpha.id])
+        #expect(model.items[2].appIDs == [delta.id])
+    }
+
+    @Test
+    func droppingAFolderAppOntoAnotherFolderAddsItThere() {
+        let apps = ["Alpha", "Bravo", "Charlie", "Delta", "Echo"].map { makeApp($0) }
+        let model = makeModel(apps: apps)
+
+        model.performDrop(itemID: model.items[0].id, slot: 1, ontoIcon: true)
+        model.performDrop(itemID: model.items[1].id, slot: 0, ontoIcon: true)
+        #expect(model.items[0].folder?.appIDs.count == 3)
+
+        model.dropAppFromFolder(appID: apps[0].id, slot: 1, onto: model.items[1])
+
+        #expect(model.items.count == 3)
+        #expect(model.items[0].folder?.appIDs == [apps[1].id, apps[2].id])
+        #expect(model.items[1].folder?.appIDs == [apps[3].id, apps[0].id])
+        #expect(model.items[2].appIDs == [apps[4].id])
+    }
+
+    @Test
+    func droppingAFolderAppOnAnEmptySlotReordersTheGrid() {
+        let apps = ["Alpha", "Bravo", "Charlie", "Delta"].map { makeApp($0) }
+        let model = makeModel(apps: apps)
+
+        model.performDrop(itemID: model.items[0].id, slot: 1, ontoIcon: true)
+        model.dropAppFromFolder(appID: apps[0].id, slot: 2, onto: nil)
+
+        // The folder collapsed to Bravo, so the app that came out makes a
+        // fourth tile and takes the slot under the pointer.
+        #expect(model.items.count == 4)
+        #expect(model.items[0].appIDs == [apps[1].id])
+        #expect(model.items[2].appIDs == [apps[0].id])
+        #expect(model.items[3].appIDs == [apps[3].id])
+    }
+
+    @Test
     func removingAnAppAlsoUpdatesThePersistedLayout() {
         let apps = [makeApp("Alpha"), makeApp("Bravo")]
         let model = makeModel(apps: apps)

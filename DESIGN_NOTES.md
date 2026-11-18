@@ -505,12 +505,11 @@ until the drop; `performDrop` then commits the same order, so the grid does not 
 the pointer is centred on another app or a folder, the preview is suppressed so that icon
 stays under the cursor and the drop groups instead of reordering.
 
-**No drop highlight.** Reorders draw no ring or marker at all: the live gap is the
-indicator. Only a folder drag-out — which has no live gap — keeps the dashed ring over
-the slot that will receive the app. When an app hovers another app or a folder, the target
-grows the folder plate instead: the same frosted squircle the folder tiles use, 1.28× the
-icon and centred on it, drawn *behind* the icon so the icon sits inside a new folder. It
-replaces the old dashed ring, is never hit-tested, and moves with the wiggling grid.
+**No drop highlight.** No ring or marker is drawn anywhere, dashed or otherwise: reorders
+and folder drag-outs alike show only the live gap. When an app hovers another app or a
+folder, the target grows the folder plate instead: the same frosted squircle the folder
+tiles use, 1.28× the icon and centred on it, drawn *behind* the icon so the icon sits inside
+a new folder. The plate is never hit-tested and moves with the wiggling grid.
 
 **Stopping the jiggle.** The wobble is not an animation at all: each tile is wrapped in a
 `TimelineView(.animation(minimumInterval: 1/30, paused: !isEditing))` and asks it for the
@@ -553,12 +552,21 @@ with Esc and with an outside click, and confirmed the name persisted.
 
 **Dragging an app out.** While a folder is open, dragging one of its icons switches the
 whole sheet off (`FolderView.opacity(isDraggingOut:)`, 0.15 s) so the grid behind it is
-revealed at full opacity and becomes the drop surface; a 1.12× tile follows the pointer and
-a dashed ring marks the target slot. Releasing on the grid calls
-`LauncherLayout.moveAppOutOfFolder(appID:toSlot:)` (wired through
-`AppModel.moveAppOutOfFolder`), which closes the sheet, inserts the app at the nearest slot
-and collapses a two-app folder back to its survivor or removes an empty folder. Dropping
-back on the panel reorders instead (below).
+revealed at full opacity and becomes the drop surface. A 1.12× tile follows the pointer and
+the grid renders the same live preview a grid drag does: `AppModel.liftedItems(appID:)`
+returns the grid as it will be after the lift (a two-app folder collapses to its survivor,
+an emptied folder disappears), the app is re-inserted under the pointer, and the tiles slide
+aside over the same 0.26 s spring. No ring or marker is drawn. Hovering another app or
+folder keeps the app off the grid (it is about to go into that tile) and shows the folder
+plate on that target instead; the *lift* stays visible in every state, so a two-app folder
+collapses to its survivor — or vanishes — the moment the pointer leaves the panel and does
+not flicker back as the pointer crosses icon centres. Releasing outside the panel resolves
+through `AppModel.dropAppFromFolder(appID:slot:onto:)`: another app creates a folder named
+after the pair, an existing folder takes the app in, and any other slot reorders the grid
+through `LauncherLayout.moveAppOutOfFolder(appID:toSlot:)`. Only the *icon* under the
+pointer counts as a folder target, so a drop in the gap between two cells reorders even when
+the nearest slot happens to hold an app. Dropping back on the folder it came from is a no-op
+that returns the app to the panel unchanged.
 
 **Reordering inside the panel.** Dragging an icon that stays within the panel never closes
 it and never touches the grid: the pointer's cell (`row × 7 + column` of the panel's inner
@@ -571,7 +579,8 @@ in the panel's own icon size at the pointer. Nothing is committed until release,
 range) through `AppModel.moveApp(inFolder:appID:toIndex:)`. A drag that starts inside a
 resting (non-jiggling) folder switches edit mode on, the same way a grid drag does.
 Verified: three apps dragged from slot 1 to slot 3 and back, order persisted, panel stayed
-open; dragging past the panel edge still lifts the app out onto the grid.
+open; dragging past the panel edge lifts the app out onto the grid with the live preview
+described above.
 
 ### 8.4 Search
 
