@@ -438,7 +438,7 @@ clicks/keys), not only in unit tests. Release build: `x86_64 arm64`, no Swift wa
 |---|---|
 | Enter edit mode | Long-press **0.65 s** on an icon (14 pt tolerance) or the “Edit” toggle; all icons jiggle ±2.5° |
 | Leave | Esc, background click, or launching an app |
-| Reorder | Drag straight from the resting grid — no hold first. Dropping on an empty slot reorders (persisted); dropping on an icon creates a folder or adds to one. Holding first still works too: jiggle mode and dragging are independent gestures |
+| Reorder | Drag an icon straight from the resting grid: the page switches to jiggle mode and the icons slide aside live to open the gap under the pointer. Dropping on an empty slot reorders (persisted); dropping on an icon creates a folder or adds to one. A long-press without moving also enters jiggle mode |
 | Page from edit mode | Dragging into the outer **5 %** bands for **0.55 s** turns one page |
 | Uninstall badge | White translucent “×” only on apps the catalog marks removable; system apps have none |
 | Confirmation | Native `NSAlert` with the app’s own icon, name, and Cancel / Delete |
@@ -448,13 +448,22 @@ Verified: a throwaway app in `~/Applications` moved to the Trash through the bad
 and the layout lost its ID (`grep` count 0). The alert icon matches the reference frame 065
 (an alert without the icon was rejected during review).
 
-Reorder was verified **without entering edit mode**: a plain press-and-drag of Activity
-Monitor from slot 0 into a neighbouring slot reordered `layout.json` to
-`airportutility, ActivityMonitor, AppStore, …` and survived a relaunch. Dropping on another
-icon directly created a folder (three consecutive runs, consistent), and dropping App Store
-on that folder added it (folder held three apps, one slot) — all while the icons stayed at
-rest and `Esc` hid the panel on the first press, proving edit mode had not been entered.
-Holding an icon for 0.65 s still enters jiggle mode, and dragging there behaves identically.
+Reorder and folder creation were verified with direct drags (no prior hold): a press-and-drag
+of Activity Monitor into a neighbouring slot reordered `layout.json`, dropping an icon on
+another icon created a folder (three consistent runs) and dropping one on a folder added it
+(three apps, one slot). This revision also switches the page into jiggle mode as soon as the
+drag starts — the folder plate swap is held off while a drag is in flight so the Live Glass
+subtree cannot tear down the gesture; the visual jiggle-on-drag transition is being
+re-checked on the running build.
+
+**Live drop gap.** While a drag is in flight the grid renders a *preview* layout, not the
+persisted one: `dragPreview` removes the dragged item from `model.items` and re-inserts it at
+the slot under the pointer, every page is re-sliced from that array, and the tiles animate to
+their new slots (`spring(0.26 s)`). The dragged tile itself is invisible in the grid — the
+floating 1.12× tile is the only copy — so the preview leaves a real gap. Nothing is written
+until the drop; `performDrop` then commits the same order, so the grid does not jump. When
+the pointer is centred on another app or a folder, the preview is suppressed so that icon
+stays under the cursor and the drop groups instead of reordering.
 
 ### 8.3 Folders
 

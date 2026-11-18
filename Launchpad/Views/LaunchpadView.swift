@@ -186,10 +186,12 @@ struct LaunchpadView: View {
     /// moves content with the finger and the snap animates the remainder.
     private func pages(metrics: LaunchpadMetrics, currentPage: Int) -> some View {
         let pageCount = model.pageCount
+        let preview = dragPreview(metrics: metrics, page: currentPage)
+        let items = preview?.items ?? model.items
 
         return HStack(spacing: 0) {
             ForEach(0..<pageCount, id: \.self) { page in
-                gridLayer(items: model.items(onPage: page), metrics: metrics)
+                gridLayer(items: pageSlice(items, page: page, metrics: metrics), metrics: metrics)
                     .frame(width: metrics.size.width, height: metrics.size.height, alignment: .topLeading)
             }
         }
@@ -200,6 +202,54 @@ struct LaunchpadView: View {
         .contentShape(Rectangle())
         .gesture(swipeGesture(metrics: metrics, currentPage: currentPage))
         .animation(.spring(duration: 0.34, bounce: 0.08), value: currentPage)
+        // Icons slide aside as the pointer crosses slots, so the grid always
+        // shows the gap the drop will fill.
+        .animation(.spring(response: 0.26, dampingFraction: 0.82), value: preview?.slot)
+    }
+
+    /// A reorder in progress: the whole grid re-ordered as if the dragged item
+    /// had already landed in `slot`. Nothing is committed until the drop.
+    private struct DragPreview: Equatable {
+        var slot: Int
+        var items: [LauncherItem]
+    }
+
+    private func dragPreview(metrics: LaunchpadMetrics, page: Int) -> DragPreview? {
+        guard let session = dragSession,
+              model.items.count > 1,
+              let target = dropSlot(at: session.location, metrics: metrics, page: page)
+        else { return nil }
+
+        // Hovering another icon (or a folder) with an app means "put it in
+        // there": keep the grid still so the target stays under the pointer.
+        // Folders can only be reordered, so they always preview the gap.
+        let draggedIsApp = model.item(withID: session.itemID).map { !$0.isFolder } ?? false
+        if draggedIsApp,
+           target.ontoIcon,
+           let hovered = model.item(atSlot: target.index),
+           hovered.id != session.itemID {
+            return nil
+        }
+
+        let slot = min(max(target.index, 0), model.items.count - 1)
+        guard let from = model.items.firstIndex(where: { $0.id == session.itemID }),
+              slot != from else { return nil }
+
+        var items = model.items
+        let moved = items.remove(at: from)
+        items.insert(moved, at: slot)
+        return DragPreview(slot: slot, items: items)
+    }
+
+    private func pageSlice(
+        _ items: [LauncherItem],
+        page: Int,
+        metrics: LaunchpadMetrics
+    ) -> [LauncherItem] {
+        let start = page * metrics.pageCapacity
+        guard start < items.count else { return [] }
+        let end = min(start + metrics.pageCapacity, items.count)
+        return Array(items[start..<end])
     }
 
     /// Icons live in their own glass container so hover plates and folder
@@ -300,10 +350,11 @@ struct LaunchpadView: View {
     // MARK: - Dragging
 
     private func handleDragChanged(itemID: String, at location: CGPoint, metrics: LaunchpadMetrics) {
-        // Dragging works from the resting grid: a plain press-and-move reorders
-        // or folds into a folder without having to enter jiggle mode first.
-        // Edit mode stays a separate gesture (long-press), so the drag is never
-        // cancelled by a mid-gesture state change.
+        // Pulling an icon out of the grid switches Launchpad into jiggle mode
+        // immediately, so the rest of the page wiggles while the drag is in
+        // flight. Reordering, folder creation and adding to a folder all keep
+        // working in that state.
+        if !model.isEditing { model.beginEditing() }
         dragSession = DragSession(itemID: itemID, location: location)
         model.draggingID = itemID
         handleEdgeDrag(at: location, metrics: metrics)

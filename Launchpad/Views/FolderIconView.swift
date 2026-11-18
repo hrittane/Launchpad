@@ -31,6 +31,7 @@ struct FolderIconView: View {
     let metrics: LaunchpadMetrics
     let isEditing: Bool
     let isDragging: Bool
+    let isDragActive: Bool
     let wigglePhase: Double
 
     let onOpen: () -> Void
@@ -63,7 +64,7 @@ struct FolderIconView: View {
                 .accessibilityHidden(true)
         }
         .frame(width: metrics.columnPitch, height: metrics.cellHeight, alignment: .top)
-        .opacity(isDragging ? 0.28 : 1)
+        .opacity(isDragging ? 0 : 1)
         .onChange(of: isEditing) { _, editing in
             updateWiggle(editing)
         }
@@ -115,7 +116,17 @@ struct FolderIconView: View {
         // and ignores this tile's rotation, so while wiggling the tile uses a
         // plain translucent fill instead: the whole square then rotates as one
         // piece instead of its miniatures sliding inside a static plate.
-        .modifier(FolderTileGlass(enabled: !isEditing, cornerRadius: iconSize * 0.225))
+        //
+        // The swap is frozen while any icon is being dragged, including a
+        // folder: changing this subtree mid-gesture tears down the drag on the
+        // folder tile. When the drop lands, drag ends and the edit-mode plate
+        // swap runs with no gesture in flight.
+        .modifier(
+            FolderTileGlass(
+                enabled: !(isEditing && !isDragActive),
+                cornerRadius: iconSize * 0.225
+            )
+        )
         .overlay {
             RoundedRectangle(cornerRadius: iconSize * 0.225, style: .continuous)
                 .strokeBorder(.white.opacity(0.18), lineWidth: 1)

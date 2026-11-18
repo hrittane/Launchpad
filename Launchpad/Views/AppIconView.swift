@@ -36,7 +36,9 @@ struct AppIconView: View {
             label
         }
         .frame(width: metrics.columnPitch, height: metrics.cellHeight, alignment: .top)
-        .opacity(isDragging ? 0.28 : 1)
+        // The tile is represented by the floating drag preview; keeping it
+        // invisible leaves a clean gap at the landing slot.
+        .opacity(isDragging ? 0 : 1)
         .onChange(of: isEditing) { _, editing in
             updateWiggle(editing)
         }
@@ -80,25 +82,30 @@ struct AppIconView: View {
             .accessibilityHidden(true)
     }
 
-    @ViewBuilder
     private var removeBadge: some View {
-        if isEditing && showsRemoveBadge {
-            Button(action: onRemove) {
-                Image(systemName: "xmark")
-                    .font(.system(size: max(8, iconSize * 0.145), weight: .bold))
-                    .foregroundStyle(.white)
-                    .frame(width: iconSize * 0.3, height: iconSize * 0.3)
-                    .background(Circle().fill(.black.opacity(0.62)))
-                    .overlay {
-                        Circle().strokeBorder(.white.opacity(0.5), lineWidth: 1)
-                    }
-                    .contentShape(Circle())
-            }
-            .buttonStyle(.plain)
-            .offset(x: -iconSize * 0.1, y: -iconSize * 0.1)
-            .help("Delete \(item.name)")
-            .accessibilityLabel(Text("Delete \(item.name)"))
+        // Always part of the overlay, even when hidden: swapping EmptyView for
+        // a Button rebuilds this subtree, which cancelled an in-flight drag
+        // when jiggle mode switched on mid-gesture.
+        let visible = isEditing && showsRemoveBadge
+
+        return Button(action: onRemove) {
+            Image(systemName: "xmark")
+                .font(.system(size: max(8, iconSize * 0.145), weight: .bold))
+                .foregroundStyle(.white)
+                .frame(width: iconSize * 0.3, height: iconSize * 0.3)
+                .background(Circle().fill(.black.opacity(0.62)))
+                .overlay {
+                    Circle().strokeBorder(.white.opacity(0.5), lineWidth: 1)
+                }
+                .contentShape(Circle())
         }
+        .buttonStyle(.plain)
+        .offset(x: -iconSize * 0.1, y: -iconSize * 0.1)
+        .opacity(visible ? 1 : 0)
+        .allowsHitTesting(visible)
+        .help(visible ? "Delete \(item.name)" : "")
+        .accessibilityHidden(!visible)
+        .accessibilityLabel(Text("Delete \(item.name)"))
     }
 
     private var wiggleAngle: Double {
