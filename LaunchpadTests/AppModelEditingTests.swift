@@ -57,6 +57,51 @@ struct AppModelEditingTests {
     }
 
     @Test
+    func aNewFolderOpensAndAsksForItsName() throws {
+        let model = makeModel(apps: [makeApp("Alpha"), makeApp("Bravo")])
+
+        model.performDrop(itemID: model.items[0].id, slot: 1, ontoIcon: true)
+
+        let folder = try #require(model.items[0].folder)
+        #expect(model.openFolder?.id == folder.id)
+        #expect(model.isPromptingFolderName)
+
+        // The sheet clears the prompt once the name field has focus.
+        model.clearFolderNamePrompt()
+        #expect(!model.isPromptingFolderName)
+        #expect(model.openFolder?.id == folder.id)
+
+        model.closeFolder()
+        #expect(model.openFolder == nil)
+        #expect(!model.isPromptingFolderName)
+    }
+
+    @Test
+    func addingToAnExistingFolderDoesNotAskForAName() {
+        let model = makeModel(apps: [makeApp("Alpha"), makeApp("Bravo"), makeApp("Charlie")])
+        model.performDrop(itemID: model.items[0].id, slot: 1, ontoIcon: true)
+        model.closeFolder()
+
+        model.performDrop(itemID: model.items[1].id, slot: 0, ontoIcon: true)
+
+        #expect(model.items[0].folder?.appIDs.count == 3)
+        #expect(model.openFolder == nil)
+        #expect(!model.isPromptingFolderName)
+    }
+
+    @Test
+    func openingAnExistingFolderDoesNotAskForAName() throws {
+        let model = makeModel(apps: [makeApp("Alpha"), makeApp("Bravo")])
+        model.performDrop(itemID: model.items[0].id, slot: 1, ontoIcon: true)
+        let folder = try #require(model.items[0].folder)
+        model.closeFolder()
+
+        model.openFolder(folder.id)
+
+        #expect(!model.isPromptingFolderName)
+    }
+
+    @Test
     func dropOutsideAnIconReordersInstead() {
         let model = makeModel(apps: [makeApp("Alpha"), makeApp("Bravo"), makeApp("Charlie")])
         let first = model.items[0].id
@@ -199,7 +244,7 @@ struct AppModelEditingTests {
     }
 
     @Test
-    func droppingAFolderAppOntoAnotherAppCreatesAFolder() {
+    func droppingAFolderAppOntoAnotherAppCreatesAFolder() throws {
         let alpha = makeApp("Alpha")
         let bravo = makeApp("Bravo")
         let charlie = makeApp("Charlie")
@@ -207,12 +252,18 @@ struct AppModelEditingTests {
         let model = makeModel(apps: [alpha, bravo, charlie, delta])
 
         model.performDrop(itemID: model.items[0].id, slot: 1, ontoIcon: true)
-        model.dropAppFromFolder(appID: alpha.id, slot: 1, onto: model.items[1])
+        let created = model.dropAppFromFolder(appID: alpha.id, slot: 1, onto: model.items[1])
 
         #expect(model.items.count == 3)
         #expect(model.items[0].appIDs == [bravo.id])
         #expect(model.items[1].folder?.appIDs == [charlie.id, alpha.id])
         #expect(model.items[2].appIDs == [delta.id])
+
+        // The folder this drop created opens with its name ready to edit.
+        let folder = try #require(model.items[1].folder)
+        #expect(created == folder.id)
+        #expect(model.openFolder?.id == folder.id)
+        #expect(model.isPromptingFolderName)
     }
 
     @Test

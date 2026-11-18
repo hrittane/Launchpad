@@ -31,7 +31,6 @@ struct FolderIconView: View {
     let metrics: LaunchpadMetrics
     let isEditing: Bool
     let isDragging: Bool
-    let isDragActive: Bool
     let dropsIntoFolder: Bool
     let wigglePhase: Double
 
@@ -39,6 +38,9 @@ struct FolderIconView: View {
     let onBeginEditing: () -> Void
     let onDragChanged: (CGPoint) -> Void
     let onDragEnded: (CGPoint) -> Void
+
+    /// Brief enlargement played when an app lands inside the folder.
+    @State private var addMagnification: CGFloat = 1
 
     private var iconSize: CGFloat { metrics.iconSize }
 
@@ -72,39 +74,89 @@ struct FolderIconView: View {
         }
         .frame(width: metrics.columnPitch, height: metrics.cellHeight, alignment: .top)
         .opacity(isDragging ? 0 : 1)
+        // A folder that takes in a new app pops once, so the addition is
+        // visible even though the tile is only a miniature of its contents.
+        .onChange(of: apps.count) { oldCount, newCount in
+            guard newCount > oldCount else { return }
+            magnifyForAddition()
+        }
+    }
+
+    private func magnifyForAddition() {
+        withAnimation(.spring(response: 0.16, dampingFraction: 0.5)) {
+            addMagnification = 1.16
+        }
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(150))
+            withAnimation(.spring(response: 0.32, dampingFraction: 0.62)) {
+                addMagnification = 1
+            }
+        }
     }
 
     private var tile: some View {
-        TimelineView(.animation(minimumInterval: 1.0 / 30.0, paused: !isEditing)) { context in
-            ZStack {
-                // The folder plate that appears when a dragged app hovers this
-                // folder: same squircle, peeking around the existing tile.
-                FolderDropPlate(iconSize: iconSize, isVisible: dropsIntoFolder)
+        ZStack {
+            // Purely visual: the plate swaps between Liquid Glass and a plain
+            // fill when edit mode starts, so nothing that must survive that
+            // swap lives in here.
+            TimelineView(.animation(minimumInterval: 1.0 / 30.0, paused: !isEditing)) { context in
+                ZStack {
+                    // The folder plate that appears when a dragged app hovers
+                    // this folder: same squircle, larger than the tile, so the
+                    // folder seems to swell open to take the app in.
+                    FolderDropPlate(iconSize: iconSize, isVisible: dropsIntoFolder)
 
-                // The glass is attached to the tile that *contains* the
-                // miniatures. A glass element that is only a sibling would be
-                // composited above them by `GlassEffectContainer`, leaving the
-                // icons as blurred smudges underneath.
-                folderTile
+                    // While hovering, the plate carries the folder's own
+                    // miniatures at the plate's scale, so the hover reads as
+                    // the folder swelling open to take the app in. The app
+                    // itself lands in the next empty cell; it is drawn by the
+                    // drag overlay at that cell's size and position.
+                    if dropsIntoFolder {
+                        FolderMiniGrid(
+                            apps: apps,
+                            tileSize: iconSize * FolderDropPlate.contentScale,
+                            artworkScale: metrics.iconArtworkScale
+                        )
+                    }
+
+                    // The glass is attached to the tile that *contains* the
+                    // miniatures. A glass element that is only a sibling would
+                    // be composited above them by `GlassEffectContainer`,
+                    // leaving the icons as blurred smudges underneath.
+                    //
+                    // While the plate is showing, the tile itself is hidden:
+                    // otherwise the target folder is a second squircle inside
+                    // the plate.
+                    folderTile
+                        .opacity(dropsIntoFolder ? 0 : 1)
+                }
+                .rotationEffect(.degrees(jiggleAngle(context.date)), anchor: .center)
             }
-            .rotationEffect(.degrees(jiggleAngle(context.date)), anchor: .center)
+            .frame(width: iconSize, height: iconSize)
+            .scaleEffect(addMagnification)
+
+            // Gestures live on a transparent layer above the artwork, outside
+            // the subtree that changes when edit mode toggles: swapping the
+            // plate mid-gesture would otherwise tear down a drag that had just
+            // started.
+            Color.clear
+                .frame(width: iconSize, height: iconSize)
+                .contentShape(Rectangle())
+                .onTapGesture(perform: onOpen)
+                .simultaneousGesture(
+                    LongPressGesture(minimumDuration: 0.65, maximumDistance: 14)
+                        .onEnded { _ in onBeginEditing() }
+                )
+                .simultaneousGesture(
+                    DragGesture(minimumDistance: 5, coordinateSpace: .named(LaunchpadCanvas.space))
+                        .onChanged { value in
+                            onDragChanged(value.location)
+                        }
+                        .onEnded { value in
+                            onDragEnded(value.location)
+                        }
+                )
         }
-        .frame(width: iconSize, height: iconSize)
-        .contentShape(Rectangle())
-        .onTapGesture(perform: onOpen)
-        .simultaneousGesture(
-            LongPressGesture(minimumDuration: 0.65, maximumDistance: 14)
-                .onEnded { _ in onBeginEditing() }
-        )
-        .simultaneousGesture(
-            DragGesture(minimumDistance: 5, coordinateSpace: .named(LaunchpadCanvas.space))
-                .onChanged { value in
-                    onDragChanged(value.location)
-                }
-                .onEnded { value in
-                    onDragEnded(value.location)
-                }
-        )
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(Text("\(folder.name) folder, \(apps.count) apps"))
         .accessibilityAddTraits(.isButton)
@@ -120,17 +172,14 @@ struct FolderIconView: View {
         }
         .frame(width: iconSize, height: iconSize)
         // Liquid Glass is hoisted into the surrounding `GlassEffectContainer`
-        // and ignores this tile's rotation, so while wiggling the tile uses a
-        // plain translucent fill instead: the whole square then rotates as one
-        // piece instead of its miniatures sliding inside a static plate.
-        //
-        // The swap is frozen while any icon is being dragged, including a
-        // folder: changing this subtree mid-gesture tears down the drag on the
-        // folder tile. When the drop lands, drag ends and the edit-mode plate
-        // swap runs with no gesture in flight.
+        // and ignores this tile's rotation and opacity, so while wiggling the
+        // tile is a plain translucent fill instead: the whole square then
+        // rotates as one piece, and a tile hidden for a drag (`opacity(0)`)
+        // cannot leave a glass plate behind at its old slot. The floating drag
+        // tile draws its own glass, outside the container.
         .modifier(
             FolderTileGlass(
-                enabled: !(isEditing && !isDragActive),
+                enabled: !isEditing && !dropsIntoFolder,
                 cornerRadius: iconSize * 0.225
             )
         )

@@ -508,8 +508,18 @@ stays under the cursor and the drop groups instead of reordering.
 **No drop highlight.** No ring or marker is drawn anywhere, dashed or otherwise: reorders
 and folder drag-outs alike show only the live gap. When an app hovers another app or a
 folder, the target grows the folder plate instead: the same frosted squircle the folder
-tiles use, 1.28× the icon and centred on it, drawn *behind* the icon so the icon sits inside
-a new folder. The plate is never hit-tested and moves with the wiggling grid.
+tiles use, 1.28× the icon and centred on it. The plate is never hit-tested and moves with
+the wiggling grid. While the plate is showing, the target folder's own tile is hidden (its
+name label stays) and the plate carries the folder's miniatures at the plate's scale, so
+the hover previews the result instead of showing an empty outline. The floating drag icon
+is never hidden and never resized while the gesture is live: it follows the pointer at full
+size over folders too, and only becomes a miniature when the mouse is released and the drop
+is committed. Shrinking it into the plate's free cell during the drag was tried and
+reverted: the app left the pointer, and animating its position and scale every time the
+drag crossed a folder made tracking visibly laggy. The plate springs in when the drag
+reaches the tile and disappears **without animating**: the add-pop starts on the drop, and
+a plate still fading out reads as a second, static folder behind the one that is
+magnifying.
 
 **Stopping the jiggle.** The wobble is not an animation at all: each tile is wrapped in a
 `TimelineView(.animation(minimumInterval: 1/30, paused: !isEditing))` and asks it for the
@@ -527,6 +537,17 @@ wrapper is used on folder tiles and on apps inside an open folder.
 - **Create**: drag an app onto another app → both move into a new folder named
   “Untitled”. **Add**: drag an app onto a folder tile. The tile’s mini-grid updates on drop.
   Both work directly from the resting grid, with no hold-to-jiggle step first.
+- **Naming a new folder**: a folder created by dropping one app onto another opens straight
+  away with its name field focused and the suggested name selected, so typing replaces it
+  (`AppModel.openFolder(_:promptingName:)` + `FolderView.promptsForName`). Opening an
+  existing folder never takes the keyboard. Drops that only reorder or add to an existing
+  folder leave the sheet closed.
+- **Adding to a folder**: the target tile plays a one-shot pop — 1.16× over a 0.16 s spring,
+  then back over 0.32 s (`FolderIconView.magnifyForAddition`, driven by `apps.count`) — so
+  the addition is visible even when the new app is the fourth miniature and the tile barely
+  changes. Only additions animate; removals do not. The whole tile scales as one layer: edit
+  mode (and therefore the addition itself) draws a plain plate rather than hoisted glass,
+  which `scaleEffect` cannot move.
 - **Open**: click the tile → dimmed backdrop + glass panel. The app grid behind is dimmed,
   not removed. Esc or a click on the dimmed area (outside the panel) closes it; the panel
   itself swallows clicks so it cannot close by accident. Opening a folder does **not** end
@@ -562,7 +583,8 @@ plate on that target instead; the *lift* stays visible in every state, so a two-
 collapses to its survivor — or vanishes — the moment the pointer leaves the panel and does
 not flicker back as the pointer crosses icon centres. Releasing outside the panel resolves
 through `AppModel.dropAppFromFolder(appID:slot:onto:)`: another app creates a folder named
-after the pair, an existing folder takes the app in, and any other slot reorders the grid
+after the pair — which opens immediately for naming, exactly like a grid-created folder — an
+existing folder takes the app in, and any other slot reorders the grid
 through `LauncherLayout.moveAppOutOfFolder(appID:toSlot:)`. Only the *icon* under the
 pointer counts as a folder target, so a drop in the gap between two cells reorders even when
 the nearest slot happens to hold an app. Dropping back on the folder it came from is a no-op
@@ -660,3 +682,20 @@ alternates ≈ +0.7° / −0.9° (the sampling threshold on anti-aliased edges u
 1.2°), and the at-rest appearance is unchanged — the non-edit capture still shows the glass
 plate, specular rim and miniatures. The swap is invisible in practice because the wiggle
 only exists while editing and the two fills are close in value on the dark backdrop.
+
+A dragged folder used to leave a **clone** at its old slot. The hoisted glass plate ignores both
+the tile's rotation and its `opacity(0)`, so hiding the tile for the drag hid only its fill and
+miniatures; the glass stayed drawn under the floating tile. The plate now also follows
+`!isEditing`, and a drag always runs in edit mode, so the hidden tile leaves nothing behind.
+The floating drag tile draws its own glass outside the container.
+
+Two consequences, both verified:
+
+- The **add-to-folder pop** scales one layer. When the plate was live in edit mode, the pop's
+  `scaleEffect` moved the fill and miniatures but not the hoisted glass, which stayed at 1× —
+  the “folder icon plus a second folder” the pop appeared to leave behind.
+- The **gestures moved out of the swapped subtree**. Toggling edit mode swaps the plate inside
+  the tile; with the tap/long-press/drag gestures attached inside, the swap could tear down a
+  drag that had just begun (folder drags start by entering edit mode). They now sit on a
+  transparent `Color.clear` layer over the icon, so the artwork can change structure mid-gesture
+  without losing the drag.

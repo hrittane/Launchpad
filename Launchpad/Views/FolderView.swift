@@ -10,9 +10,13 @@ struct FolderView: View {
     let isEditing: Bool
     let draggingAppID: String?
     let isDraggingOut: Bool
+    /// True for a folder that was just created: the name field takes focus and
+    /// the suggested name is selected so typing replaces it.
+    let promptsForName: Bool
     let onLaunch: (AppItem) -> Void
     let onClose: () -> Void
     let onRename: (String) -> Void
+    let onNamePromptShown: () -> Void
     let onAppDragChanged: (AppItem, CGPoint) -> Void
     let onAppDragEnded: (AppItem, CGPoint) -> Void
     let onPanelFrameChange: (CGRect) -> Void
@@ -28,9 +32,11 @@ struct FolderView: View {
         isEditing: Bool,
         draggingAppID: String?,
         isDraggingOut: Bool,
+        promptsForName: Bool,
         onLaunch: @escaping (AppItem) -> Void,
         onClose: @escaping () -> Void,
         onRename: @escaping (String) -> Void,
+        onNamePromptShown: @escaping () -> Void,
         onAppDragChanged: @escaping (AppItem, CGPoint) -> Void,
         onAppDragEnded: @escaping (AppItem, CGPoint) -> Void,
         onPanelFrameChange: @escaping (CGRect) -> Void
@@ -41,9 +47,11 @@ struct FolderView: View {
         self.isEditing = isEditing
         self.draggingAppID = draggingAppID
         self.isDraggingOut = isDraggingOut
+        self.promptsForName = promptsForName
         self.onLaunch = onLaunch
         self.onClose = onClose
         self.onRename = onRename
+        self.onNamePromptShown = onNamePromptShown
         self.onAppDragChanged = onAppDragChanged
         self.onAppDragEnded = onAppDragEnded
         self.onPanelFrameChange = onPanelFrameChange
@@ -77,6 +85,16 @@ struct FolderView: View {
         .opacity(isDraggingOut ? 0 : 1)
         .allowsHitTesting(!isDraggingOut)
         .animation(.easeOut(duration: 0.15), value: isDraggingOut)
+        // Let the sheet finish zooming in before taking the keyboard, then
+        // select the suggested name so typing replaces it.
+        .task(id: promptsForName) {
+            guard promptsForName else { return }
+            try? await Task.sleep(for: .milliseconds(150))
+            isNameFocused = true
+            try? await Task.sleep(for: .milliseconds(120))
+            NSApp.sendAction(#selector(NSText.selectAll(_:)), to: nil, from: nil)
+            onNamePromptShown()
+        }
     }
 
     private var nameField: some View {

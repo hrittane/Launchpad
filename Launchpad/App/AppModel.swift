@@ -37,6 +37,12 @@ final class AppModel {
 
     private(set) var openFolderID: UUID?
 
+    /// Folder whose name field should take focus, set for a folder that has
+    /// just been created. Cleared once the field has it.
+    private(set) var folderNamePromptID: UUID?
+
+    var isPromptingFolderName: Bool { folderNamePromptID != nil }
+
     // MARK: Search
 
     var searchQuery = ""
@@ -182,8 +188,14 @@ final class AppModel {
             if case .app(let targetApp) = target, targetApp != draggedApp {
                 let involved = [targetApp, draggedApp].compactMap { appsByID[$0] }
                 let name = FolderNaming.suggestedName(for: involved)
-                if layout.drop(draggedID: itemID, onto: target.id, newFolderName: name) != nil {
+                if let folderID = layout.drop(
+                    draggedID: itemID,
+                    onto: target.id,
+                    newFolderName: name
+                ) {
                     commit()
+                    // A brand-new folder opens with its name ready to edit.
+                    openFolder(folderID, promptingName: true)
                 }
                 return
             }
@@ -232,7 +244,10 @@ final class AppModel {
     /// Resolves a drop of an app dragged out of its folder: dropping it on
     /// another app creates a folder, dropping it on a folder adds it there and
     /// anything else is a plain reorder on the grid.
-    func dropAppFromFolder(appID: String, slot: Int, onto target: LauncherItem?) {
+    /// - Returns: the identifier of a folder this drop created (and opened for
+    ///   naming), or `nil` when the drop joined an existing folder or reordered.
+    @discardableResult
+    func dropAppFromFolder(appID: String, slot: Int, onto target: LauncherItem?) -> UUID? {
         defer { draggingID = nil }
 
         if let target {
@@ -244,25 +259,28 @@ final class AppModel {
                 ) != nil {
                     commit()
                 }
-                return
+                return nil
             }
             if case .app(let targetApp) = target, targetApp != appID {
                 let involved = [targetApp, appID].compactMap { appsByID[$0] }
                 let name = FolderNaming.suggestedName(for: involved)
-                if layout.dropAppOutOfFolder(
+                if let folderID = layout.dropAppOutOfFolder(
                     appID: appID,
                     onto: target.id,
                     newFolderName: name
-                ) != nil {
+                ) {
                     commit()
+                    openFolder(folderID, promptingName: true)
+                    return folderID
                 }
-                return
+                return nil
             }
         }
 
         if layout.moveAppOutOfFolder(appID: appID, toSlot: slot) {
             commit()
         }
+        return nil
     }
 
     /// Reorders an app inside the open folder, dropping it on `index` in the
@@ -274,17 +292,26 @@ final class AppModel {
 
     // MARK: - Folders
 
-    func openFolder(_ folderID: UUID) {
+    func openFolder(_ folderID: UUID, promptingName: Bool = false) {
         guard layout.folder(withID: folderID) != nil else { return }
         openFolderID = folderID
+        // A folder that was just created asks for its name right away; opening
+        // an existing one never steals the keyboard.
+        folderNamePromptID = promptingName ? folderID : nil
         // Opening a folder does not end jiggle mode: the apps inside keep
         // wobbling with the grid, the way Launchpad does it. Opening from the
         // resting grid leaves edit mode off.
         draggingID = nil
     }
 
+    /// Called by the sheet once the name field has focus.
+    func clearFolderNamePrompt() {
+        folderNamePromptID = nil
+    }
+
     func closeFolder() {
         openFolderID = nil
+        folderNamePromptID = nil
     }
 
     // MARK: - Search

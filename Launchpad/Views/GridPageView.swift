@@ -74,7 +74,6 @@ struct GridPageView: View {
                 metrics: metrics,
                 isEditing: isEditing,
                 isDragging: draggingID == item.id,
-                isDragActive: draggingID != nil,
                 dropsIntoFolder: folderTargetID == item.id,
                 wigglePhase: Double(index % 3),
                 onOpen: { onOpenFolder(folder.id) },

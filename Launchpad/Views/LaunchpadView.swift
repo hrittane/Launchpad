@@ -104,9 +104,11 @@ struct LaunchpadView: View {
                         isEditing: model.isEditing,
                         draggingAppID: folderDrag?.app.id,
                         isDraggingOut: isDraggingOutOfFolder,
+                        promptsForName: model.isPromptingFolderName,
                         onLaunch: onLaunch,
                         onClose: { model.closeFolder() },
                         onRename: { model.renameFolder(folder.id, to: $0) },
+                        onNamePromptShown: { model.clearFolderNamePrompt() },
                         onAppDragChanged: { app, location in
                             // Pulling an icon inside the folder switches to
                             // jiggle mode exactly like a grid drag does.
@@ -131,6 +133,9 @@ struct LaunchpadView: View {
                     )
                     .transition(.opacity)
                     .zIndex(2)
+                    // New folder, new sheet state: the draft name and the
+                    // entrance animation belong to this folder only.
+                    .id(folder.id)
                 }
 
                 dragOverlay(metrics: metrics)
@@ -504,8 +509,11 @@ struct LaunchpadView: View {
         // fades back in unchanged.
         if hovered?.folder?.id == model.openFolder?.id { return }
 
-        model.dropAppFromFolder(appID: app.id, slot: target.index, onto: hovered)
-        model.closeFolder()
+        // A drop that creates a folder leaves that folder open for naming; the
+        // source sheet is only closed when nothing new was opened.
+        if model.dropAppFromFolder(appID: app.id, slot: target.index, onto: hovered) == nil {
+            model.closeFolder()
+        }
     }
 
     /// The folder's app order as it would look if the app under the pointer
@@ -603,11 +611,15 @@ struct LaunchpadView: View {
 
     @ViewBuilder
     private func dragOverlay(metrics: LaunchpadMetrics) -> some View {
+        // The dragged icon follows the pointer at full size for the whole
+        // gesture, over folders too. It is not shrunk or faded into the
+        // hover plate: the app only becomes a miniature when the mouse is
+        // released and the drop is committed.
         ZStack(alignment: .topLeading) {
             if let session = dragSession, let item = model.item(withID: session.itemID) {
                 draggedTile(item: item, metrics: metrics)
-                    .scaleEffect(1.12)
                     .shadow(color: .black.opacity(0.35), radius: 16, y: 8)
+                    .scaleEffect(1.12)
                     .position(session.location)
             } else if let drag = folderDrag {
                 AppIconImage(
@@ -617,8 +629,8 @@ struct LaunchpadView: View {
                         : metrics.iconSize,
                     artworkScale: metrics.iconArtworkScale
                 )
-                .scaleEffect(1.12)
                 .shadow(color: .black.opacity(0.35), radius: 16, y: 8)
+                .scaleEffect(1.12)
                 .position(drag.location)
             }
         }
