@@ -173,7 +173,7 @@ private enum WallpaperImage {
 
     static func blurred(for screen: NSScreen) -> CGImage? {
         let workspace = NSWorkspace.shared
-        guard let url = workspace.desktopImageURL(for: screen),
+        guard let url = pictureURL(for: screen),
               let source = CGImageSourceCreateWithURL(url as CFURL, nil),
               let picture = CGImageSourceCreateImageAtIndex(source, 0, nil) else { return nil }
 
@@ -201,6 +201,19 @@ private enum WallpaperImage {
 
     /// Fraction of the screen's pixel size the backdrop is rendered at.
     private static let renderScale: CGFloat = 0.25
+
+    /// The file the desktop is currently showing.
+    ///
+    /// `desktopImageURL` normally points straight at the picture, but the URL
+    /// goes stale when the file is deleted or moved: the Finder keeps drawing
+    /// the picture anyway, because the Wallpaper settings extension keeps its
+    /// own copy for exactly that case. Without this fallback the panel would
+    /// drop to the opaque gradient while the desktop still shows the picture.
+    private static func pictureURL(for screen: NSScreen) -> URL? {
+        guard let url = NSWorkspace.shared.desktopImageURL(for: screen) else { return nil }
+        if FileManager.default.isReadableFile(atPath: url.path) { return url }
+        return WallpaperStore.cachedCopy(of: url)
+    }
 
     private static func compose(
         _ picture: CGImage,
@@ -297,6 +310,83 @@ private enum WallpaperImage {
         filter.setValue(radius, forKey: kCIInputRadiusKey)
         guard let output = filter.outputImage?.cropped(to: input.extent) else { return nil }
         return context.createCGImage(output, from: input.extent)
+    }
+}
+
+/// Recovers the picture the desktop is showing when its file is gone.
+///
+/// Picking a picture copies it into the Wallpaper settings extension's
+/// container, and the list of those copies survives the original file. Each
+/// entry remembers the URL it was made from, which is the same URL
+/// `NSWorkspace` keeps reporting after a deletion, so the current picture can
+/// be matched exactly instead of guessing.
+private enum WallpaperStore {
+    private struct Choice {
+        var original: URL
+        var copy: URL
+        var dateAdded: Date
+    }
+
+    private static var preferencesURL: URL {
+        URL(fileURLWithPath: NSHomeDirectory())
+            .appending(path: "Library/Containers/com.apple.wallpaper.extension.image")
+            .appending(path: "Data/Library/Preferences")
+            .appending(path: "com.apple.wallpaper.extension.image.plist")
+    }
+
+    /// The extension's copy of the picture that `original` used to point at.
+    ///
+    /// - Returns: `nil` when the extension never cached that picture (or its
+    ///   copy has been cleaned up as well), in which case the caller keeps the
+    ///   opaque fallback.
+    static func cachedCopy(of original: URL) -> URL? {
+        let fileManager = FileManager.default
+        let choices = loadChoices().filter {
+            fileManager.isReadableFile(atPath: $0.copy.path)
+        }
+
+        let exact = choices
+            .filter { $0.original.path == original.path }
+            .max { $0.dateAdded < $1.dateAdded }
+        if let exact { return exact.copy }
+
+        // A moved file keeps its name but loses its directory in the entry, so
+        // a matching name is the best remaining clue.
+        let sameName = choices
+            .filter { $0.original.lastPathComponent == original.lastPathComponent }
+            .max { $0.dateAdded < $1.dateAdded }
+        return sameName?.copy
+    }
+
+    private static func loadChoices() -> [Choice] {
+        guard let data = try? Data(contentsOf: preferencesURL),
+              let preferences = try? PropertyListSerialization.propertyList(
+                  from: data,
+                  format: nil
+              ) as? [String: Any],
+              let entries = preferences["ChoiceRequests.ImageFiles"] as? [Data] else {
+            return []
+        }
+
+        return entries.compactMap { entry in
+            guard let archive = try? PropertyListSerialization.propertyList(
+                    from: entry,
+                    format: nil
+                  ) as? [String: Any],
+                  let original = url(from: archive["originalURL"]),
+                  let copy = url(from: archive["copyURL"]) else { return nil }
+            return Choice(
+                original: original,
+                copy: copy,
+                dateAdded: archive["dateAdded"] as? Date ?? .distantPast
+            )
+        }
+    }
+
+    private static func url(from value: Any?) -> URL? {
+        guard let entry = value as? [String: Any],
+              let string = entry["relative"] as? String else { return nil }
+        return URL(string: string)
     }
 }
 

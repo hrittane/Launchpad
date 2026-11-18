@@ -396,6 +396,18 @@ either way nothing from behind the panel shows through. Both the panel and the m
 call `present(on:)` with the same screen, so they draw the same cached image and join without
 a seam.
 
+`desktopImageURL` can be **stale**: the Finder keeps drawing a picture after its file is
+deleted or moved, because picking one copies it into the Wallpaper settings extension's
+container (`~/Library/Containers/com.apple.wallpaper.extension.image/…/Caches`) and that list
+survives the original. The reported URL then points at nothing, and the panel used to drop to
+the gradient while the desktop still showed the picture. `WallpaperStore` therefore reads the
+extension's `ChoiceRequests.ImageFiles` (each entry records the `originalURL` it was made
+from and the `copyURL` it made), matches the reported URL — falling back to a matching file
+name, for a picture that was moved — and renders that copy. This is a fallback only: a
+readable desktop picture always wins. Verified on a wallpaper whose source had been deleted
+from `~/Downloads`: the backdrop became the desktop picture again, dimmed and blurred
+exactly as before.
+
 ### Global shortcut
 
 **⌥Space** toggles the panel from any application. It is a Carbon hot key
