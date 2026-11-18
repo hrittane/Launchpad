@@ -32,8 +32,9 @@ final class StatusItemController: NSObject {
         let show = NSMenuItem(
             title: NSLocalizedString("Show Launchpad", comment: "Status item"),
             action: #selector(showLaunchpad),
-            keyEquivalent: ""
+            keyEquivalent: " "
         )
+        show.keyEquivalentModifierMask = [.option]
         show.target = self
         menu.addItem(show)
 

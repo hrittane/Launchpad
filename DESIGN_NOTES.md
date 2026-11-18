@@ -396,6 +396,16 @@ either way nothing from behind the panel shows through. Both the panel and the m
 call `present(on:)` with the same screen, so they draw the same cached image and join without
 a seam.
 
+### Global shortcut
+
+**⌥Space** toggles the panel from any application. It is a Carbon hot key
+(`RegisterEventHotKey` in `GlobalHotKey`): it is the only API that delivers a shortcut while
+another app is frontmost without an Accessibility permission prompt — `NSEvent`'s global
+monitor needs that permission and only observes. It is installed on the application event
+target, so the handler runs on the main thread and hops straight back into the main actor.
+The status item's "Show Launchpad" item carries the same glyph as a hint. If another
+application already owns ⌥Space the registration fails; the menu bar item keeps working.
+
 ### Focus
 
 `NSApp.activate()` is a no-op for an accessory app that was summoned by a hotkey, leaving the panel

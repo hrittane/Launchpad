@@ -1,10 +1,12 @@
 import AppKit
+import Carbon.HIToolbox
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private let model = AppModel()
     private var panelController: LaunchpadPanelController?
     private var statusItemController: StatusItemController?
+    private var hotKey: GlobalHotKey?
     private var resignObserver: NSObjectProtocol?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -32,6 +34,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             onShow: { [weak controller] in controller?.show() },
             onQuit: { NSApp.terminate(nil) }
         )
+
+        // ⌥Space toggles the panel from any application, the way the Launchpad
+        // key does. A shortcut that another app already owns cannot be
+        // registered; the menu bar item keeps working in that case.
+        hotKey = GlobalHotKey(keyCode: UInt32(kVK_Space), modifiers: UInt32(optionKey)) {
+            [weak controller] in
+            controller?.toggle()
+        }
 
         // Compose and blur the backdrop now: the first panel presentation then
         // only has to hand the finished image to the window.
