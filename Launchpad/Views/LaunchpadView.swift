@@ -26,6 +26,9 @@ struct LaunchpadView: View {
     @State private var folderPanelFrame: CGRect = .zero
     @State private var edgeDirection = 0
     @State private var edgeStartedAt: Date?
+    /// Debounces the canvas tap: one physical click must only ever take one
+    /// step (leave jiggle mode *or* dismiss), never both.
+    @State private var lastBackgroundTap: Date = .distantPast
     @FocusState private var isSearchFocused: Bool
 
     /// Fraction of the screen width a flick must cover before it turns a page.
@@ -98,6 +101,7 @@ struct LaunchpadView: View {
                         folder: folder,
                         apps: model.apps(in: folder),
                         metrics: metrics,
+                        isEditing: model.isEditing,
                         draggingAppID: folderDrag?.app.id,
                         isDraggingOut: isDraggingOutOfFolder,
                         onLaunch: onLaunch,
@@ -188,11 +192,16 @@ struct LaunchpadView: View {
         let pageCount = model.pageCount
         let preview = dragPreview(metrics: metrics, page: currentPage)
         let items = preview?.items ?? model.items
+        let folderTarget = folderTargetID(metrics: metrics, page: currentPage)
 
         return HStack(spacing: 0) {
             ForEach(0..<pageCount, id: \.self) { page in
-                gridLayer(items: pageSlice(items, page: page, metrics: metrics), metrics: metrics)
-                    .frame(width: metrics.size.width, height: metrics.size.height, alignment: .topLeading)
+                gridLayer(
+                    items: pageSlice(items, page: page, metrics: metrics),
+                    folderTargetID: folderTarget,
+                    metrics: metrics
+                )
+                .frame(width: metrics.size.width, height: metrics.size.height, alignment: .topLeading)
             }
         }
         .frame(width: metrics.size.width * CGFloat(pageCount), alignment: .leading)
@@ -241,6 +250,21 @@ struct LaunchpadView: View {
         return DragPreview(slot: slot, items: items)
     }
 
+    /// The item a dragged app is hovering right now, when dropping there would
+    /// create a folder or add to one. The grid stays still in that case, so a
+    /// plain index lookup matches the tile actually under the pointer.
+    private func folderTargetID(metrics: LaunchpadMetrics, page: Int) -> String? {
+        guard let session = dragSession,
+              let dragged = model.item(withID: session.itemID),
+              !dragged.isFolder,
+              let target = dropSlot(at: session.location, metrics: metrics, page: page),
+              target.ontoIcon,
+              let hovered = model.item(atSlot: target.index),
+              hovered.id != session.itemID
+        else { return nil }
+        return hovered.id
+    }
+
     private func pageSlice(
         _ items: [LauncherItem],
         page: Int,
@@ -256,24 +280,33 @@ struct LaunchpadView: View {
     /// morphs can merge later; the pill and dots are independent surfaces, and
     /// positioned children do not lay out correctly inside the container.
     @ViewBuilder
-    private func gridLayer(items: [LauncherItem], metrics: LaunchpadMetrics) -> some View {
+    private func gridLayer(
+        items: [LauncherItem],
+        folderTargetID: String?,
+        metrics: LaunchpadMetrics
+    ) -> some View {
         if isFlattenedForSnapshot {
             // `GlassEffectContainer` renders nothing into an offscreen bitmap.
-            gridContent(items: items, metrics: metrics)
+            gridContent(items: items, folderTargetID: folderTargetID, metrics: metrics)
         } else {
             GlassEffectContainer(spacing: 24) {
-                gridContent(items: items, metrics: metrics)
+                gridContent(items: items, folderTargetID: folderTargetID, metrics: metrics)
             }
         }
     }
 
-    private func gridContent(items: [LauncherItem], metrics: LaunchpadMetrics) -> some View {
+    private func gridContent(
+        items: [LauncherItem],
+        folderTargetID: String?,
+        metrics: LaunchpadMetrics
+    ) -> some View {
         GridPageView(
             items: items,
             metrics: metrics,
             appsByID: model.appsByID,
             isEditing: model.isEditing,
             draggingID: model.draggingID,
+            folderTargetID: folderTargetID,
             onBackgroundTap: handleBackgroundTap,
             onLaunch: onLaunch,
             onRemove: { model.uninstall(appID: $0.id) },
@@ -298,7 +331,13 @@ struct LaunchpadView: View {
 
     // MARK: - Interaction
 
+    /// Clicking empty canvas steps out one layer at a time, like Launchpad:
+    /// first it stops the jiggle, then it closes the panel.
     private func handleBackgroundTap() {
+        let now = Date.now
+        guard now.timeIntervalSince(lastBackgroundTap) > 0.08 else { return }
+        lastBackgroundTap = now
+
         if model.isEditing {
             model.endEditing()
         } else {
@@ -481,22 +520,16 @@ struct LaunchpadView: View {
         .allowsHitTesting(false)
     }
 
-    /// Grid-local index of the slot the current drag would land in, or nil.
+    /// Grid-local slot of the folder drag-out drop target, or nil.
+    ///
+    /// Plain reorders draw no marker at all: the live preview already opens a
+    /// gap under the pointer, so a highlight would just sit on top of an icon.
     private func dropIndicator(metrics: LaunchpadMetrics, currentPage: Int) -> Int? {
-        if let session = dragSession {
-            guard let target = dropSlot(
-                at: session.location,
-                metrics: metrics,
-                page: currentPage
-            ), target.index < model.items.count else { return nil }
-            return localSlot(target.index, metrics: metrics, currentPage: currentPage)
-        }
-        if let drag = folderDrag, isDraggingOutOfFolder,
-           let target = dropSlot(at: drag.location, metrics: metrics, page: currentPage) {
-            let clamped = min(target.index, max(model.items.count - 1, 0))
-            return localSlot(clamped, metrics: metrics, currentPage: currentPage)
-        }
-        return nil
+        guard let drag = folderDrag, isDraggingOutOfFolder,
+              let target = dropSlot(at: drag.location, metrics: metrics, page: currentPage)
+        else { return nil }
+        let clamped = min(target.index, max(model.items.count - 1, 0))
+        return localSlot(clamped, metrics: metrics, currentPage: currentPage)
     }
 
     private func localSlot(

@@ -7,6 +7,7 @@ struct FolderView: View {
     let folder: AppFolder
     let apps: [AppItem]
     let metrics: LaunchpadMetrics
+    let isEditing: Bool
     let draggingAppID: String?
     let isDraggingOut: Bool
     let onLaunch: (AppItem) -> Void
@@ -24,6 +25,7 @@ struct FolderView: View {
         folder: AppFolder,
         apps: [AppItem],
         metrics: LaunchpadMetrics,
+        isEditing: Bool,
         draggingAppID: String?,
         isDraggingOut: Bool,
         onLaunch: @escaping (AppItem) -> Void,
@@ -36,6 +38,7 @@ struct FolderView: View {
         self.folder = folder
         self.apps = apps
         self.metrics = metrics
+        self.isEditing = isEditing
         self.draggingAppID = draggingAppID
         self.isDraggingOut = isDraggingOut
         self.onLaunch = onLaunch
@@ -142,7 +145,9 @@ struct FolderView: View {
                         labelFontSize: labelFont,
                         labelWidth: labelWidth,
                         artworkScale: metrics.iconArtworkScale,
+                        isEditing: isEditing,
                         isDragging: draggingAppID == app.id,
+                        wigglePhase: Double(index % 3),
                         onLaunch: { onLaunch(app) },
                         onDragChanged: { location in onAppDragChanged(app, location) },
                         onDragEnded: { location in onAppDragEnded(app, location) }
@@ -165,23 +170,36 @@ struct FolderView: View {
 }
 
 /// An icon inside an opened folder: smaller than the grid icons and without
-/// editing affordances.
+/// editing affordances — but it still jiggles with the grid in edit mode.
 private struct FolderAppIcon: View {
     let item: AppItem
     let iconSize: CGFloat
     let labelFontSize: CGFloat
     let labelWidth: CGFloat
     let artworkScale: CGFloat
+    let isEditing: Bool
     let isDragging: Bool
+    let wigglePhase: Double
     let onLaunch: () -> Void
     let onDragChanged: (CGPoint) -> Void
     let onDragEnded: (CGPoint) -> Void
 
+    /// Timeline-driven wobble; 0° whenever edit mode is off.
+    private func jiggleAngle(_ date: Date) -> Double {
+        guard isEditing else { return 0 }
+        let period = 0.3 + wigglePhase * 0.06
+        let phase = date.timeIntervalSinceReferenceDate * 2 * .pi / period
+        return sin(phase) * 1.2
+    }
+
     var body: some View {
         VStack(spacing: max(6, iconSize * 0.17)) {
-            AppIconImage(item: item, size: iconSize, artworkScale: artworkScale)
-                .frame(width: iconSize, height: iconSize)
-                .opacity(isDragging ? 0.3 : 1)
+            TimelineView(.animation(minimumInterval: 1.0 / 30.0, paused: !isEditing)) { context in
+                AppIconImage(item: item, size: iconSize, artworkScale: artworkScale)
+                    .frame(width: iconSize, height: iconSize)
+                    .rotationEffect(.degrees(jiggleAngle(context.date)), anchor: .center)
+            }
+            .opacity(isDragging ? 0.3 : 1)
                 .contentShape(Rectangle())
                 .onTapGesture(perform: onLaunch)
                 .simultaneousGesture(

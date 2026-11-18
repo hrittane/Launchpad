@@ -9,6 +9,7 @@ struct AppIconView: View {
     let isEditing: Bool
     let isDragging: Bool
     let showsRemoveBadge: Bool
+    let dropsIntoFolder: Bool
     let wigglePhase: Double
 
     let onLaunch: () -> Void
@@ -17,9 +18,18 @@ struct AppIconView: View {
     let onDragChanged: (CGPoint) -> Void
     let onDragEnded: (CGPoint) -> Void
 
-    @State private var wiggle = false
-
     private var iconSize: CGFloat { metrics.iconSize }
+
+    /// Angle for the wobble at a given instant. While edit mode is off this is
+    /// always 0°, so the tile settles as soon as jiggle ends. Driving it from
+    /// the timeline (instead of a `repeatForever` animation) means there is no
+    /// infinite animation left running to keep the icon rocking afterwards.
+    private func jiggleAngle(_ date: Date) -> Double {
+        guard isEditing else { return 0 }
+        let period = 0.3 + wigglePhase * 0.06
+        let phase = date.timeIntervalSinceReferenceDate * 2 * .pi / period
+        return sin(phase) * 1.2
+    }
 
     /// Width of the name itself, so the clickable strip under the icon never
     /// becomes a wide invisible band reaching into the gaps between columns.
@@ -39,20 +49,20 @@ struct AppIconView: View {
         // The tile is represented by the floating drag preview; keeping it
         // invisible leaves a clean gap at the landing slot.
         .opacity(isDragging ? 0 : 1)
-        .onChange(of: isEditing) { _, editing in
-            updateWiggle(editing)
-        }
-        .onAppear {
-            if isEditing { updateWiggle(true) }
-        }
     }
 
     private var iconSquare: some View {
-        ZStack {
-            AppIconImage(item: item, size: iconSize, artworkScale: metrics.iconArtworkScale)
+        TimelineView(.animation(minimumInterval: 1.0 / 30.0, paused: !isEditing)) { context in
+            ZStack {
+                // Always in the tree (visibility is animated) so hovering a
+                // target never rebuilds the icon subtree during a drag.
+                FolderDropPlate(iconSize: iconSize, isVisible: dropsIntoFolder)
+
+                AppIconImage(item: item, size: iconSize, artworkScale: metrics.iconArtworkScale)
+            }
+            .rotationEffect(.degrees(jiggleAngle(context.date)), anchor: .center)
         }
         .frame(width: iconSize, height: iconSize)
-        .rotationEffect(.degrees(wiggleAngle), anchor: .center)
         // The icon square and its name are the only targets: the grid cell
         // around them stays inert, so a click in a gap does nothing at all.
         .contentShape(Rectangle())
@@ -108,11 +118,6 @@ struct AppIconView: View {
         .accessibilityLabel(Text("Delete \(item.name)"))
     }
 
-    private var wiggleAngle: Double {
-        guard isEditing else { return 0 }
-        return wiggle ? 1.2 : -1.2
-    }
-
     /// Dragging works straight from the resting grid, the way Launchpad does:
     /// press an icon, move, and it reorders (or folds into a folder) without
     /// waiting for edit mode first. `LaunchpadView` turns edit mode on when the
@@ -125,18 +130,5 @@ struct AppIconView: View {
             .onEnded { value in
                 onDragEnded(value.location)
             }
-    }
-
-    private func updateWiggle(_ editing: Bool) {
-        guard editing else {
-            withAnimation(.easeOut(duration: 0.15)) { wiggle = false }
-            return
-        }
-        wiggle = false
-        withAnimation(
-            .easeInOut(duration: 0.13 + wigglePhase * 0.035).repeatForever(autoreverses: true)
-        ) {
-            wiggle = true
-        }
     }
 }

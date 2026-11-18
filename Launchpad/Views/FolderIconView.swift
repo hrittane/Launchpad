@@ -32,6 +32,7 @@ struct FolderIconView: View {
     let isEditing: Bool
     let isDragging: Bool
     let isDragActive: Bool
+    let dropsIntoFolder: Bool
     let wigglePhase: Double
 
     let onOpen: () -> Void
@@ -39,9 +40,15 @@ struct FolderIconView: View {
     let onDragChanged: (CGPoint) -> Void
     let onDragEnded: (CGPoint) -> Void
 
-    @State private var wiggle = false
-
     private var iconSize: CGFloat { metrics.iconSize }
+
+    /// Timeline-driven wobble; 0° whenever edit mode is off.
+    private func jiggleAngle(_ date: Date) -> Double {
+        guard isEditing else { return 0 }
+        let period = 0.3 + wigglePhase * 0.06
+        let phase = date.timeIntervalSinceReferenceDate * 2 * .pi / period
+        return sin(phase) * 1.2
+    }
 
     private var labelWidth: CGFloat {
         let font = NSFont.systemFont(ofSize: metrics.labelFontSize, weight: .medium)
@@ -65,24 +72,24 @@ struct FolderIconView: View {
         }
         .frame(width: metrics.columnPitch, height: metrics.cellHeight, alignment: .top)
         .opacity(isDragging ? 0 : 1)
-        .onChange(of: isEditing) { _, editing in
-            updateWiggle(editing)
-        }
-        .onAppear {
-            if isEditing { updateWiggle(true) }
-        }
     }
 
     private var tile: some View {
-        ZStack {
-            // The glass is attached to the tile that *contains* the
-            // miniatures. A glass element that is only a sibling would be
-            // composited above them by `GlassEffectContainer`, leaving the
-            // icons as blurred smudges underneath.
-            folderTile
+        TimelineView(.animation(minimumInterval: 1.0 / 30.0, paused: !isEditing)) { context in
+            ZStack {
+                // The folder plate that appears when a dragged app hovers this
+                // folder: same squircle, peeking around the existing tile.
+                FolderDropPlate(iconSize: iconSize, isVisible: dropsIntoFolder)
+
+                // The glass is attached to the tile that *contains* the
+                // miniatures. A glass element that is only a sibling would be
+                // composited above them by `GlassEffectContainer`, leaving the
+                // icons as blurred smudges underneath.
+                folderTile
+            }
+            .rotationEffect(.degrees(jiggleAngle(context.date)), anchor: .center)
         }
         .frame(width: iconSize, height: iconSize)
-        .rotationEffect(.degrees(isEditing ? (wiggle ? 1.2 : -1.2) : 0), anchor: .center)
         .contentShape(Rectangle())
         .onTapGesture(perform: onOpen)
         .simultaneousGesture(
@@ -130,19 +137,6 @@ struct FolderIconView: View {
         .overlay {
             RoundedRectangle(cornerRadius: iconSize * 0.225, style: .continuous)
                 .strokeBorder(.white.opacity(0.18), lineWidth: 1)
-        }
-    }
-
-    private func updateWiggle(_ editing: Bool) {
-        guard editing else {
-            withAnimation(.easeOut(duration: 0.15)) { wiggle = false }
-            return
-        }
-        wiggle = false
-        withAnimation(
-            .easeInOut(duration: 0.13 + wigglePhase * 0.035).repeatForever(autoreverses: true)
-        ) {
-            wiggle = true
         }
     }
 }

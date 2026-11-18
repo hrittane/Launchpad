@@ -46,6 +46,7 @@ struct SearchResultsView: View {
                         isEditing: false,
                         isDragging: false,
                         showsRemoveBadge: false,
+                        dropsIntoFolder: false,
                         wigglePhase: 0,
                         onLaunch: { onLaunch(app) },
                         onRemove: {},

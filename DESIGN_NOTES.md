@@ -437,7 +437,7 @@ clicks/keys), not only in unit tests. Release build: `x86_64 arm64`, no Swift wa
 | Behaviour | Implementation |
 |---|---|
 | Enter edit mode | Long-press **0.65 s** on an icon (14 pt tolerance) or the “Edit” toggle; all icons jiggle ±2.5° |
-| Leave | Esc, background click, or launching an app |
+| Leave | Esc, background click, or launching an app. A background click steps out one layer at a time: the first stops the jiggle, the next closes the panel |
 | Reorder | Drag an icon straight from the resting grid: the page switches to jiggle mode and the icons slide aside live to open the gap under the pointer. Dropping on an empty slot reorders (persisted); dropping on an icon creates a folder or adds to one. A long-press without moving also enters jiggle mode |
 | Page from edit mode | Dragging into the outer **5 %** bands for **0.55 s** turns one page |
 | Uninstall badge | White translucent “×” only on apps the catalog marks removable; system apps have none |
@@ -453,8 +453,8 @@ of Activity Monitor into a neighbouring slot reordered `layout.json`, dropping a
 another icon created a folder (three consistent runs) and dropping one on a folder added it
 (three apps, one slot). This revision also switches the page into jiggle mode as soon as the
 drag starts — the folder plate swap is held off while a drag is in flight so the Live Glass
-subtree cannot tear down the gesture; the visual jiggle-on-drag transition is being
-re-checked on the running build.
+subtree cannot tear down the gesture. The live gap was confirmed on the running build
+(“reordering is fine now”).
 
 **Live drop gap.** While a drag is in flight the grid renders a *preview* layout, not the
 persisted one: `dragPreview` removes the dragged item from `model.items` and re-inserts it at
@@ -465,6 +465,24 @@ until the drop; `performDrop` then commits the same order, so the grid does not 
 the pointer is centred on another app or a folder, the preview is suppressed so that icon
 stays under the cursor and the drop groups instead of reordering.
 
+**No drop highlight.** Reorders draw no ring or marker at all: the live gap is the
+indicator. Only a folder drag-out — which has no live gap — keeps the dashed ring over
+the slot that will receive the app. When an app hovers another app or a folder, the target
+grows the folder plate instead: the same frosted squircle the folder tiles use, 1.28× the
+icon and centred on it, drawn *behind* the icon so the icon sits inside a new folder. It
+replaces the old dashed ring, is never hit-tested, and moves with the wiggling grid.
+
+**Stopping the jiggle.** The wobble is not an animation at all: each tile is wrapped in a
+`TimelineView(.animation(minimumInterval: 1/30, paused: !isEditing))` and asks it for the
+angle at `context.date`, `sin(2π·t / period) · 1.2°`, with a slightly different period per
+slot so the grid never rocks in lockstep. Two approaches were tried and rejected. A
+`repeatForever` animation keeps running after the state flips back to idle: the delete
+badges would vanish while every tile kept rocking, and neither a finite animation nor a
+transaction with `disablesAnimations` stopped it. `phaseAnimator` did not animate at all on
+this target (measured zero pixel movement). Because the timeline only *renders* the angle,
+leaving edit mode simply returns 0° on the next frame — nothing is left running. The same
+wrapper is used on folder tiles and on apps inside an open folder.
+
 ### 8.3 Folders
 
 - **Create**: drag an app onto another app → both move into a new folder named
@@ -472,7 +490,9 @@ stays under the cursor and the drop groups instead of reordering.
   Both work directly from the resting grid, with no hold-to-jiggle step first.
 - **Open**: click the tile → dimmed backdrop + glass panel. The app grid behind is dimmed,
   not removed. Esc or a click on the dimmed area (outside the panel) closes it; the panel
-  itself swallows clicks so it cannot close by accident.
+  itself swallows clicks so it cannot close by accident. Opening a folder does **not** end
+  edit mode: apps inside jiggle with the rest of the grid, and closing the folder returns to
+  the still-wobbling grid.
 - **Rename**: triple-click the title (select-all), type, Return commits, Esc cancels;
   whitespace is trimmed (blank names are rejected). Double-clicking the title also enters
   the field.

@@ -228,7 +228,9 @@ final class AppModel {
     func openFolder(_ folderID: UUID) {
         guard layout.folder(withID: folderID) != nil else { return }
         openFolderID = folderID
-        isEditing = false
+        // Opening a folder does not end jiggle mode: the apps inside keep
+        // wobbling with the grid, the way Launchpad does it. Opening from the
+        // resting grid leaves edit mode off.
         draggingID = nil
     }
 

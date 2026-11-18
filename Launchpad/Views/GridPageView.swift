@@ -8,6 +8,9 @@ struct GridPageView: View {
     let appsByID: [String: AppItem]
     let isEditing: Bool
     let draggingID: String?
+    /// Item under the pointer that a dragged app would fold into a folder, if
+    /// any. Only that tile shows the folder chip.
+    let folderTargetID: String?
     let onBackgroundTap: () -> Void
     let onLaunch: (AppItem) -> Void
     let onRemove: (AppItem) -> Void
@@ -54,6 +57,7 @@ struct GridPageView: View {
                     isEditing: isEditing,
                     isDragging: draggingID == item.id,
                     showsRemoveBadge: app.isRemovable,
+                    dropsIntoFolder: folderTargetID == item.id,
                     wigglePhase: Double(index % 3),
                     onLaunch: { onLaunch(app) },
                     onRemove: { onRemove(app) },
@@ -71,6 +75,7 @@ struct GridPageView: View {
                 isEditing: isEditing,
                 isDragging: draggingID == item.id,
                 isDragActive: draggingID != nil,
+                dropsIntoFolder: folderTargetID == item.id,
                 wigglePhase: Double(index % 3),
                 onOpen: { onOpenFolder(folder.id) },
                 onBeginEditing: onBeginEditing,
