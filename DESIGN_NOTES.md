@@ -387,14 +387,26 @@ Launchpad thus *replaces* the desktop instead of looking through it: other appli
 windows, their video, and the desktop icons are all invisible behind the panel. The tint
 (0.22 black) and vignette are untouched, so only what is behind the glass changed.
 
+`desktopImageURL` is not the whole story on macOS 14 and later. When the wallpaper comes from
+a wallpaper extension — which is every system wallpaper, including the default — it reports
+`/System/Library/CoreServices/DefaultDesktop.heic`, the old Tahoe Lake aerial, instead of the
+picture on screen. `SystemWallpaper` reads the active provider from
+`~/Library/Application Support/com.apple.wallpaper/Store/Index.plist` (`Displays` first, then
+`Spaces`, `AllSpacesAndDisplays`, `SystemDefault`, following `linked` sections to the first
+`choices` entry), then takes the provider's bundled still (`TahoeLight`/`TahoeDark` by system
+appearance) or, for extensions that only ship thumbnails, the newest frame the wallpaper agent
+rendered for that provider at this screen's pixel size. Extension wallpapers report no picture
+options at all and are composed as “Fill Screen”; fitting them would letterbox a square still
+with bars of the fill colour. The reported file still wins whenever it is a real picture, so
+picked photos are unaffected.
+
 The picture is rendered at a quarter of the pixel size — the blur makes the difference
 invisible and it costs ~20 ms instead of ~600 ms on this integrated GPU — and cached per
 picture and screen size. Core Image's one-off shader compilation is paid at launch
 (`BackdropView.preheat()`), so the first presentation is instant. If no picture can be read
-(video/dynamic wallpaper) or Reduce Transparency is on, the opaque gradient takes over;
-either way nothing from behind the panel shows through. Both the panel and the menu-bar cover
-call `present(on:)` with the same screen, so they draw the same cached image and join without
-a seam.
+or Reduce Transparency is on, the opaque gradient takes over; either way nothing from behind
+the panel shows through. Both the panel and the menu-bar cover call `present(on:)` with the
+same screen, so they draw the same cached image and join without a seam.
 
 `desktopImageURL` can be **stale**: the Finder keeps drawing a picture after its file is
 deleted or moved, because picking one copies it into the Wallpaper settings extension's

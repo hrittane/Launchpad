@@ -189,7 +189,7 @@ private enum WallpaperImage {
         let key = Key(path: url.path, width: width, height: height)
         if let cached = cache[key] { return cached }
 
-        let options = workspace.desktopImageOptions(for: screen) ?? [:]
+        let options = workspace.desktopImageOptions(for: screen)
         guard let composed = compose(picture, width: width, height: height, options: options)
         else { return nil }
 
@@ -204,22 +204,35 @@ private enum WallpaperImage {
 
     /// The file the desktop is currently showing.
     ///
-    /// `desktopImageURL` normally points straight at the picture, but the URL
-    /// goes stale when the file is deleted or moved: the Finder keeps drawing
-    /// the picture anyway, because the Wallpaper settings extension keeps its
-    /// own copy for exactly that case. Without this fallback the panel would
-    /// drop to the opaque gradient while the desktop still shows the picture.
+    /// `desktopImageURL` normally points straight at the picture, but it is
+    /// only authoritative when the picture is a file the user picked. For a
+    /// wallpaper supplied by a wallpaper extension — every system wallpaper
+    /// since macOS 14, including the default — it reports
+    /// `/System/Library/CoreServices/DefaultDesktop.heic` instead, which is the
+    /// old Tahoe Lake aerial, not what is on screen. `SystemWallpaper` resolves
+    /// the active extension and its rendered picture for that case.
+    ///
+    /// The reported URL also goes stale when the file is deleted or moved: the
+    /// Finder keeps drawing the picture anyway, because the Wallpaper settings
+    /// extension keeps its own copy for exactly that case. Without that
+    /// fallback the panel would drop to the opaque gradient while the desktop
+    /// still shows the picture.
     private static func pictureURL(for screen: NSScreen) -> URL? {
-        guard let url = NSWorkspace.shared.desktopImageURL(for: screen) else { return nil }
-        if FileManager.default.isReadableFile(atPath: url.path) { return url }
-        return WallpaperStore.cachedCopy(of: url)
+        let reported = NSWorkspace.shared.desktopImageURL(for: screen)
+
+        if let reported, FileManager.default.isReadableFile(atPath: reported.path) {
+            guard SystemWallpaper.isPlaceholder(reported) else { return reported }
+            return SystemWallpaper.picture(for: screen) ?? reported
+        }
+        if let reported, let copy = WallpaperStore.cachedCopy(of: reported) { return copy }
+        return SystemWallpaper.picture(for: screen)
     }
 
     private static func compose(
         _ picture: CGImage,
         width: Int,
         height: Int,
-        options: [NSWorkspace.DesktopImageOptionKey: Any]
+        options: [NSWorkspace.DesktopImageOptionKey: Any]?
     ) -> CGImage? {
         guard let space = CGColorSpace(name: CGColorSpace.sRGB),
               let context = CGContext(
@@ -233,18 +246,22 @@ private enum WallpaperImage {
               ) else { return nil }
 
         let canvas = CGRect(x: 0, y: 0, width: CGFloat(width), height: CGFloat(height))
-        let fill = (options[fillColorKey] as? NSColor) ?? .black
+        let fill = (options?[fillColorKey] as? NSColor) ?? .black
         context.setFillColor(fill.cgColor)
         context.fill(canvas)
 
         let scaling: NSImageScaling
-        if let raw = (options[scalingKey] as? NSNumber)?.uintValue,
+        if let raw = (options?[scalingKey] as? NSNumber)?.uintValue,
            let parsed = NSImageScaling(rawValue: raw) {
             scaling = parsed
         } else {
             scaling = .scaleProportionallyUpOrDown
         }
-        let clips = (options[allowClippingKey] as? NSNumber)?.boolValue ?? false
+        // Extension wallpapers report no picture options at all, and all of
+        // them are meant to fill the screen ("Fill Screen" is the modern
+        // default). Fitting them instead would letterbox a square still with
+        // bars of the fill colour.
+        let clips = (options?[allowClippingKey] as? NSNumber)?.boolValue ?? true
         let size = CGSize(width: CGFloat(picture.width), height: CGFloat(picture.height))
         let destination = destinationRect(
             for: size,
@@ -310,6 +327,202 @@ private enum WallpaperImage {
         filter.setValue(radius, forKey: kCIInputRadiusKey)
         guard let output = filter.outputImage?.cropped(to: input.extent) else { return nil }
         return context.createCGImage(output, from: input.extent)
+    }
+}
+
+/// Resolves the picture of a wallpaper supplied by a wallpaper extension.
+///
+/// `NSWorkspace.desktopImageURL(for:)` does not know about extension
+/// wallpapers: for every system wallpaper it reports the built-in
+/// `DefaultDesktop.heic` placeholder. The real picture lives in two places:
+///
+/// - The provider's app extension bundles the wallpaper still itself
+///   (`TahoeLight.heic`, `TahoeDark.heic`, …), which is exactly what the
+///   window server draws when the wallpaper is not animated.
+/// - The wallpaper agent renders what it draws for the screen at the screen's
+///   pixel size under
+///   `~/Library/Containers/com.apple.wallpaper.agent/…/extension-<provider>/`.
+///   The newest render of the active provider is the current wallpaper,
+///   already cropped and already the right light/dark variant. This covers
+///   extensions that only bundle thumbnails and wallpapers whose still has
+///   not been downloaded.
+///
+/// Which provider is active is written by the system in
+/// `~/Library/Application Support/com.apple.wallpaper/Store/Index.plist`.
+@MainActor
+private enum SystemWallpaper {
+    private static let placeholderPaths: Set<String> = [
+        "/System/Library/CoreServices/DefaultDesktop.heic",
+        "/System/Library/Wallpapers/.default/DefaultAerial.heic",
+        "/System/Library/Wallpapers/.default/DefaultAerial.jpg"
+    ]
+
+    /// True when `url` is the built-in picture `desktopImageURL` substitutes
+    /// for a wallpaper it cannot name, rather than the picture on screen.
+    static func isPlaceholder(_ url: URL) -> Bool {
+        placeholderPaths.contains(url.standardizedFileURL.resolvingSymlinksInPath().path)
+    }
+
+    static func picture(for screen: NSScreen) -> URL? {
+        // The bundled still is the wallpaper itself; prefer it. It is only
+        // skipped when the extension bundles thumbnails rather than the
+        // picture (Sequoia), in which case the agent's render is exact.
+        bundledPicture(for: screen) ?? renderedPicture(for: screen)
+    }
+
+    /// The last frame the wallpaper agent rendered for the active provider.
+    private static func renderedPicture(for screen: NSScreen) -> URL? {
+        guard let provider = activeProvider(for: screen) else { return nil }
+        let directory = cachesURL.appending(
+            path: "extension-\(provider)",
+            directoryHint: .isDirectory
+        )
+        guard let entries = try? FileManager.default.contentsOfDirectory(
+            at: directory,
+            includingPropertiesForKeys: [.contentModificationDateKey, .fileSizeKey],
+            options: [.skipsHiddenFiles]
+        ) else { return nil }
+
+        let renders = entries.compactMap { url -> (url: URL, date: Date)? in
+            // Temporary writes end in `.bmp.sb-…`; only completed renders end
+            // in `.bmp`.
+            guard url.pathExtension.lowercased() == "bmp" else { return nil }
+            guard let values = try? url.resourceValues(
+                forKeys: [.contentModificationDateKey, .fileSizeKey]
+            ),
+            let date = values.contentModificationDate,
+            (values.fileSize ?? 0) > 0 else { return nil }
+            return (url, date)
+        }
+        guard !renders.isEmpty else { return nil }
+
+        // A provider can have renders for more than one display; prefer the
+        // one made for this screen's pixel size.
+        let width = Int((screen.frame.width * screen.backingScaleFactor).rounded())
+        let height = Int((screen.frame.height * screen.backingScaleFactor).rounded())
+        let sizeTag = "-\(width)-\(height)-"
+        let matching = renders.filter { $0.url.lastPathComponent.contains(sizeTag) }
+        return (matching.isEmpty ? renders : matching)
+            .max { $0.date < $1.date }?
+            .url
+    }
+
+    /// The provider's bundled still, chosen for the current appearance.
+    private static func bundledPicture(for screen: NSScreen) -> URL? {
+        guard let provider = activeProvider(for: screen) else { return nil }
+        let extensions = URL(
+            fileURLWithPath: "/System/Library/ExtensionKit/Extensions",
+            isDirectory: true
+        )
+        guard let bundles = try? FileManager.default.contentsOfDirectory(
+            at: extensions,
+            includingPropertiesForKeys: nil
+        ),
+        let bundle = bundles.first(where: { Bundle(url: $0)?.bundleIdentifier == provider })
+        else { return nil }
+
+        let resources = bundle.appending(path: "Contents/Resources", directoryHint: .isDirectory)
+        guard let files = try? FileManager.default.contentsOfDirectory(
+            at: resources,
+            includingPropertiesForKeys: [.fileSizeKey],
+            options: [.skipsHiddenFiles]
+        ) else { return nil }
+
+        let pictures = files.filter {
+            ["heic", "png", "jpg", "jpeg"].contains($0.pathExtension.lowercased())
+                && !name($0).contains("thumbnail")
+        }
+        guard !pictures.isEmpty else { return nil }
+
+        let isDark = NSApp.effectiveAppearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua
+        let wanted = isDark ? "dark" : "light"
+        let unwanted = isDark ? "light" : "dark"
+        let preferred = pictures.filter { name($0).contains(wanted) }
+        let neutral = pictures.filter { !name($0).contains(unwanted) }
+        let candidates = preferred.isEmpty ? neutral : preferred
+        return candidates.max { size(of: $0) < size(of: $1) }
+    }
+
+    private static func name(_ url: URL) -> String {
+        url.deletingPathExtension().lastPathComponent.lowercased()
+    }
+
+    private static func size(of url: URL) -> Int {
+        (try? url.resourceValues(forKeys: [.fileSizeKey]))?.fileSize ?? 0
+    }
+
+    /// The provider of the wallpaper choice that applies to `screen`.
+    private static func activeProvider(for screen: NSScreen) -> String? {
+        guard let data = try? Data(contentsOf: indexURL),
+              let index = try? PropertyListSerialization.propertyList(
+                  from: data,
+                  format: nil
+              ) as? [String: Any] else { return nil }
+
+        // The agent resolves a per-display choice first, then per-space, then
+        // the shared one, then the system default.
+        if let display = displayUUID(for: screen),
+           let displays = index["Displays"] as? [String: Any],
+           let provider = provider(in: displays[display]) {
+            return provider
+        }
+        for key in ["Spaces", "AllSpacesAndDisplays", "SystemDefault"] {
+            if let provider = provider(in: index[key]) { return provider }
+        }
+        if let provider = provider(in: index["Displays"]) { return provider }
+        return nil
+    }
+
+    /// Follows a store section (`linked` references and `choices` arrays) to
+    /// the first wallpaper choice.
+    private static func provider(in section: Any?) -> String? {
+        guard let section else { return nil }
+        if let dictionary = section as? [String: Any] {
+            if let linked = dictionary["Linked"], let provider = provider(in: linked) {
+                return provider
+            }
+            if let choices = dictionary["Choices"] as? [[String: Any]] {
+                for choice in choices {
+                    if let provider = choice["Provider"] as? String, !provider.isEmpty {
+                        return provider
+                    }
+                }
+            }
+            for key in dictionary.keys.sorted() where key != "Choices" {
+                if let provider = provider(in: dictionary[key]) { return provider }
+            }
+        }
+        if let array = section as? [Any] {
+            for entry in array {
+                if let provider = provider(in: entry) { return provider }
+            }
+        }
+        return nil
+    }
+
+    /// The store keys displays by the UUID the window server assigns them.
+    private static func displayUUID(for screen: NSScreen) -> String? {
+        guard let number = screen.deviceDescription[
+            NSDeviceDescriptionKey("NSScreenNumber")
+        ] as? NSNumber else { return nil }
+        let display = CGDirectDisplayID(number.uint32Value)
+        guard let uuid = CGDisplayCreateUUIDFromDisplayID(display)?.takeRetainedValue()
+        else { return nil }
+        return CFUUIDCreateString(nil, uuid) as String
+    }
+
+    private static var indexURL: URL {
+        URL(fileURLWithPath: NSHomeDirectory(), isDirectory: true)
+            .appending(path: "Library/Application Support/com.apple.wallpaper/Store/Index.plist")
+    }
+
+    private static var cachesURL: URL {
+        URL(fileURLWithPath: NSHomeDirectory(), isDirectory: true)
+            .appending(
+                path: "Library/Containers/com.apple.wallpaper.agent/Data/Library/Caches"
+                    + "/com.apple.wallpaper.caches",
+                directoryHint: .isDirectory
+            )
     }
 }
 
