@@ -16,8 +16,6 @@ struct GridPageView: View {
     let onRemove: (AppItem) -> Void
     let onOpenFolder: (UUID) -> Void
     let onBeginEditing: () -> Void
-    let onDragChanged: (String, CGPoint) -> Void
-    let onDragEnded: (String, CGPoint) -> Void
 
     var body: some View {
         ZStack(alignment: .topLeading) {
@@ -61,9 +59,7 @@ struct GridPageView: View {
                     wigglePhase: Double(index % 3),
                     onLaunch: { onLaunch(app) },
                     onRemove: { onRemove(app) },
-                    onBeginEditing: onBeginEditing,
-                    onDragChanged: { location in onDragChanged(item.id, location) },
-                    onDragEnded: { location in onDragEnded(item.id, location) }
+                    onBeginEditing: onBeginEditing
                 )
             }
 
@@ -77,9 +73,7 @@ struct GridPageView: View {
                 dropsIntoFolder: folderTargetID == item.id,
                 wigglePhase: Double(index % 3),
                 onOpen: { onOpenFolder(folder.id) },
-                onBeginEditing: onBeginEditing,
-                onDragChanged: { location in onDragChanged(item.id, location) },
-                onDragEnded: { location in onDragEnded(item.id, location) }
+                onBeginEditing: onBeginEditing
             )
         }
     }

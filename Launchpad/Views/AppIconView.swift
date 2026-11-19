@@ -15,8 +15,6 @@ struct AppIconView: View {
     let onLaunch: () -> Void
     let onRemove: () -> Void
     let onBeginEditing: () -> Void
-    let onDragChanged: (CGPoint) -> Void
-    let onDragEnded: (CGPoint) -> Void
 
     private var iconSize: CGFloat { metrics.iconSize }
 
@@ -71,7 +69,6 @@ struct AppIconView: View {
             LongPressGesture(minimumDuration: 0.65, maximumDistance: 14)
                 .onEnded { _ in onBeginEditing() }
         )
-        .simultaneousGesture(dragGesture)
         .overlay(alignment: .topLeading) { removeBadge }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(item.name)
@@ -116,19 +113,5 @@ struct AppIconView: View {
         .help(visible ? "Delete \(item.name)" : "")
         .accessibilityHidden(!visible)
         .accessibilityLabel(Text("Delete \(item.name)"))
-    }
-
-    /// Dragging works straight from the resting grid, the way Launchpad does:
-    /// press an icon, move, and it reorders (or folds into a folder) without
-    /// waiting for edit mode first. `LaunchpadView` turns edit mode on when the
-    /// drag begins, so the rest of the grid starts jiggling under the pointer.
-    private var dragGesture: some Gesture {
-        DragGesture(minimumDistance: 5, coordinateSpace: .named(LaunchpadCanvas.space))
-            .onChanged { value in
-                onDragChanged(value.location)
-            }
-            .onEnded { value in
-                onDragEnded(value.location)
-            }
     }
 }

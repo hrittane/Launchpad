@@ -4,30 +4,90 @@ import Foundation
 ///
 /// Everything here is pure: the model owns saving and the catalog, so these
 /// operations can be unit-tested without a filesystem.
+///
+/// The grid is stored page by page rather than as one flat list. Pages hold at
+/// most `pageCapacity` items and stay packed towards the top-left, but they may
+/// be sparse: dragging an icon past the last page creates a page that holds only
+/// that icon, so a new page does not need thirty-five icons to exist.
 struct LauncherLayout: Codable, Equatable, Sendable {
-    var items: [LauncherItem] = []
+    /// Slots per page, matching the default 7 × 5 grid.
+    static let pageCapacity = 35
+
+    /// One array per page, in display order. Always contains at least one page.
+    private(set) var pages: [[LauncherItem]]
+
+    init(pages: [[LauncherItem]] = [[]]) {
+        self.pages = pages.isEmpty ? [[]] : pages
+        normalize()
+    }
+
+    init(items: [LauncherItem]) {
+        self.init(pages: Self.packing(items))
+    }
+
+    /// Flat list of every item, in grid order. Kept for lookups and for the
+    /// tests that do not care how the items are split across pages.
+    var items: [LauncherItem] { pages.flatMap { $0 } }
+
+    var pageCount: Int { pages.count }
+
+    func items(onPage page: Int) -> [LauncherItem] {
+        guard pages.indices.contains(page) else { return [] }
+        return pages[page]
+    }
+
+    func item(onPage page: Int, offset: Int) -> LauncherItem? {
+        guard pages.indices.contains(page), pages[page].indices.contains(offset) else {
+            return nil
+        }
+        return pages[page][offset]
+    }
 
     // MARK: - Lookup
 
     func index(of itemID: String) -> Int? {
-        items.firstIndex { $0.id == itemID }
+        var base = 0
+        for page in pages {
+            if let index = page.firstIndex(where: { $0.id == itemID }) {
+                return base + index
+            }
+            base += page.count
+        }
+        return nil
     }
 
     func index(ofFolder folderID: UUID) -> Int? {
-        items.firstIndex { $0.folder?.id == folderID }
+        var base = 0
+        for page in pages {
+            if let index = page.firstIndex(where: { $0.folder?.id == folderID }) {
+                return base + index
+            }
+            base += page.count
+        }
+        return nil
     }
 
     func folder(withID folderID: UUID) -> AppFolder? {
-        items.compactMap(\.folder).first { $0.id == folderID }
+        for page in pages {
+            for item in page {
+                if item.folder?.id == folderID { return item.folder }
+            }
+        }
+        return nil
     }
 
     /// The folder that contains `appID`, if any.
     func folder(containing appID: String) -> AppFolder? {
-        items.compactMap(\.folder).first { $0.appIDs.contains(appID) }
+        for page in pages {
+            for item in page {
+                if item.folder?.appIDs.contains(appID) == true { return item.folder }
+            }
+        }
+        return nil
     }
 
     func contains(appID: String) -> Bool {
-        items.contains { $0.appIDs.contains(appID) }
+        pages.contains { page in page.contains { $0.appIDs.contains(appID) } }
     }
 
     var representedAppIDs: Set<String> {
@@ -42,51 +102,105 @@ struct LauncherLayout: Codable, Equatable, Sendable {
     mutating func reconcile(with apps: [AppItem]) {
         let installed = Set(apps.map(\.id))
         var seen = Set<String>()
-        var result: [LauncherItem] = []
+        var rebuilt: [[LauncherItem]] = []
 
-        for item in items {
-            switch item {
-            case .app(let appID):
-                guard installed.contains(appID), seen.insert(appID).inserted else { continue }
-                result.append(.app(appID))
+        for page in pages {
+            var result: [LauncherItem] = []
 
-            case .folder(var folder):
-                var children: [String] = []
-                for child in folder.appIDs
-                    where installed.contains(child) && seen.insert(child).inserted {
-                    children.append(child)
-                }
-                folder.appIDs = children
-                switch children.count {
-                case 0:
-                    continue
-                case 1:
-                    result.append(.app(children[0]))
-                default:
-                    result.append(.folder(folder))
+            for item in page {
+                switch item {
+                case .app(let appID):
+                    guard installed.contains(appID), seen.insert(appID).inserted else { continue }
+                    result.append(.app(appID))
+
+                case .folder(var folder):
+                    var children: [String] = []
+                    for child in folder.appIDs
+                        where installed.contains(child) && seen.insert(child).inserted {
+                        children.append(child)
+                    }
+                    folder.appIDs = children
+                    switch children.count {
+                    case 0:
+                        continue
+                    case 1:
+                        result.append(.app(children[0]))
+                    default:
+                        result.append(.folder(folder))
+                    }
                 }
             }
+
+            // Pages compact when apps disappear, and a page that lost every
+            // item is removed.
+            if !result.isEmpty { rebuilt.append(result) }
         }
 
         for app in apps where !seen.contains(app.id) {
-            result.append(.app(app.id))
+            Self.appendToLastPage(.app(app.id), in: &rebuilt)
             seen.insert(app.id)
         }
 
-        items = result
+        pages = rebuilt.isEmpty ? [[]] : rebuilt
     }
 
     // MARK: - Editing
 
-    /// Moves an item so that it ends up at `slot` (an index in the pre-move
-    /// array). Returns whether anything changed.
+    /// Moves an item so that it ends up at `slot` in the flat list. Used by the
+    /// tests and by callers that do not care about page boundaries; the UI uses
+    /// `move(itemID:toPage:offset:)` so sparse pages survive.
     @discardableResult
     mutating func move(itemID: String, toSlot slot: Int) -> Bool {
         guard let from = index(of: itemID), !items.isEmpty else { return false }
-        let target = min(max(slot, 0), items.count - 1)
+        var flat = items
+        let target = min(max(slot, 0), flat.count - 1)
         guard from != target else { return false }
-        let item = items.remove(at: from)
-        items.insert(item, at: target)
+        let item = flat.remove(at: from)
+        flat.insert(item, at: target)
+        pages = Self.packing(flat)
+        return true
+    }
+
+    /// Moves an item to the slot under the pointer on `page`. `offset` is the
+    /// in-page slot index; it is clamped to the page so a sparse page packs its
+    /// items and an empty page accepts its first item.
+    @discardableResult
+    mutating func move(itemID: String, toPage page: Int, offset: Int) -> Bool {
+        guard let source = locate(itemID: itemID) else { return false }
+        let target = min(max(page, 0), pages.count - 1)
+
+        if source.page == target {
+            let destination = min(max(offset, 0), pages[target].count - 1)
+            guard destination != source.index else { return false }
+            let item = pages[target].remove(at: source.index)
+            pages[target].insert(item, at: destination)
+            return true
+        }
+
+        let item = pages[source.page].remove(at: source.index)
+        var destinationPage = target
+        if pages[source.page].isEmpty, pages.count > 1 {
+            pages.remove(at: source.page)
+            if source.page < destinationPage { destinationPage -= 1 }
+        }
+
+        let insertion = min(max(offset, 0), pages[destinationPage].count)
+        pages[destinationPage].insert(item, at: insertion)
+        splitOverflowPages()
+        return true
+    }
+
+    /// Inserts a brand-new item (an app lifted out of a folder) on `page`.
+    @discardableResult
+    mutating func insert(_ item: LauncherItem, onPage page: Int, offset: Int) -> Bool {
+        guard !pages.isEmpty else {
+            pages = [[item]]
+            return true
+        }
+        let target = min(max(page, 0), pages.count - 1)
+        let insertion = min(max(offset, 0), pages[target].count)
+        pages[target].insert(item, at: insertion)
+        splitOverflowPages()
         return true
     }
 
@@ -101,32 +215,34 @@ struct LauncherLayout: Codable, Equatable, Sendable {
         newFolderName: String
     ) -> UUID? {
         guard draggedID != targetID,
-              let from = index(of: draggedID),
-              let to = index(of: targetID) else { return nil }
-        guard case .app(let draggedApp) = items[from] else { return nil }
+              let dragged = locate(itemID: draggedID),
+              let target = locate(itemID: targetID) else { return nil }
+        guard case .app(let draggedApp) = pages[dragged.page][dragged.index] else { return nil }
 
-        switch items[to] {
+        let folderID: UUID
+        switch pages[target.page][target.index] {
         case .folder(var folder):
             guard !folder.appIDs.contains(draggedApp) else { return nil }
             folder.appIDs.append(draggedApp)
-            items[to] = .folder(folder)
-            items.remove(at: from)
-            return folder.id
+            pages[target.page][target.index] = .folder(folder)
+            folderID = folder.id
 
         case .app(let targetApp):
             guard targetApp != draggedApp else { return nil }
             let folder = AppFolder(name: newFolderName, appIDs: [targetApp, draggedApp])
-            items[to] = .folder(folder)
-            items.remove(at: from)
-            return folder.id
+            pages[target.page][target.index] = .folder(folder)
+            folderID = folder.id
         }
+
+        removeItem(at: dragged)
+        return folderID
     }
 
     /// Removes a top-level item (an app or a whole folder).
     @discardableResult
     mutating func remove(itemID: String) -> Bool {
-        guard let index = index(of: itemID) else { return false }
-        items.remove(at: index)
+        guard let location = locate(itemID: itemID) else { return false }
+        removeItem(at: location)
         return true
     }
 
@@ -134,25 +250,31 @@ struct LauncherLayout: Codable, Equatable, Sendable {
     /// that loses its last two apps collapses to the surviving app.
     @discardableResult
     mutating func remove(appID: String) -> Bool {
-        if let index = items.firstIndex(where: { !$0.isFolder && $0.appIDs == [appID] }) {
-            items.remove(at: index)
-            return true
-        }
-
-        for index in items.indices {
-            guard case .folder(var folder) = items[index],
-                  let child = folder.appIDs.firstIndex(of: appID) else { continue }
-
-            folder.appIDs.remove(at: child)
-            switch folder.appIDs.count {
-            case 0:
-                items.remove(at: index)
-            case 1:
-                items[index] = .app(folder.appIDs[0])
-            default:
-                items[index] = .folder(folder)
+        for pageIndex in pages.indices {
+            if let index = pages[pageIndex].firstIndex(where: {
+                !$0.isFolder && $0.appIDs == [appID]
+            }) {
+                pages[pageIndex].remove(at: index)
+                removePageIfEmpty(pageIndex)
+                return true
             }
-            return true
+
+            for index in pages[pageIndex].indices {
+                guard case .folder(var folder) = pages[pageIndex][index],
+                      let child = folder.appIDs.firstIndex(of: appID) else { continue }
+
+                folder.appIDs.remove(at: child)
+                switch folder.appIDs.count {
+                case 0:
+                    pages[pageIndex].remove(at: index)
+                    removePageIfEmpty(pageIndex)
+                case 1:
+                    pages[pageIndex][index] = .app(folder.appIDs[0])
+                default:
+                    pages[pageIndex][index] = .folder(folder)
+                }
+                return true
+            }
         }
 
         return false
@@ -160,18 +282,18 @@ struct LauncherLayout: Codable, Equatable, Sendable {
 
     mutating func renameFolder(_ folderID: UUID, to name: String) {
         let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty, let index = index(ofFolder: folderID),
+        guard !trimmed.isEmpty, let location = locateFolder(folderID),
               var folder = folder(withID: folderID) else { return }
         folder.name = String(trimmed.prefix(40))
-        items[index] = .folder(folder)
+        pages[location.page][location.index] = .folder(folder)
     }
 
     /// Reorders an app inside its folder. `slot` is an index into the folder's
     /// current child list, matching the preview the panel draws while dragging.
     @discardableResult
     mutating func moveApp(inFolder folderID: UUID, appID: String, toSlot slot: Int) -> Bool {
-        guard let folderIndex = index(ofFolder: folderID),
-              case .folder(var folder) = items[folderIndex],
+        guard let location = locateFolder(folderID),
+              case .folder(var folder) = pages[location.page][location.index],
               let from = folder.appIDs.firstIndex(of: appID),
               folder.appIDs.count > 1 else { return false }
 
@@ -180,7 +302,7 @@ struct LauncherLayout: Codable, Equatable, Sendable {
 
         let child = folder.appIDs.remove(at: from)
         folder.appIDs.insert(child, at: target)
-        items[folderIndex] = .folder(folder)
+        pages[location.page][location.index] = .folder(folder)
         return true
     }
 
@@ -188,12 +310,22 @@ struct LauncherLayout: Codable, Equatable, Sendable {
     /// is re-inserted at `slot` when it is given one.
     @discardableResult
     mutating func moveAppOutOfFolder(appID: String, toSlot slot: Int?) -> Bool {
-        guard let lifted = liftingAppOutOfFolder(appID) else { return false }
-        items = lifted
+        guard let lifted = layoutLiftingAppOutOfFolder(appID) else { return false }
+        var flat = lifted.items
         if let slot {
-            let clamped = min(max(slot, 0), items.count)
-            items.insert(.app(appID), at: clamped)
+            let clamped = min(max(slot, 0), flat.count)
+            flat.insert(.app(appID), at: clamped)
         }
+        pages = Self.packing(flat)
+        return true
+    }
+
+    /// Page-aware counterpart of `moveAppOutOfFolder(appID:toSlot:)`.
+    @discardableResult
+    mutating func moveAppOutOfFolder(appID: String, toPage page: Int, offset: Int) -> Bool {
+        guard var lifted = layoutLiftingAppOutOfFolder(appID) else { return false }
+        lifted.insert(.app(appID), onPage: page, offset: offset)
+        pages = lifted.pages
         return true
     }
 
@@ -201,25 +333,30 @@ struct LauncherLayout: Codable, Equatable, Sendable {
     ///
     /// The folder collapses to its survivor when only one app would remain, or
     /// disappears when empty — exactly as it will once the drop lands, so the
-    /// live drag preview and the committed layout agree on every index.
+    /// live drag preview and the committed layout agree on every slot.
     ///
     /// - Returns: `nil` when `appID` is not inside a folder.
     func liftingAppOutOfFolder(_ appID: String) -> [LauncherItem]? {
-        guard let folderIndex = items.firstIndex(where: {
-            $0.folder?.appIDs.contains(appID) == true
-        }) else { return nil }
-        guard case .folder(var folder) = items[folderIndex],
+        layoutLiftingAppOutOfFolder(appID)?.items
+    }
+
+    /// The full page-aware grid with `appID` lifted out of its folder. The live
+    /// drop preview layers the app back in without writing anything.
+    func layoutLiftingAppOutOfFolder(_ appID: String) -> LauncherLayout? {
+        guard let location = locateFolder(containing: appID),
+              case .folder(var folder) = pages[location.page][location.index],
               let child = folder.appIDs.firstIndex(of: appID) else { return nil }
 
+        var lifted = self
         folder.appIDs.remove(at: child)
-        var lifted = items
         switch folder.appIDs.count {
         case 0:
-            lifted.remove(at: folderIndex)
+            lifted.pages[location.page].remove(at: location.index)
+            lifted.removePageIfEmpty(location.page)
         case 1:
-            lifted[folderIndex] = .app(folder.appIDs[0])
+            lifted.pages[location.page][location.index] = .app(folder.appIDs[0])
         default:
-            lifted[folderIndex] = .folder(folder)
+            lifted.pages[location.page][location.index] = .folder(folder)
         }
         return lifted
     }
@@ -232,25 +369,174 @@ struct LauncherLayout: Codable, Equatable, Sendable {
         onto targetID: String,
         newFolderName: String
     ) -> UUID? {
-        guard let lifted = liftingAppOutOfFolder(appID),
-              let target = lifted.firstIndex(where: { $0.id == targetID }) else { return nil }
+        guard var lifted = layoutLiftingAppOutOfFolder(appID),
+              let target = lifted.locate(itemID: targetID) else { return nil }
 
-        switch lifted[target] {
+        let folderID: UUID
+        switch lifted.pages[target.page][target.index] {
         case .folder(var folder):
             guard !folder.appIDs.contains(appID) else { return nil }
             folder.appIDs.append(appID)
-            var result = lifted
-            result[target] = .folder(folder)
-            items = result
-            return folder.id
+            lifted.pages[target.page][target.index] = .folder(folder)
+            folderID = folder.id
 
         case .app(let targetApp):
             guard targetApp != appID else { return nil }
             let folder = AppFolder(name: newFolderName, appIDs: [targetApp, appID])
-            var result = lifted
-            result[target] = .folder(folder)
-            items = result
-            return folder.id
+            lifted.pages[target.page][target.index] = .folder(folder)
+            folderID = folder.id
         }
+
+        pages = lifted.pages
+        return folderID
+    }
+
+    // MARK: - Pages
+
+    /// Adds an empty page at the end. The drag preview calls this when the
+    /// pointer waits at the right edge of the last page; the page is only kept
+    /// once something is dropped on it.
+    @discardableResult
+    mutating func appendEmptyPage() -> Bool {
+        guard pages.last?.isEmpty != true else { return false }
+        pages.append([])
+        return true
+    }
+
+    /// Removes pages that a cancelled drag created and never filled.
+    @discardableResult
+    mutating func trimEmptyPages() -> Bool {
+        var changed = false
+        while pages.count > 1, pages.last?.isEmpty == true {
+            pages.removeLast()
+            changed = true
+        }
+        return changed
+    }
+
+    // MARK: - Private
+
+    private func locate(itemID: String) -> (page: Int, index: Int)? {
+        for (page, items) in pages.enumerated() {
+            if let index = items.firstIndex(where: { $0.id == itemID }) {
+                return (page, index)
+            }
+        }
+        return nil
+    }
+
+    private func locateFolder(_ folderID: UUID) -> (page: Int, index: Int)? {
+        for (page, items) in pages.enumerated() {
+            if let index = items.firstIndex(where: { $0.folder?.id == folderID }) {
+                return (page, index)
+            }
+        }
+        return nil
+    }
+
+    private func locateFolder(containing appID: String) -> (page: Int, index: Int)? {
+        for (page, items) in pages.enumerated() {
+            if let index = items.firstIndex(where: { $0.folder?.appIDs.contains(appID) == true }) {
+                return (page, index)
+            }
+        }
+        return nil
+    }
+
+    private mutating func removeItem(at location: (page: Int, index: Int)) {
+        pages[location.page].remove(at: location.index)
+        removePageIfEmpty(location.page)
+    }
+
+    private mutating func removePageIfEmpty(_ page: Int) {
+        guard pages.indices.contains(page), pages[page].isEmpty, pages.count > 1 else { return }
+        pages.remove(at: page)
+    }
+
+    /// Moves the overflow of any page that briefly holds more than a page's
+    /// worth of icons onto the next page, creating a page at the end if needed.
+    private mutating func splitOverflowPages() {
+        var page = 0
+        while page < pages.count {
+            guard pages[page].count > Self.pageCapacity else {
+                page += 1
+                continue
+            }
+
+            let overflow = Array(pages[page][Self.pageCapacity...])
+            pages[page].removeSubrange(Self.pageCapacity...)
+            if page + 1 < pages.count {
+                pages[page + 1].insert(contentsOf: overflow, at: 0)
+            } else {
+                pages.append(overflow)
+            }
+            page += 1
+        }
+    }
+
+    /// Repairs decoded layouts and empty pages: every page is full except for
+    /// the last one, and the layout always has one page to draw.
+    private mutating func normalize() {
+        var split: [[LauncherItem]] = []
+        for page in pages {
+            guard !page.isEmpty else { continue }
+            var rest = page
+            while rest.count > Self.pageCapacity {
+                split.append(Array(rest.prefix(Self.pageCapacity)))
+                rest.removeFirst(Self.pageCapacity)
+            }
+            split.append(rest)
+        }
+        pages = split.isEmpty ? [[]] : split
+    }
+
+    private static func packing(_ items: [LauncherItem]) -> [[LauncherItem]] {
+        guard !items.isEmpty else { return [[]] }
+        var pages: [[LauncherItem]] = []
+        var start = 0
+        while start < items.count {
+            let end = min(start + pageCapacity, items.count)
+            pages.append(Array(items[start..<end]))
+            start = end
+        }
+        return pages
+    }
+
+    private static func appendToLastPage(
+        _ item: LauncherItem,
+        in pages: inout [[LauncherItem]]
+    ) {
+        guard !pages.isEmpty else {
+            pages = [[item]]
+            return
+        }
+        if pages[pages.count - 1].count >= pageCapacity {
+            pages.append([item])
+        } else {
+            pages[pages.count - 1].append(item)
+        }
+    }
+
+    // MARK: - Codable
+
+    private enum CodingKeys: String, CodingKey {
+        case pages
+        case items
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        if let pages = try container.decodeIfPresent([[LauncherItem]].self, forKey: .pages) {
+            self.init(pages: pages)
+        } else {
+            // Layouts saved before pages were explicit stored one flat list.
+            let items = try container.decodeIfPresent([LauncherItem].self, forKey: .items) ?? []
+            self.init(items: items)
+        }
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(pages, forKey: .pages)
     }
 }

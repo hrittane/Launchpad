@@ -50,9 +50,7 @@ struct SearchResultsView: View {
                         wigglePhase: 0,
                         onLaunch: { onLaunch(app) },
                         onRemove: {},
-                        onBeginEditing: {},
-                        onDragChanged: { _ in },
-                        onDragEnded: { _ in }
+                        onBeginEditing: {}
                     )
                     .frame(width: metrics.columnPitch, height: metrics.cellHeight)
                     .position(

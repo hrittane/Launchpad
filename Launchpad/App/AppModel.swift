@@ -106,11 +106,12 @@ final class AppModel {
         return layout.items[slot]
     }
 
+    func item(onPage page: Int, offset: Int) -> LauncherItem? {
+        layout.item(onPage: page, offset: offset)
+    }
+
     func items(onPage page: Int) -> [LauncherItem] {
-        let start = page * pageCapacity
-        guard start < layout.items.count else { return [] }
-        let end = min(start + pageCapacity, layout.items.count)
-        return Array(layout.items[start..<end])
+        layout.items(onPage: page)
     }
 
     func canRemove(appID: String) -> Bool {
@@ -146,8 +147,31 @@ final class AppModel {
         }
     }
 
+    /// Adds an empty page at the end so a drag that waits at the right edge of
+    /// the last page can continue onto it. Nothing is saved until the drop
+    /// actually lands there; `trimEmptyPages()` removes it otherwise.
+    func addPageForDragging() {
+        var next = layout
+        guard next.appendEmptyPage() else { return }
+        layout = next
+        refreshPageCount()
+        goToPage(pageCount - 1)
+    }
+
+    /// Removes a page a cancelled drag left empty and pulls the visible page
+    /// back into range.
+    func trimEmptyPages() {
+        var next = layout
+        guard next.trimEmptyPages() else {
+            refreshPageCount()
+            return
+        }
+        layout = next
+        refreshPageCount()
+    }
+
     private func refreshPageCount() {
-        pageCount = max(1, Int(ceil(Double(items.count) / Double(pageCapacity))))
+        pageCount = max(1, layout.pageCount)
         clampCurrentPage()
     }
 
@@ -174,11 +198,12 @@ final class AppModel {
 
     /// Resolves a drop. Dropping one app on another creates a folder; dropping
     /// on a folder adds the app to it; anything else is a reorder.
-    func performDrop(itemID: String, slot: Int, ontoIcon: Bool) {
+    func performDrop(itemID: String, page: Int, offset: Int, ontoIcon: Bool) {
         defer { draggingID = nil }
         guard let dragged = item(withID: itemID) else { return }
 
-        if ontoIcon, case .app(let draggedApp) = dragged, let target = item(atSlot: slot) {
+        if ontoIcon, case .app(let draggedApp) = dragged,
+           let target = item(onPage: page, offset: offset) {
             if target.isFolder {
                 if layout.drop(draggedID: itemID, onto: target.id, newFolderName: "Folder") != nil {
                     commit()
@@ -201,9 +226,19 @@ final class AppModel {
             }
         }
 
-        if layout.move(itemID: itemID, toSlot: slot) {
+        if layout.move(itemID: itemID, toPage: page, offset: offset) {
             commit()
         }
+    }
+
+    /// Flat-slot entry point kept for the tests and older call sites.
+    func performDrop(itemID: String, slot: Int, ontoIcon: Bool) {
+        performDrop(
+            itemID: itemID,
+            page: slot / pageCapacity,
+            offset: slot % pageCapacity,
+            ontoIcon: ontoIcon
+        )
     }
 
     /// Removes the app from the grid (without touching the filesystem). Used by
@@ -231,8 +266,26 @@ final class AppModel {
     /// Moves an app out of its folder onto the grid at `slot`. The folder
     /// collapses when only one app would remain, or disappears when empty.
     func moveAppOutOfFolder(appID: String, toSlot slot: Int?) {
-        guard layout.moveAppOutOfFolder(appID: appID, toSlot: slot) else { return }
-        commit()
+        guard let slot else {
+            if layout.moveAppOutOfFolder(appID: appID, toSlot: nil) {
+                commit()
+            }
+            return
+        }
+        moveAppOutOfFolder(
+            appID: appID,
+            page: slot / pageCapacity,
+            offset: slot % pageCapacity
+        )
+    }
+
+    /// Page-aware drop of an app that is leaving its folder. Page indices are
+    /// unchanged by the lift, because a folder with two apps becomes the
+    /// survivor in the same slot.
+    func moveAppOutOfFolder(appID: String, page: Int, offset: Int) {
+        if layout.moveAppOutOfFolder(appID: appID, toPage: page, offset: offset) {
+            commit()
+        }
     }
 
     /// The grid as it would look if `appID` stepped out of its folder. Used by
@@ -241,13 +294,23 @@ final class AppModel {
         layout.liftingAppOutOfFolder(appID)
     }
 
+    /// The page-aware grid with `appID` lifted out of its folder.
+    func layoutLiftingAppOutOfFolder(_ appID: String) -> LauncherLayout? {
+        layout.layoutLiftingAppOutOfFolder(appID)
+    }
+
     /// Resolves a drop of an app dragged out of its folder: dropping it on
     /// another app creates a folder, dropping it on a folder adds it there and
     /// anything else is a plain reorder on the grid.
     /// - Returns: the identifier of a folder this drop created (and opened for
     ///   naming), or `nil` when the drop joined an existing folder or reordered.
     @discardableResult
-    func dropAppFromFolder(appID: String, slot: Int, onto target: LauncherItem?) -> UUID? {
+    func dropAppFromFolder(
+        appID: String,
+        page: Int,
+        offset: Int,
+        onto target: LauncherItem?
+    ) -> UUID? {
         defer { draggingID = nil }
 
         if let target {
@@ -277,10 +340,21 @@ final class AppModel {
             }
         }
 
-        if layout.moveAppOutOfFolder(appID: appID, toSlot: slot) {
+        if layout.moveAppOutOfFolder(appID: appID, toPage: page, offset: offset) {
             commit()
         }
         return nil
+    }
+
+    /// Flat-slot entry point kept for the tests.
+    @discardableResult
+    func dropAppFromFolder(appID: String, slot: Int, onto target: LauncherItem?) -> UUID? {
+        dropAppFromFolder(
+            appID: appID,
+            page: slot / pageCapacity,
+            offset: slot % pageCapacity,
+            onto: target
+        )
     }
 
     /// Reorders an app inside the open folder, dropping it on `index` in the

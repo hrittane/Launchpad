@@ -31,6 +31,55 @@ struct AppModelEditingTests {
     }
 
     @Test
+    func draggingToTheRightEdgeCreatesAPageWithOneIcon() {
+        let model = makeModel(apps: [makeApp("Alpha"), makeApp("Bravo")])
+
+        model.addPageForDragging()
+        #expect(model.pageCount == 2)
+        #expect(model.currentPage == 1)
+
+        model.performDrop(
+            itemID: model.items[0].id,
+            page: 1,
+            offset: 0,
+            ontoIcon: false
+        )
+
+        #expect(model.pageCount == 2)
+        #expect(model.items(onPage: 0).count == 1)
+        #expect(model.items(onPage: 1).count == 1)
+    }
+
+    @Test
+    func anEmptyPageFromACancelledDragIsRemoved() {
+        let model = makeModel(apps: [makeApp("Alpha")])
+
+        model.addPageForDragging()
+        #expect(model.pageCount == 2)
+        #expect(model.currentPage == 1)
+
+        model.trimEmptyPages()
+        #expect(model.pageCount == 1)
+        #expect(model.currentPage == 0)
+    }
+
+    @Test
+    func anIconCanMoveToAnExistingPage() {
+        let apps = ["Alpha", "Bravo", "Charlie", "Delta"].map { makeApp($0) }
+        let model = makeModel(apps: apps)
+        model.addPageForDragging()
+        model.performDrop(itemID: model.items[0].id, page: 1, offset: 0, ontoIcon: false)
+        model.trimEmptyPages()
+        #expect(model.pageCount == 2)
+
+        model.performDrop(itemID: model.items[0].id, page: 1, offset: 1, ontoIcon: false)
+
+        #expect(model.pageCount == 2)
+        #expect(model.items(onPage: 0).count == 2)
+        #expect(model.items(onPage: 1).count == 2)
+    }
+
+    @Test
     func editingTogglesAndClearsSearch() {
         let model = makeModel(apps: [makeApp("Alpha")])
         model.beginSearch(with: "a")

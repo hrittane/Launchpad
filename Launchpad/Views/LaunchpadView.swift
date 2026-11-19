@@ -31,7 +31,15 @@ struct LaunchpadView: View {
     @State private var folderDrag: FolderDrag?
     @State private var folderPanelFrame: CGRect = .zero
     @State private var edgeDirection = 0
-    @State private var edgeStartedAt: Date?
+    /// Dwell timer for the drag-to-turn-page gesture. A task (instead of a
+    /// timestamp checked on the next pointer event) flips the page even when
+    /// the pointer rests motionless in the margin.
+    @State private var edgeDwell: Task<Void, Never>?
+    /// True while a drag is panning the pages instead of moving an icon.
+    @State private var isPageDragging = false
+    /// One new page per drag: waiting at the right edge adds it once, so a
+    /// pointer parked in the margin cannot trail empty pages behind it.
+    @State private var createdPageWhileDragging = false
     /// Debounces the canvas tap: one physical click must only ever take one
     /// step (leave jiggle mode *or* dismiss), never both.
     @State private var lastBackgroundTap: Date = .distantPast
@@ -180,7 +188,9 @@ struct LaunchpadView: View {
                 if !editing {
                     dragSession = nil
                     edgeDirection = 0
-                    edgeStartedAt = nil
+                    cancelEdgeDwell()
+                    createdPageWhileDragging = false
+                    model.trimEmptyPages()
                 }
             }
             .onChange(of: isFolderObscuringGrid) { _, obscured in
@@ -193,6 +203,11 @@ struct LaunchpadView: View {
             dragOffset = 0
             dragSession = nil
             folderDrag = nil
+            isPageDragging = false
+            createdPageWhileDragging = false
+            edgeDirection = 0
+            cancelEdgeDwell()
+            model.trimEmptyPages()
             onFolderObscured(false)
             await Task.yield()
             withAnimation(.spring(duration: 0.42, bounce: 0.06)) {
@@ -220,41 +235,44 @@ struct LaunchpadView: View {
 
     /// All pages laid out side by side and translated horizontally, so a drag
     /// moves content with the finger and the snap animates the remainder.
+    ///
+    /// The gesture lives on this container rather than on each tile: a tile that
+    /// crosses a page boundary moves into another page's `ForEach`, which would
+    /// tear down the gesture halfway through the drag.
     private func pages(metrics: LaunchpadMetrics, currentPage: Int) -> some View {
-        let pageCount = model.pageCount
         let preview = dragPreview(metrics: metrics, page: currentPage)
-        let items = preview?.items ?? model.items
+        let pageItems = preview?.pages ?? model.layout.pages
         let folderTarget = folderTargetID(metrics: metrics, page: currentPage)
 
         return HStack(spacing: 0) {
-            ForEach(0..<pageCount, id: \.self) { page in
+            ForEach(pageItems.indices, id: \.self) { page in
                 gridLayer(
-                    items: pageSlice(items, page: page, metrics: metrics),
+                    items: pageItems[page],
                     folderTargetID: folderTarget,
                     metrics: metrics
                 )
                 .frame(width: metrics.size.width, height: metrics.size.height, alignment: .topLeading)
             }
         }
-        .frame(width: metrics.size.width * CGFloat(pageCount), alignment: .leading)
+        .frame(width: metrics.size.width * CGFloat(pageItems.count), alignment: .leading)
         .offset(x: -CGFloat(currentPage) * metrics.size.width + dragOffset)
         .frame(width: metrics.size.width, height: metrics.size.height, alignment: .leading)
         .clipped()
         .contentShape(Rectangle())
-        .gesture(swipeGesture(metrics: metrics, currentPage: currentPage))
+        // Simultaneous with the tiles' taps and long press: the drag still has
+        // to start here, because a tile-owned gesture dies when the preview
+        // moves the tile to another page.
+        .simultaneousGesture(canvasGesture(metrics: metrics))
         .animation(.spring(duration: 0.34, bounce: 0.08), value: currentPage)
         // Icons slide aside as the pointer crosses slots, so the grid always
         // shows the gap the drop will fill.
-        .animation(.spring(response: 0.26, dampingFraction: 0.82), value: preview?.slot)
+        .animation(.spring(response: 0.26, dampingFraction: 0.82), value: preview)
     }
 
-    /// A reorder in progress: the whole grid re-ordered as if the dragged item
-    /// had already landed in `slot`. Nothing is committed until the drop.
+    /// A reorder in progress: the pages as they look once the dragged item has
+    /// landed. Nothing is committed until the drop.
     private struct DragPreview: Equatable {
-        /// Slot the tiles animate towards; `nil` when the layout only changes
-        /// because an item left a folder (nothing slides).
-        var slot: Int?
-        var items: [LauncherItem]
+        var pages: [[LauncherItem]]
     }
 
     private func dragPreview(metrics: LaunchpadMetrics, page: Int) -> DragPreview? {
@@ -279,19 +297,16 @@ struct LaunchpadView: View {
         let draggedIsApp = model.item(withID: session.itemID).map { !$0.isFolder } ?? false
         if draggedIsApp,
            target.ontoIcon,
-           let hovered = model.item(atSlot: target.index),
+           let hovered = model.item(onPage: target.page, offset: target.offset),
            hovered.id != session.itemID {
             return nil
         }
 
-        let slot = min(max(target.index, 0), model.items.count - 1)
-        guard let from = model.items.firstIndex(where: { $0.id == session.itemID }),
-              slot != from else { return nil }
-
-        var items = model.items
-        let moved = items.remove(at: from)
-        items.insert(moved, at: slot)
-        return DragPreview(slot: slot, items: items)
+        var preview = model.layout
+        guard preview.move(itemID: session.itemID, toPage: target.page, offset: target.offset) else {
+            return nil
+        }
+        return DragPreview(pages: preview.pages)
     }
 
     /// The grid as it looks while an app is being dragged out of the open
@@ -302,32 +317,32 @@ struct LaunchpadView: View {
         guard let drag = folderDrag,
               isDraggingOutOfFolder,
               let target = dropSlot(at: drag.location, metrics: metrics, page: page),
-              let lifted = model.liftedItems(appID: drag.app.id) else { return nil }
+              let lifted = model.layoutLiftingAppOutOfFolder(drag.app.id) else { return nil }
 
         // The lift is previewed from the moment the pointer leaves the panel and
         // never flips back: a two-app folder becomes its survivor (or vanishes)
         // right away, so the tile cannot pulse while the pointer crosses icon
         // centres.
-        if target.ontoIcon, model.item(atSlot: target.index) != nil {
+        if target.ontoIcon,
+           lifted.item(onPage: target.page, offset: target.offset) != nil {
             // Hovering a tile means "fold it in there": the app is not on the
             // grid at all, so only the lift is shown.
-            return DragPreview(slot: nil, items: lifted)
+            return DragPreview(pages: lifted.pages)
         }
 
-        var items = lifted
-        let slot = min(max(target.index, 0), items.count)
-        items.insert(.app(drag.app.id), at: slot)
-        return DragPreview(slot: slot, items: items)
+        var preview = lifted
+        preview.insert(.app(drag.app.id), onPage: target.page, offset: target.offset)
+        return DragPreview(pages: preview.pages)
     }
 
     /// The item a dragged app is hovering right now, when dropping there would
     /// create a folder or add to one. The grid stays still in that case, so a
-    /// plain index lookup matches the tile actually under the pointer.
+    /// plain slot lookup matches the tile actually under the pointer.
     private func folderTargetID(metrics: LaunchpadMetrics, page: Int) -> String? {
         guard let location = dragSession?.location ?? folderDrag?.location,
               let target = dropSlot(at: location, metrics: metrics, page: page),
               target.ontoIcon,
-              let hovered = model.item(atSlot: target.index)
+              let hovered = model.item(onPage: target.page, offset: target.offset)
         else { return nil }
 
         if let session = dragSession {
@@ -344,17 +359,6 @@ struct LaunchpadView: View {
         }
 
         return nil
-    }
-
-    private func pageSlice(
-        _ items: [LauncherItem],
-        page: Int,
-        metrics: LaunchpadMetrics
-    ) -> [LauncherItem] {
-        let start = page * metrics.pageCapacity
-        guard start < items.count else { return [] }
-        let end = min(start + metrics.pageCapacity, items.count)
-        return Array(items[start..<end])
     }
 
     /// Icons live in their own glass container so hover plates and folder
@@ -392,13 +396,7 @@ struct LaunchpadView: View {
             onLaunch: onLaunch,
             onRemove: { model.uninstall(appID: $0.id) },
             onOpenFolder: { model.openFolder($0) },
-            onBeginEditing: { model.beginEditing() },
-            onDragChanged: { itemID, location in
-                handleDragChanged(itemID: itemID, at: location, metrics: metrics)
-            },
-            onDragEnded: { itemID, location in
-                handleDragEnded(itemID: itemID, at: location, metrics: metrics)
-            }
+            onBeginEditing: { model.beginEditing() }
         )
     }
 
@@ -432,67 +430,127 @@ struct LaunchpadView: View {
         }
     }
 
-    private func swipeGesture(metrics: LaunchpadMetrics, currentPage: Int) -> some Gesture {
-        DragGesture(minimumDistance: 10)
+    // MARK: - Canvas gesture
+
+    /// One drag gesture for the whole grid. It decides once, from where the
+    /// press started, whether the drag moves an icon or turns the page.
+    ///
+    /// Owning the drag here keeps it alive when the dragged icon's preview
+    /// crosses into another page: the tile itself leaves its old `ForEach` at
+    /// that moment, so a gesture attached to the tile would be cancelled.
+    private func canvasGesture(metrics: LaunchpadMetrics) -> some Gesture {
+        DragGesture(minimumDistance: 5, coordinateSpace: .named(LaunchpadCanvas.space))
             .onChanged { value in
-                guard !model.isEditing, model.openFolder == nil else { return }
-                guard abs(value.translation.width) >= abs(value.translation.height) else { return }
-                var translation = value.translation.width
-                let isPullingPastFirst = currentPage == 0 && translation > 0
-                let isPullingPastLast = currentPage == model.pageCount - 1 && translation < 0
-                if isPullingPastFirst || isPullingPastLast {
-                    // Rubber band at the ends instead of a hard stop.
-                    translation /= 3
+                if dragSession == nil, !isPageDragging {
+                    if let itemID = draggableItemID(at: value.startLocation, metrics: metrics) {
+                        beginGridDrag(itemID: itemID, at: value.location, metrics: metrics)
+                    } else if !model.isEditing, model.openFolder == nil, !model.isSearching {
+                        isPageDragging = true
+                    } else {
+                        return
+                    }
                 }
-                dragOffset = translation
+
+                if dragSession != nil {
+                    updateGridDrag(at: value.location, metrics: metrics)
+                } else if isPageDragging {
+                    updatePageDrag(value)
+                }
             }
             .onEnded { value in
-                guard !model.isEditing, model.openFolder == nil else {
-                    dragOffset = 0
-                    return
+                if dragSession != nil {
+                    finishGridDrag(at: value.location, metrics: metrics)
+                } else if isPageDragging {
+                    finishPageDrag(value, metrics: metrics)
                 }
-                let projected = value.predictedEndTranslation.width
-                let threshold = metrics.size.width * pageTurnThreshold
-                var target = currentPage
-                if projected <= -threshold {
-                    target += 1
-                } else if projected >= threshold {
-                    target -= 1
-                }
-                target = min(max(target, 0), model.pageCount - 1)
-                withAnimation(.spring(duration: 0.34, bounce: 0.08)) {
-                    dragOffset = 0
-                    model.goToPage(target)
-                }
+                isPageDragging = false
             }
+    }
+
+    /// The item under a press, when the press is on an icon (not a gap).
+    private func draggableItemID(at location: CGPoint, metrics: LaunchpadMetrics) -> String? {
+        guard let target = dropSlot(at: location, metrics: metrics, page: model.currentPage),
+              target.ontoIcon else { return nil }
+        return model.item(onPage: target.page, offset: target.offset)?.id
+    }
+
+    private func updatePageDrag(_ value: DragGesture.Value) {
+        guard abs(value.translation.width) >= abs(value.translation.height) else { return }
+        var translation = value.translation.width
+        let currentPage = model.currentPage
+        let isPullingPastFirst = currentPage == 0 && translation > 0
+        let isPullingPastLast = currentPage == model.pageCount - 1 && translation < 0
+        if isPullingPastFirst || isPullingPastLast {
+            // Rubber band at the ends instead of a hard stop.
+            translation /= 3
+        }
+        dragOffset = translation
+    }
+
+    private func finishPageDrag(_ value: DragGesture.Value, metrics: LaunchpadMetrics) {
+        guard !model.isEditing, model.openFolder == nil else {
+            dragOffset = 0
+            return
+        }
+        let projected = value.predictedEndTranslation.width
+        let threshold = metrics.size.width * pageTurnThreshold
+        var target = model.currentPage
+        if projected <= -threshold {
+            target += 1
+        } else if projected >= threshold {
+            target -= 1
+        }
+        target = min(max(target, 0), model.pageCount - 1)
+        withAnimation(.spring(duration: 0.34, bounce: 0.08)) {
+            dragOffset = 0
+            model.goToPage(target)
+        }
     }
 
     // MARK: - Dragging
 
-    private func handleDragChanged(itemID: String, at location: CGPoint, metrics: LaunchpadMetrics) {
+    private func beginGridDrag(itemID: String, at location: CGPoint, metrics: LaunchpadMetrics) {
         // Pulling an icon out of the grid switches Launchpad into jiggle mode
         // immediately, so the rest of the page wiggles while the drag is in
         // flight. Reordering, folder creation and adding to a folder all keep
         // working in that state.
         if !model.isEditing { model.beginEditing() }
+        createdPageWhileDragging = false
+        edgeDirection = 0
+        cancelEdgeDwell()
         dragSession = DragSession(itemID: itemID, location: location)
         model.draggingID = itemID
         handleEdgeDrag(at: location, metrics: metrics)
     }
 
-    private func handleDragEnded(itemID: String, at location: CGPoint, metrics: LaunchpadMetrics) {
+    private func updateGridDrag(at location: CGPoint, metrics: LaunchpadMetrics) {
+        guard var session = dragSession else { return }
+        session.location = location
+        dragSession = session
+        model.draggingID = session.itemID
+        handleEdgeDrag(at: location, metrics: metrics)
+    }
+
+    private func finishGridDrag(at location: CGPoint, metrics: LaunchpadMetrics) {
         defer {
             dragSession = nil
             model.draggingID = nil
             edgeDirection = 0
-            edgeStartedAt = nil
+            cancelEdgeDwell()
+            createdPageWhileDragging = false
         }
-        guard model.items.count > 0 else { return }
+        guard let session = dragSession else { return }
         guard let target = dropSlot(at: location, metrics: metrics, page: model.currentPage) else {
+            model.trimEmptyPages()
             return
         }
-        let slot = min(max(target.index, 0), model.items.count - 1)
-        model.performDrop(itemID: itemID, slot: slot, ontoIcon: target.ontoIcon)
+        model.performDrop(
+            itemID: session.itemID,
+            page: target.page,
+            offset: target.offset,
+            ontoIcon: target.ontoIcon
+        )
+        model.trimEmptyPages()
     }
 
     /// Ends a drag that started inside the open folder. Dropping back on the
@@ -522,7 +580,9 @@ struct LaunchpadView: View {
         }
         // Only an icon is a folder target; a gap between icons is a plain
         // reorder even when the nearest slot happens to hold an app.
-        let hovered = target.ontoIcon ? model.item(atSlot: target.index) : nil
+        let hovered = target.ontoIcon
+            ? model.item(onPage: target.page, offset: target.offset)
+            : nil
 
         // Dropping on the folder it came from just returns the app: the sheet
         // fades back in unchanged.
@@ -530,7 +590,12 @@ struct LaunchpadView: View {
 
         // A drop that creates a folder leaves that folder open for naming; the
         // source sheet is only closed when nothing new was opened.
-        if model.dropAppFromFolder(appID: app.id, slot: target.index, onto: hovered) == nil {
+        if model.dropAppFromFolder(
+            appID: app.id,
+            page: target.page,
+            offset: target.offset,
+            onto: hovered
+        ) == nil {
             model.closeFolder()
         }
     }
@@ -589,20 +654,54 @@ struct LaunchpadView: View {
 
         guard direction != 0 else {
             edgeDirection = 0
-            edgeStartedAt = nil
+            cancelEdgeDwell()
             return
         }
 
-        guard direction == edgeDirection else {
-            edgeDirection = direction
-            edgeStartedAt = .now
-            return
+        // Still in the same margin: the running dwell keeps counting, so a
+        // pointer that arrives and stops flips the page without needing one
+        // more movement event.
+        guard direction != edgeDirection else { return }
+        edgeDirection = direction
+        armEdgeDwell(direction: direction)
+    }
+
+    /// Waits out the dwell time at an edge, then turns one page and waits
+    /// again while the pointer stays there. Creating a page happens only once
+    /// per drag.
+    private func armEdgeDwell(direction: Int) {
+        cancelEdgeDwell()
+        edgeDwell = Task { @MainActor in
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .milliseconds(550))
+                guard !Task.isCancelled,
+                      dragSession != nil,
+                      edgeDirection == direction else { return }
+                guard flipPageForDrag(direction: direction) else { return }
+            }
         }
-        guard let started = edgeStartedAt, Date.now.timeIntervalSince(started) > 0.55 else { return }
+    }
+
+    /// @discardableResult: whether the drag actually moved to another page.
+    @discardableResult
+    private func flipPageForDrag(direction: Int) -> Bool {
+        // Waiting at the right edge of the last page creates a page to drop
+        // onto, even when it will end up holding a single icon.
+        if direction > 0, model.currentPage == model.pageCount - 1 {
+            guard !createdPageWhileDragging else { return false }
+            model.addPageForDragging()
+            createdPageWhileDragging = true
+            return true
+        }
 
         let before = model.currentPage
         model.stepPage(by: direction)
-        edgeStartedAt = model.currentPage == before ? nil : .now
+        return model.currentPage != before
+    }
+
+    private func cancelEdgeDwell() {
+        edgeDwell?.cancel()
+        edgeDwell = nil
     }
 
     /// Nearest grid slot to a point, and whether the point is on the icon
@@ -611,19 +710,22 @@ struct LaunchpadView: View {
         at location: CGPoint,
         metrics: LaunchpadMetrics,
         page: Int
-    ) -> (index: Int, ontoIcon: Bool)? {
+    ) -> (page: Int, offset: Int, ontoIcon: Bool)? {
         let column = Int(((location.x - metrics.columnX(0)) / metrics.columnPitch).rounded())
         let firstCenterY = metrics.gridTop + metrics.iconSize / 2
         let row = Int(((location.y - firstCenterY) / metrics.rowPitch).rounded())
 
-        guard (0..<metrics.columns).contains(column),
-              (0..<metrics.rows).contains(row) else { return nil }
+        // Rows stay strict, but a pointer in the left/right margin snaps to the
+        // nearest column: releasing there after a page flip still drops the
+        // icon on the page that just slid in.
+        guard (0..<metrics.rows).contains(row) else { return nil }
+        let targetColumn = min(max(column, 0), metrics.columns - 1)
 
-        let index = page * metrics.pageCapacity + row * metrics.columns + column
-        let dx = location.x - metrics.columnX(column)
+        let offset = row * metrics.columns + targetColumn
+        let dx = location.x - metrics.columnX(targetColumn)
         let dy = location.y - (firstCenterY + CGFloat(row) * metrics.rowPitch)
         let ontoIcon = (dx * dx + dy * dy).squareRoot() < metrics.iconSize * 0.72
-        return (index, ontoIcon)
+        return (page, offset, ontoIcon)
     }
 
     // MARK: - Drag overlay

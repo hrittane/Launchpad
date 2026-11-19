@@ -36,8 +36,6 @@ struct FolderIconView: View {
 
     let onOpen: () -> Void
     let onBeginEditing: () -> Void
-    let onDragChanged: (CGPoint) -> Void
-    let onDragEnded: (CGPoint) -> Void
 
     /// Brief enlargement played when an app lands inside the folder.
     @State private var addMagnification: CGFloat = 1
@@ -146,15 +144,6 @@ struct FolderIconView: View {
                 .simultaneousGesture(
                     LongPressGesture(minimumDuration: 0.65, maximumDistance: 14)
                         .onEnded { _ in onBeginEditing() }
-                )
-                .simultaneousGesture(
-                    DragGesture(minimumDistance: 5, coordinateSpace: .named(LaunchpadCanvas.space))
-                        .onChanged { value in
-                            onDragChanged(value.location)
-                        }
-                        .onEnded { value in
-                            onDragEnded(value.location)
-                        }
                 )
         }
         .accessibilityElement(children: .ignore)

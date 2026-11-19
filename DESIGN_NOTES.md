@@ -281,7 +281,7 @@ page 0.35 s, folder morph 0.40 s, hover 0.12 s, badge pop 0.20 s.
 | Page swipe mid-animation | horizontal slide with rubber band + spring snap, 0.35 s |
 | Folder morph animation | `glassEffectID` + `@Namespace` matched geometry from icon to panel, 0.40 s |
 | Edit-mode jiggle amplitude | ±2.5°, 0.16 s alternate, staggered |
-| Edge-drag page flip | dwell **0.55 s** in the outer **5 %** bands (shipped; the strip itself does not follow the drag while editing) |
+| Edge-drag page flip | dwell **0.55 s** in the outer **5 %** bands, driven by a timer so a motionless pointer still flips; holding at the right edge of the last page creates one new page per drag (shipped; the strip itself does not follow the drag while editing) |
 | “Done” control in edit mode | **not in reference and not implemented**: screenshots win, so edit mode ends via Esc, background click, or launching an app |
 | Status-bar item/menu | Show Launchpad / Settings / Quit |
 | About / Apps / Advanced settings tabs | not captured; About = version + credits; Apps = launch-at-login info + “Reset layout”; Advanced = reduce motion/transparency overrides |
@@ -473,11 +473,13 @@ clicks/keys), not only in unit tests. Release build: `x86_64 arm64`, no Swift wa
 
 ### 8.1 Grid model and persistence
 
-- The grid is a list of `LauncherItem` slots: `.app(bundleID)` or `.folder(AppFolder)`.
-  A page is a chunk of `columns × rows` slots (35 at 7×5), so folders consume one slot
-  no matter how many apps they hold.
+- The grid is stored page by page as a list of `LauncherItem` slots: `.app(bundleID)` or
+  `.folder(AppFolder)`. A page holds at most `columns × rows` slots (35 at 7×5), so folders
+  consume one slot no matter how many apps they hold. Pages pack towards the top-left but may
+  be sparse, so a new page can hold a single icon. Layouts saved before pages were explicit
+  are read from their flat `items` list and split at 35 slots.
 - Layout is stored at `~/Library/Application Support/Launchpad/layout.json`
-  (ordered slots + folder names/ids). It is reconciled with the live catalog on launch:
+  (ordered pages + folder names/ids). It is reconciled with the live catalog on launch:
   missing app IDs are dropped, unknown catalog apps are appended in catalog order, and
   reconciliation is skipped while the catalog is still empty so a slow scan cannot
   wipe the file.
@@ -491,7 +493,7 @@ clicks/keys), not only in unit tests. Release build: `x86_64 arm64`, no Swift wa
 | Enter edit mode | Long-press **0.65 s** on an icon (14 pt tolerance) or the “Edit” toggle; all icons jiggle ±2.5° |
 | Leave | Esc, background click, or launching an app. A background click steps out one layer at a time: the first stops the jiggle, the next closes the panel |
 | Reorder | Drag an icon straight from the resting grid: the page switches to jiggle mode and the icons slide aside live to open the gap under the pointer. Dropping on an empty slot reorders (persisted); dropping on an icon creates a folder or adds to one. A long-press without moving also enters jiggle mode |
-| Page from edit mode | Dragging into the outer **5 %** bands for **0.55 s** turns one page |
+| Page from edit mode | Dragging into the outer **5 %** bands for **0.55 s** turns one page; a timer drives the dwell, so a pointer that arrives and stops still flips. Holding at the right edge of the last page creates one new page per drag, even if that page will hold a single icon |
 | Uninstall badge | White translucent “×” only on apps the catalog marks removable; system apps have none |
 | Confirmation | Native `NSAlert` with the app’s own icon, name, and Cancel / Delete |
 | Delete | `FileManager.trashItem` → app lands in `~/.Trash`, removed from catalog **and** `layout.json`; the grid reflows |
