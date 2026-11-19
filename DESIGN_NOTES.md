@@ -722,3 +722,34 @@ Two consequences, both verified:
   drag that had just begun (folder drags start by entering edit mode). They now sit on a
   transparent `Color.clear` layer over the icon, so the artwork can change structure mid-gesture
   without losing the drag.
+
+### 8.9 Lifted folder plate
+
+The reference frames 004–008 show a folder being carried: a clear glass squircle, about 1.28×
+an icon, holding the 3 × 3 miniatures and floating over the wallpaper and the icons it passes.
+The look has four parts, and all of them are public API:
+
+- **Material.** `.glassEffect(.clear, in:)` on a continuous-corner squircle. `.clear` keeps the
+  wallpaper and the icon underneath readable and lets the system's edge lensing bend them;
+  `.regular` would frost the plate into an opaque tile. A `.white.opacity(0.11)` fill inside the
+  glass supplies the slight milkiness the reference plate has without hiding the backdrop.
+- **Content above the glass.** The miniatures are the glass view's own content (`FolderPlate`),
+  so they stay crisp instead of being sampled as backdrop. This is the same layering rule the
+  resting tile already follows.
+- **Rim.** The system rim is subtle; `GlassRim` overlays a 1.2 pt specular gradient (bright
+  top-leading, fading across, with a faint reflected edge at the opposite corner) plus a soft
+  inner bevel. A resting folder tile and a lifted plate use full intensity; the large opened
+  panel uses 0.8, where a full-strength outline would read as a drawn border.
+- **Lift.** The floating plate is drawn at its final size — never `scaleEffect` — because the
+  hoisted glass ignores render transforms (8.8). For the same reason the drop plate's spring
+  grows its **frame** from 92 % to 100 % instead of scaling. The drag preview keeps a wider,
+  softer shadow (radius 18, y 9) to separate it from the grid.
+
+Glass stays opt-in for `FolderDropPlate`: over a bare app icon the plate must remain a plain
+fill, because a hoisted glass surface is composited above sibling content and would blur the
+icon it is meant to sit behind. Folder targets pass `.clear` and get the full plate.
+
+Result: the folder has one material in every state — resting tile, lifted plate and opened
+panel all use the same `.clear` glass, milkiness and specular rim — and dragging a folder, or
+hovering a dragged app over one, shows the same lifted lens as the reference, with the wallpaper
+and neighbouring icons visible through it.

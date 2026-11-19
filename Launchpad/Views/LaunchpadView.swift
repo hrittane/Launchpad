@@ -739,8 +739,7 @@ struct LaunchpadView: View {
         ZStack(alignment: .topLeading) {
             if let session = dragSession, let item = model.item(withID: session.itemID) {
                 draggedTile(item: item, metrics: metrics)
-                    .shadow(color: .black.opacity(0.35), radius: 16, y: 8)
-                    .scaleEffect(1.12)
+                    .shadow(color: .black.opacity(0.38), radius: 18, y: 9)
                     .position(session.location)
             } else if let drag = folderDrag {
                 AppIconImage(
@@ -764,26 +763,18 @@ struct LaunchpadView: View {
         case .app(let appID):
             if let app = model.app(appID) {
                 AppIconImage(item: app, size: metrics.iconSize, artworkScale: metrics.iconArtworkScale)
+                    .scaleEffect(1.12)
             }
         case .folder(let folder):
-            ZStack {
-                RoundedRectangle(cornerRadius: metrics.iconSize * 0.225, style: .continuous)
-                    .fill(.white.opacity(0.16))
-                    .glassEffect(
-                        .regular,
-                        in: RoundedRectangle(
-                            cornerRadius: metrics.iconSize * 0.225,
-                            style: .continuous
-                        )
-                    )
-                    .frame(width: metrics.iconSize, height: metrics.iconSize)
-
-                FolderMiniGrid(
-                    apps: folder.appIDs.compactMap { model.appsByID[$0] },
-                    tileSize: metrics.iconSize,
-                    artworkScale: metrics.iconArtworkScale
-                )
-            }
+            // A lifted folder is bigger than an app tile and, unlike an app
+            // icon, is glass: it is drawn at its final size instead of being
+            // scaled, because the hoisted glass ignores `scaleEffect` and would
+            // otherwise stay at 1× under a shrunken set of miniatures.
+            FolderPlate(
+                apps: folder.appIDs.compactMap { model.appsByID[$0] },
+                size: metrics.iconSize * FolderPlate.liftScale,
+                artworkScale: metrics.iconArtworkScale
+            )
         }
     }
 }

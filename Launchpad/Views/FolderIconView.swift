@@ -100,22 +100,20 @@ struct FolderIconView: View {
             TimelineView(.animation(minimumInterval: 1.0 / 30.0, paused: !isEditing)) { context in
                 ZStack {
                     // The folder plate that appears when a dragged app hovers
-                    // this folder: same squircle, larger than the tile, so the
-                    // folder seems to swell open to take the app in.
-                    FolderDropPlate(iconSize: iconSize, isVisible: dropsIntoFolder)
-
-                    // While hovering, the plate carries the folder's own
-                    // miniatures at the plate's scale, so the hover reads as
-                    // the folder swelling open to take the app in. The app
-                    // itself lands in the next empty cell; it is drawn by the
-                    // drag overlay at that cell's size and position.
-                    if dropsIntoFolder {
-                        FolderMiniGrid(
-                            apps: apps,
-                            tileSize: iconSize * FolderDropPlate.contentScale,
-                            artworkScale: metrics.iconArtworkScale
-                        )
-                    }
+                    // this folder: the same lifted glass squircle as the
+                    // floating folder, larger than the tile, carrying the
+                    // folder's own miniatures at the plate's scale. The hover
+                    // therefore reads as the folder swelling open to take the
+                    // app in. The app itself lands in the next empty cell; it is
+                    // drawn by the drag overlay at that cell's size and
+                    // position.
+                    FolderDropPlate(
+                        iconSize: iconSize,
+                        isVisible: dropsIntoFolder,
+                        apps: apps,
+                        artworkScale: metrics.iconArtworkScale,
+                        glass: .clear
+                    )
 
                     // The glass is attached to the tile that *contains* the
                     // miniatures. A glass element that is only a sibling would
@@ -153,47 +151,20 @@ struct FolderIconView: View {
     }
 
     private var folderTile: some View {
-        ZStack {
-            RoundedRectangle(cornerRadius: iconSize * 0.225, style: .continuous)
-                .fill(.white.opacity(0.13))
-
-            FolderMiniGrid(apps: apps, tileSize: iconSize, artworkScale: metrics.iconArtworkScale)
-        }
-        .frame(width: iconSize, height: iconSize)
-        // Liquid Glass is hoisted into the surrounding `GlassEffectContainer`
-        // and ignores this tile's rotation and opacity, so while wiggling the
-        // tile is a plain translucent fill instead: the whole square then
-        // rotates as one piece, and a tile hidden for a drag (`opacity(0)`)
-        // cannot leave a glass plate behind at its old slot. The floating drag
-        // tile draws its own glass, outside the container.
-        .modifier(
-            FolderTileGlass(
-                enabled: !isEditing && !dropsIntoFolder,
-                cornerRadius: iconSize * 0.225
-            )
+        // The resting tile is the same lifted plate as the floating folder: a
+        // clear glass squircle with the folder's miniatures and the full
+        // specular rim, so the look does not change when the folder is picked
+        // up. Liquid Glass is hoisted into the surrounding `GlassEffectContainer`
+        // and ignores this tile's rotation and opacity, so while wiggling — and
+        // while a drag hides the slot — the tile drops to a plain translucent
+        // fill instead: the whole square then rotates as one piece, and a hidden
+        // tile cannot leave a glass plate behind at its old slot.
+        FolderPlate(
+            apps: apps,
+            size: iconSize,
+            artworkScale: metrics.iconArtworkScale,
+            glass: isEditing || dropsIntoFolder ? nil : .clear
         )
-        .overlay {
-            RoundedRectangle(cornerRadius: iconSize * 0.225, style: .continuous)
-                .strokeBorder(.white.opacity(0.18), lineWidth: 1)
-        }
-    }
-}
-
-/// Applies the folder's Liquid Glass plate except in edit mode, where the tile
-/// must be a normal view so the wiggle rotation moves it as a unit.
-private struct FolderTileGlass: ViewModifier {
-    let enabled: Bool
-    let cornerRadius: CGFloat
-
-    @ViewBuilder
-    func body(content: Content) -> some View {
-        if enabled {
-            content.glassEffect(
-                .regular,
-                in: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-            )
-        } else {
-            content
-        }
+        .frame(width: iconSize, height: iconSize)
     }
 }

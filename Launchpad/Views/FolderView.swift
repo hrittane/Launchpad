@@ -115,23 +115,21 @@ struct FolderView: View {
     private var panel: some View {
         ZStack {
             RoundedRectangle(cornerRadius: metrics.folderPanelCornerRadius, style: .continuous)
-                .fill(.white.opacity(0.08))
+                .fill(.white.opacity(0.11))
 
             folderGrid
         }
         .frame(width: metrics.folderPanelWidth, height: metrics.folderPanelHeight)
-        // Glass behind the panel's own content: the app grid stays crisp
-        // instead of being sampled as backdrop by the glass layer.
+        // The opened folder is the same clear glass as its resting tile and its
+        // lifted plate, so the surface does not change material when it opens.
+        // Glass sits behind the panel's own content, keeping the app grid crisp
+        // instead of sampling it as backdrop.
         .glassEffect(
-            .regular,
+            .clear,
             in: RoundedRectangle(cornerRadius: metrics.folderPanelCornerRadius, style: .continuous)
         )
         .overlay {
-            RoundedRectangle(
-                cornerRadius: metrics.folderPanelCornerRadius,
-                style: .continuous
-            )
-            .strokeBorder(.white.opacity(0.18), lineWidth: 1)
+            GlassRim(cornerRadius: metrics.folderPanelCornerRadius, intensity: 0.8)
         }
         .contentShape(
             RoundedRectangle(cornerRadius: metrics.folderPanelCornerRadius, style: .continuous)
