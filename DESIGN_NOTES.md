@@ -354,9 +354,14 @@ Validated on the build machine: macOS 26.7.2, Xcode 26.5, 1920 × 1200 @2× (Int
 - Pages are laid out side by side and translated as one strip, so a drag moves the
   content with the pointer and the snap animates the remainder.
 - Inputs: mouse drag (min 10 pt; turn at 16 % of the width or on a projected flick),
-  two-finger trackpad swipe (arrives as scroll events — accumulated per gesture, 45 pt
-  threshold, applied on release, inertial tail ignored), mouse wheel (accumulated 6),
-  and left/right arrow keys. Dots are clickable.
+  two-finger trackpad swipe (follows the fingers live: each scroll event adds its horizontal
+  delta to `pageDragOffset`; on release the distance is projected 0.15 s along the release
+  velocity, so a quick short flick still turns the page, and the gesture commits past 16 % of
+  the width; otherwise the strip springs back; inertial events are ignored), mouse wheel
+  (accumulated 6, one notch one page), and left/right arrow keys. Dots are clickable.
+- The live swipe is deliberately not animated per event: `pageDragOffset` is applied straight to
+  the strip offset, and only the release runs `withAnimation`, so the page travels with the
+  fingers instead of jumping as soon as a threshold is crossed.
 - Dragging past the first/last page is rubber-banded to a third of the distance.
 - The reference frames never show a second page, so the 0.34 s spring and its 0.08
   bounce are defaults.
@@ -648,6 +653,10 @@ monitor is the source of truth for typing:
   fill. Typing “cal” yields Calculator then Calendar; → selects Calendar; Return opened it.
 - The empty state (no matches) is a centred muted message, and the pill keeps the typed
   text so backspace can recover.
+- The field forces `.environment(\.colorScheme, .dark)` and draws its own white placeholder text
+  behind it: the native prompt is rendered by the field editor with the system's secondary label
+  colour, which turns black in macOS light mode on top of the glass. The folder name field does
+  the same.
 
 ### 8.5 Dismissal and focus
 

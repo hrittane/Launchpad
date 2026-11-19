@@ -255,7 +255,7 @@ struct LaunchpadView: View {
             }
         }
         .frame(width: metrics.size.width * CGFloat(pageItems.count), alignment: .leading)
-        .offset(x: -CGFloat(currentPage) * metrics.size.width + dragOffset)
+        .offset(x: -CGFloat(currentPage) * metrics.size.width + dragOffset + model.pageDragOffset)
         .frame(width: metrics.size.width, height: metrics.size.height, alignment: .leading)
         .clipped()
         .contentShape(Rectangle())

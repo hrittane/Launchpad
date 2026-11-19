@@ -101,15 +101,28 @@ struct FolderView: View {
     }
 
     private var nameField: some View {
-        TextField("Folder", text: $draftName)
-            .textFieldStyle(.plain)
-            .font(.system(size: metrics.folderNameFontSize, weight: .medium))
-            .foregroundStyle(.white)
-            .multilineTextAlignment(.center)
-            .focused($isNameFocused)
-            .onSubmit(commitName)
-            .frame(width: metrics.folderPanelWidth * 0.5, height: 30)
-            .accessibilityLabel(Text("Folder name"))
+        ZStack {
+            if draftName.isEmpty {
+                Text("Folder")
+                    .font(.system(size: metrics.folderNameFontSize, weight: .medium))
+                    .foregroundStyle(.white.opacity(0.55))
+                    .allowsHitTesting(false)
+                    .accessibilityHidden(true)
+            }
+
+            TextField("", text: $draftName)
+                .textFieldStyle(.plain)
+                .font(.system(size: metrics.folderNameFontSize, weight: .medium))
+                .foregroundStyle(.white)
+                .multilineTextAlignment(.center)
+                .focused($isNameFocused)
+                .onSubmit(commitName)
+                // The folder sheet always sits on the wallpaper: keep the field
+                // editor dark so light mode cannot render its text in black.
+                .environment(\.colorScheme, .dark)
+                .accessibilityLabel(Text("Folder name"))
+        }
+        .frame(width: metrics.folderPanelWidth * 0.5, height: 30)
     }
 
     private var panel: some View {

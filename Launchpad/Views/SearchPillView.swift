@@ -17,15 +17,34 @@ struct SearchPillView: View {
                 .font(.system(size: metrics.searchFontSize, weight: .medium))
                 .foregroundStyle(.white.opacity(0.78))
 
-            TextField("Search Applications", text: $text)
-                .textFieldStyle(.plain)
-                .font(.system(size: metrics.searchFontSize, weight: .regular))
-                .foregroundStyle(.white.opacity(0.95))
-                .tint(.white.opacity(0.7))
-                .lineLimit(1)
-                .focused(isFocused)
-                .onSubmit(onSubmit)
-                .accessibilityLabel(Text("Search Applications"))
+            ZStack(alignment: .leading) {
+                // A custom placeholder: the native prompt is drawn by the field
+                // editor with the system's secondary label colour, which turns
+                // black in light mode on top of the glass.
+                if text.isEmpty {
+                    Text("Search Applications")
+                        .font(.system(size: metrics.searchFontSize, weight: .regular))
+                        .foregroundStyle(.white.opacity(0.55))
+                        .lineLimit(1)
+                        .allowsHitTesting(false)
+                        .accessibilityHidden(true)
+                }
+
+                TextField("", text: $text)
+                    .textFieldStyle(.plain)
+                    .font(.system(size: metrics.searchFontSize, weight: .regular))
+                    .foregroundStyle(.white)
+                    .tint(.white.opacity(0.7))
+                    .lineLimit(1)
+                    .focused(isFocused)
+                    .onSubmit(onSubmit)
+                    // The pill always sits on a wallpaper, so it is always dark:
+                    // without this the field editor follows the system
+                    // appearance and renders black text in light mode.
+                    .environment(\.colorScheme, .dark)
+                    .accessibilityLabel(Text("Search Applications"))
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
 
             Spacer(minLength: 8)
 

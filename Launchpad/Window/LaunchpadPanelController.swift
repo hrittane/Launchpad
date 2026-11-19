@@ -109,6 +109,9 @@ final class LaunchpadPanelController {
     private var escapeMonitor: Any?
     private var hideTask: Task<Void, Never>?
     private var pagingInterpreter = PagingGestureInterpreter()
+    /// Recent horizontal scroll deltas, used to estimate release velocity so a
+    /// quick flick still turns a page after a short travel.
+    private var scrollSamples: [(time: TimeInterval, delta: CGFloat)] = []
     private let folderDim = FolderDim()
 
     init(model: AppModel) {
@@ -233,20 +236,33 @@ final class LaunchpadPanelController {
         launch(app)
     }
 
-    /// Trackpad swipes arrive as scroll events; they are interpreted by
-    /// `PagingGestureInterpreter` so one flick equals one page.
+    /// Trackpad swipes move the page strip with the fingers and commit on
+    /// release. Classic mouse wheels have no phases and much smaller deltas, so
+    /// they keep the discrete one-notch-one-page behaviour.
     private func handleScrollWheel(_ event: NSEvent) -> Bool {
-        guard model.pageCount > 1 else { return false }
+        guard model.pageCount > 1,
+              model.openFolderID == nil,
+              !model.isSearching,
+              model.draggingID == nil else { return false }
         guard event.momentumPhase.isEmpty else { return false }
 
         let deltaX = event.scrollingDeltaX
         let deltaY = event.scrollingDeltaY
         guard abs(deltaX) > 0 || event.hasPreciseScrollingDeltas else { return false }
 
+        if event.hasPreciseScrollingDeltas {
+            return handleFingerScroll(
+                deltaX: deltaX,
+                deltaY: deltaY,
+                phase: Self.phase(for: event.phase),
+                timestamp: event.timestamp
+            )
+        }
+
         let step = pagingInterpreter.consume(
             deltaX: deltaX,
             deltaY: deltaY,
-            isPrecise: event.hasPreciseScrollingDeltas,
+            isPrecise: false,
             phase: Self.phase(for: event.phase)
         )
         if step != 0 {
@@ -254,6 +270,73 @@ final class LaunchpadPanelController {
         }
         return abs(deltaX) >= abs(deltaY)
     }
+
+    /// A finger swipe translates the strip live, so the next page slides in at
+    /// the speed of the fingers instead of the panel jumping a whole page.
+    private func handleFingerScroll(
+        deltaX: CGFloat,
+        deltaY: CGFloat,
+        phase: PagingGestureInterpreter.Phase,
+        timestamp: TimeInterval
+    ) -> Bool {
+        let width = pageWidth
+        switch phase {
+        case .began:
+            guard abs(deltaX) >= abs(deltaY) else { return false }
+            scrollSamples.removeAll()
+            recordScrollSample(deltaX, at: timestamp)
+            model.beginPageGesture()
+            model.updatePageGesture(deltaX: deltaX, pageWidth: width)
+        case .changed:
+            if !model.isPaging {
+                guard abs(deltaX) >= abs(deltaY) else { return false }
+                scrollSamples.removeAll()
+                model.beginPageGesture()
+            }
+            recordScrollSample(deltaX, at: timestamp)
+            model.updatePageGesture(deltaX: deltaX, pageWidth: width)
+        case .ended:
+            guard model.isPaging else { return false }
+            let velocity = scrollVelocity(at: timestamp)
+            scrollSamples.removeAll()
+            model.endPageGesture(pageWidth: width, velocityX: velocity)
+        case .cancelled:
+            scrollSamples.removeAll()
+            model.cancelPageGesture()
+        case .other:
+            return false
+        }
+        return abs(deltaX) >= abs(deltaY)
+    }
+
+    /// Records horizontal travel for the release-velocity estimate. Only the
+    /// last `scrollVelocityWindow` seconds matter: a swipe that slowed down
+    /// before the fingers lifted should not read as a flick.
+    private func recordScrollSample(_ deltaX: CGFloat, at time: TimeInterval) {
+        scrollSamples.append((time, deltaX))
+        let cutoff = time - Self.scrollVelocityWindow
+        while let first = scrollSamples.first, first.time < cutoff {
+            scrollSamples.removeFirst()
+        }
+    }
+
+    /// Horizontal release velocity in points per second, or zero when the
+    /// fingers paused before lifting.
+    private func scrollVelocity(at time: TimeInterval) -> CGFloat {
+        guard let first = scrollSamples.first, let last = scrollSamples.last else { return 0 }
+        guard time - last.time < 0.05 else { return 0 }
+        let span = max(last.time - first.time, 0.008)
+        let total = scrollSamples.reduce(CGFloat.zero) { $0 + $1.delta }
+        let velocity = total / span
+        return min(max(velocity, -8000), 8000)
+    }
+
+    private var pageWidth: CGFloat {
+        screenUnderMouse()?.frame.width ?? window?.frame.width ?? 1
+    }
+
+    /// How far back the release-velocity estimate looks.
+    private static let scrollVelocityWindow: TimeInterval = 0.12
 
     private static func phase(for phase: NSEvent.Phase) -> PagingGestureInterpreter.Phase {
         if phase.contains(.began) { return .began }
@@ -328,6 +411,7 @@ final class LaunchpadPanelController {
 
     func hide(restoreFocus: Bool = true) {
         guard let window, window.isVisible else { return }
+        model.cancelPageGesture()
 
         let previous = previousApp
         let shouldRestore = restoreFocus && previous != nil

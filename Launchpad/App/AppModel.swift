@@ -1,5 +1,6 @@
 import Foundation
 import Observation
+import SwiftUI
 
 /// Shared, observable application state.
 @MainActor
@@ -21,6 +22,14 @@ final class AppModel {
 
     /// Zero-based index of the visible grid page.
     private(set) var currentPage = 0
+
+    /// Live horizontal translation of the page strip while a trackpad swipe is
+    /// in flight, in points. Negative reveals the next page, positive the
+    /// previous one. Zero at rest.
+    private(set) var pageDragOffset: CGFloat = 0
+
+    /// True between the first and the last scroll event of a paging swipe.
+    private(set) var isPaging = false
 
     /// Number of grid pages for the current layout. Kept in sync by the model
     /// so the AppKit scroll handler can page without knowing the layout.
@@ -122,10 +131,74 @@ final class AppModel {
 
     func notePresented() {
         showCount += 1
+        cancelPageGesture()
         endEditing()
         closeFolder()
         clearSearch()
     }
+
+    /// Starts a finger-following page swipe. The strip moves with every scroll
+    /// event and only snaps when the gesture ends.
+    func beginPageGesture() {
+        guard pageCount > 1, !isPaging else { return }
+        isPaging = true
+        pageDragOffset = 0
+    }
+
+    /// Adds the horizontal finger travel to the live offset, with a rubber band
+    /// past the first and last pages instead of a hard stop.
+    func updatePageGesture(deltaX: CGFloat, pageWidth: CGFloat) {
+        guard isPaging, pageWidth > 0 else { return }
+        let proposed = pageDragOffset + deltaX
+        let isPullingPastFirst = currentPage == 0 && proposed > 0
+        let isPullingPastLast = currentPage >= pageCount - 1 && proposed < 0
+        if isPullingPastFirst || isPullingPastLast {
+            let band = pageWidth * 0.32
+            pageDragOffset = min(max(proposed * 0.32, -band), band)
+        } else {
+            pageDragOffset = min(max(proposed, -pageWidth), pageWidth)
+        }
+    }
+
+    /// Settles the swipe: a turn past `pageTurnFraction` commits the adjacent
+    /// page, anything shorter springs back. A fast flick is projected a short
+    /// way with its release velocity, so a quick two-finger swipe turns the
+    /// page even when the fingers only travelled a little. Both the page index
+    /// and the live offset animate together, so the strip finishes the distance
+    /// the fingers did not cover instead of jumping.
+    func endPageGesture(pageWidth: CGFloat, velocityX: CGFloat = 0) {
+        guard isPaging else { return }
+        isPaging = false
+        guard pageWidth > 0 else {
+            pageDragOffset = 0
+            return
+        }
+        // A flick that reverses direction at the last moment must not carry the
+        // page the other way.
+        let velocity = velocityX * pageDragOffset >= 0 ? velocityX : 0
+        let projected = pageDragOffset + velocity * Self.pageVelocityProjection
+        let fraction = projected / pageWidth
+        let step = abs(fraction) > Self.pageTurnFraction ? (fraction < 0 ? 1 : -1) : 0
+        let target = min(max(currentPage + step, 0), max(pageCount - 1, 0))
+        withAnimation(.spring(duration: 0.34, bounce: 0.08)) {
+            currentPage = target
+            pageDragOffset = 0
+        }
+    }
+
+    /// Drops a live swipe without animating, for dismissal or a layout change.
+    func cancelPageGesture() {
+        guard isPaging || pageDragOffset != 0 else { return }
+        isPaging = false
+        pageDragOffset = 0
+    }
+
+    /// Share of a page a swipe has to cover to turn it.
+    private static let pageTurnFraction: CGFloat = 0.16
+
+    /// How far a release velocity is projected, in seconds. Mirrors the drag
+    /// gesture's predicted end: a quick flick carries further than the fingers.
+    private static let pageVelocityProjection: CGFloat = 0.15
 
     /// Moves by `delta` pages, clamped to the available range.
     func stepPage(by delta: Int) {
