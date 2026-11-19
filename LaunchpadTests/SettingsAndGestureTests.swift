@@ -511,6 +511,62 @@ struct HotCornerGeometryTests {
     }
 }
 
+struct DesktopRevealStateTests {
+    @Test
+    func restorePinchDoesNotOpenLaunchpad() {
+        var state = DesktopRevealState()
+        state.noteSpread(panelWasVisible: false)
+
+        // The spread revealed the desktop; this pinch puts the windows back.
+        let opens = state.shouldOpenLaunchpadOnPinch()
+        #expect(!opens)
+    }
+
+    @Test
+    func aSecondPinchOpensLaunchpad() {
+        var state = DesktopRevealState()
+        state.noteSpread(panelWasVisible: false)
+        let restored = state.shouldOpenLaunchpadOnPinch()
+        #expect(!restored)
+
+        // The restore consumed the pair, so a fresh pinch is a real activation.
+        let opens = state.shouldOpenLaunchpadOnPinch()
+        #expect(opens)
+    }
+
+    @Test
+    func spreadThatClosedLaunchpadDoesNotArmTheLatch() {
+        var state = DesktopRevealState()
+        state.noteSpread(panelWasVisible: true)
+
+        // That spread closed the panel while the Dock was blocked; no desktop
+        // was revealed, so the next pinch must still open Launchpad.
+        let opens = state.shouldOpenLaunchpadOnPinch()
+        #expect(opens)
+    }
+
+    @Test
+    func manualActivationCancelsAPendingRestore() {
+        var state = DesktopRevealState()
+        state.noteSpread(panelWasVisible: false)
+        state.reset()
+
+        let opens = state.shouldOpenLaunchpadOnPinch()
+        #expect(opens)
+    }
+
+    @Test
+    func workingOnTheDesktopForALongTimeDoesNotExpireTheRestore() {
+        var state = DesktopRevealState()
+        state.noteSpread(panelWasVisible: false)
+
+        // There is deliberately no timeout: how long the user stays on the
+        // desktop must not change what the restoring pinch means.
+        let opens = state.shouldOpenLaunchpadOnPinch()
+        #expect(!opens)
+    }
+}
+
 @MainActor
 struct AccessibilityBannerStateTests {
     @Test

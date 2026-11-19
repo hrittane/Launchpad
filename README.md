@@ -91,6 +91,13 @@ and the four-finger page swipe are read directly from the trackpad's `Multitouch
 so they keep working while the Dock's versions stand down. The private symbols are resolved at
 runtime; if unavailable, monitoring is simply inactive rather than crashing.
 
+macOS uses the same four-finger gestures for **Show Desktop**: a spread reveals the desktop and the
+following pinch restores the windows. `DesktopRevealState` remembers a spread seen while no panel
+was on screen, so the next pinch is treated as that restore and does **not** open Launchpad. There
+is deliberately no timeout — the user may stay on the desktop as long as they like. Pinch again to
+open the launcher, or use `⌥Space` / the menu bar item, which always take precedence. A spread that
+closes Launchpad does not arm this state because the Dock is blocked at that moment.
+
 **All of this requires Accessibility access.** Without it the app still works, but the native
 gestures are not suppressed.
 

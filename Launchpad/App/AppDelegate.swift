@@ -1,10 +1,19 @@
 import AppKit
 import Carbon.HIToolbox
+import os
+
+private let desktopGestureLog = Logger(
+    subsystem: "com.example.Launchpad",
+    category: "trackpad"
+)
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private let model = AppModel()
     private let settings = LaunchpadSettings.shared
+    /// Remembers a native "Show Desktop" spread so the pinch that restores the
+    /// windows does not open Launchpad as well.
+    private var desktopReveal = DesktopRevealState()
     private var panelController: LaunchpadPanelController?
     private var statusItemController: StatusItemController?
     private var settingsWindowController: SettingsWindowController?
@@ -37,7 +46,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         statusItemController = StatusItemController(
-            onShow: { [weak controller] in controller?.show() },
+            onShow: { [weak self] in self?.showFromManualControl() },
             onSettings: { [weak self] in self?.showSettings() },
             onQuit: { NSApp.terminate(nil) }
         )
@@ -132,8 +141,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // registered; the menu bar item keeps working in that case.
         hotKey = GlobalHotKey(keyCode: UInt32(kVK_Space), modifiers: UInt32(optionKey)) {
             [weak self] in
-            self?.panelController?.toggle()
+            self?.toggleFromManualControl()
         }
+    }
+
+    // MARK: - Manual activation
+
+    /// Explicit controls always win over a pending desktop restore.
+    private func showFromManualControl() {
+        desktopReveal.reset()
+        panelController?.show()
+    }
+
+    private func toggleFromManualControl() {
+        desktopReveal.reset()
+        panelController?.toggle()
     }
 
     private func configureHotCorner() {
@@ -142,7 +164,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             enabled: settings.hotCornerEnabled,
             corner: settings.hotCorner
         ) { [weak self] in
-            self?.panelController?.show()
+            self?.showFromManualControl()
         }
     }
 
@@ -152,12 +174,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // panel is visible, even when it was opened with ⌥Space.
         PinchGestureMonitor.shared.start(
             onPinch: { [weak self] in
-                guard let self, self.settings.pinchEnabled else { return }
+                guard let self else { return }
+                // Consume a pending desktop restore even when pinch-to-open is
+                // switched off, so enabling it later cannot inherit a stale one.
+                let opensLauncher = self.desktopReveal.shouldOpenLaunchpadOnPinch()
+                guard opensLauncher else {
+                    desktopGestureLog.notice(
+                        "pinch restored the desktop; keeping Launchpad closed"
+                    )
+                    return
+                }
+                guard self.settings.pinchEnabled else { return }
                 self.panelController?.show()
             },
             onSpread: { [weak self] in
-                guard let self, self.panelController?.isVisible == true else { return }
-                self.panelController?.hide()
+                guard let self else { return }
+                let panelWasVisible = self.panelController?.isVisible == true
+                self.desktopReveal.noteSpread(panelWasVisible: panelWasVisible)
+                if panelWasVisible { self.panelController?.hide() }
             },
             onSwipe: { [weak self] event in
                 self?.panelController?.handleFourFingerSwipe(event)

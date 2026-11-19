@@ -788,6 +788,16 @@ so they keep working while their system equivalents stand down. A four-finger si
 recognised from those contacts and pages the grid instead of switching desktops. The tap also
 survives the system disabling it (timeout / user input) by re-enabling itself.
 
+The same gestures belong to macOS's **Show Desktop**: a spread reveals the desktop, and the next
+pinch restores the windows. Without care, that restoring pinch also opened Launchpad. The
+recognizer emits one gesture per contact sequence and requires the fingers to lift between them,
+so a spread is always observed first. `DesktopRevealState` arms on a spread seen with no panel on
+screen and consumes the following pinch, which then only restores the desktop. No timeout is used:
+a user may work on the desktop for an arbitrary length of time before pinching the windows back,
+and a deadline would turn that restore into an unwanted Launchpad activation. An explicit hotkey,
+menu bar or hot-corner activation clears the pending restore. A spread while the panel is visible
+does not arm the state — the Dock is blocked then, so no desktop was revealed.
+
 The taps need Accessibility access. macOS keys an ad-hoc signature's grant to the build's code
 hash, so a new install leaves System Settings showing an enabled switch that no longer applies to
 the running binary — the silent failure that made both the spread and the desktop swipe still
