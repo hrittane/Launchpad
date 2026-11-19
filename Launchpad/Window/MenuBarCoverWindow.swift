@@ -60,9 +60,10 @@ final class MenuBarCoverWindow: NSWindow {
     ///   reaches a little further down and fades out over the panel's backdrop,
     ///   so the two renderings meet in a soft gradient instead of a hard edge.
     @discardableResult
-    func present(over screen: NSScreen) -> CGFloat? {
+    func present(over screen: NSScreen, blurWallpaper: Bool, dimAlpha: CGFloat) -> CGFloat? {
         let menuBarHeight = screen.frame.maxY - screen.visibleFrame.maxY
         guard menuBarHeight > 0 else { return nil }
+        backdrop.apply(blurWallpaper: blurWallpaper, dim: dimAlpha)
 
         let strip = NSRect(
             x: screen.frame.minX,

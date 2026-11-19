@@ -9,6 +9,11 @@ struct LaunchpadMetrics {
     let size: CGSize
     var columns: Int = LaunchpadMetrics.defaultColumns
     var rows: Int = LaunchpadMetrics.defaultRows
+    /// User multiplier for the icon size derived from the grid density.
+    var iconScale: CGFloat = 1
+    /// User multiplier for the label font size.
+    var labelScale: CGFloat = 1
+    var showsLabels: Bool = true
 
     static let defaultColumns = 7
     static let defaultRows = 5
@@ -17,27 +22,41 @@ struct LaunchpadMetrics {
 
     // MARK: Grid
 
-    /// 59 px at 1107 wide (5.33 % of width).
+    /// The reference grid spans 75 % of the screen width between the first and
+    /// last column centres. The pitch therefore shrinks as columns are added,
+    /// which is what makes an 8- or 9-column grid fit without zooming.
+    private static let gridWidthFraction: CGFloat = 0.7498
+    /// The reference grid spans 59.7 % of the screen height between the first
+    /// and last row centres.
+    private static let gridHeightFraction: CGFloat = 0.597
+
+    /// 59 px at 1107 wide (5.33 % of width) for the default 7 × 5 grid.
     ///
     /// This is the *visible* squircle. `NSWorkspace` icons are full 1024 px
     /// canvases whose artwork occupies ~824 px, so the image is drawn larger and
     /// then clipped back to this footprint.
     var iconSize: CGFloat {
-        min(max(size.width * 0.0533, 52), 118)
+        let columnLimited = columnPitch * 0.4267
+        // The grid is width-constrained, but a six-row grid would overflow the
+        // screen if the icons kept their width-derived size.
+        let rowLimited = rowPitch * 0.62
+        return min(max(min(columnLimited, rowLimited) * iconScale, 28), 118)
     }
 
     /// 1024 / 824 — macOS app icon artwork inset inside its canvas.
     var iconArtworkScale: CGFloat { 1.243 }
 
-    /// 138.33 px at 1107 wide (12.49 % of width).
+    /// 138.33 px at 1107 wide (12.49 % of width) for seven columns.
     var columnPitch: CGFloat {
         guard size.width > 0 else { return 0 }
-        return size.width * 0.1249
+        let gaps = max(columns - 1, 1)
+        return size.width * Self.gridWidthFraction / CGFloat(gaps)
     }
 
-    /// 107.5 px at 720 high (14.93 % of height).
+    /// 107.5 px at 720 high (14.93 % of height) for five rows.
     var rowPitch: CGFloat {
-        size.height * 0.1493
+        let gaps = max(rows - 1, 1)
+        return size.height * Self.gridHeightFraction / CGFloat(gaps)
     }
 
     /// First icon's top edge: 94 px at 720 high (13.06 % of height).
@@ -46,16 +65,21 @@ struct LaunchpadMetrics {
     }
 
     var labelGap: CGFloat {
-        max(9, iconSize * 0.22)
+        showsLabels ? max(6, iconSize * 0.22) : 0
     }
 
     var labelHeight: CGFloat {
-        max(16, min(size.width * 0.0152, 22))
+        guard showsLabels else { return 0 }
+        return max(12, min(size.width * 0.0152, 22) * labelScale)
     }
 
-    /// Reference labels are ~10 px tall at 1107 wide (≈17 pt at 1920).
+    /// Reference labels are ~10 px tall at 1107 wide (≈17 pt at 1920). They
+    /// shrink with the icons when the grid gets denser.
     var labelFontSize: CGFloat {
-        min(max(size.width * 0.00885, 12), 18)
+        let base = min(max(size.width * 0.00885, 12), 18)
+        let defaultIcon = size.width * 0.0533
+        let density = defaultIcon > 0 ? iconSize / defaultIcon : 1
+        return min(max(base * density * labelScale, 9), 22)
     }
 
     var cellHeight: CGFloat {

@@ -13,12 +13,24 @@ final class AppModel {
     /// Grid contents, reconciled against `catalog.apps`.
     private(set) var layout = LauncherLayout()
 
+    /// Grid shape, kept in sync with `LaunchpadSettings`. Stored here (rather
+    /// than read from the settings) so a bare `AppModel()` used by the tests
+    /// always starts on the default 7 × 5 grid.
+    private(set) var columns = LaunchpadMetrics.defaultColumns
+    private(set) var rows = LaunchpadMetrics.defaultRows
+
     /// Catalog lookup, rebuilt whenever the scan finishes.
     private(set) var appsByID: [String: AppItem] = [:]
 
     /// Incremented every time the panel is presented, so the UI can replay its
     /// entrance animation even though the hosting view is long-lived.
     private(set) var showCount = 0
+
+    /// True when gesture blocking is enabled but macOS has not granted
+    /// Accessibility for this build — normally right after an update, because
+    /// an ad-hoc signature is identified by the build's code hash. The panel
+    /// shows a one-click repair banner instead of failing silently.
+    private(set) var needsAccessibilityGrant = false
 
     /// Zero-based index of the visible grid page.
     private(set) var currentPage = 0
@@ -60,9 +72,7 @@ final class AppModel {
     /// Bumped when the search field should take focus.
     private(set) var searchFocusRequest = 0
 
-    var pageCapacity: Int {
-        LaunchpadMetrics.defaultColumns * LaunchpadMetrics.defaultRows
-    }
+    var pageCapacity: Int { columns * rows }
 
     init(catalog: AppCatalog = AppCatalog(), store: LayoutStore = .shared) {
         self.catalog = catalog
@@ -76,8 +86,27 @@ final class AppModel {
         openFolderID.flatMap(layout.folder(withID:))
     }
 
-    var columns: Int { LaunchpadMetrics.defaultColumns }
-    var rows: Int { LaunchpadMetrics.defaultRows }
+    /// Adopts the grid size from the settings and reflows the saved layout when
+    /// it changed. Appearance-only changes are ignored.
+    func apply(settings: LaunchpadSettings) {
+        let newColumns = settings.columns
+        let newRows = settings.rows
+        let capacity = newColumns * newRows
+        guard newColumns != columns || newRows != rows || layout.capacity != capacity else {
+            return
+        }
+
+        columns = newColumns
+        rows = newRows
+        var next = layout
+        next.setCapacity(capacity)
+        if next != layout {
+            layout = next
+            store.save(layout)
+        }
+        refreshPageCount()
+        clampCurrentPage()
+    }
 
     // MARK: - Catalog
 
@@ -128,6 +157,13 @@ final class AppModel {
     }
 
     // MARK: - Paging
+
+    /// Drives the stale-permission banner. Only assigns when the value really
+    /// changes, so the panel's 1.5 s trust poll does not invalidate the view.
+    func setAccessibilityGrantNeeded(_ needed: Bool) {
+        guard needsAccessibilityGrant != needed else { return }
+        needsAccessibilityGrant = needed
+    }
 
     func notePresented() {
         showCount += 1
@@ -319,6 +355,17 @@ final class AppModel {
     func remove(appID: String) {
         layout.remove(appID: appID)
         commit()
+    }
+
+    /// Rebuilds the grid from the installed apps in catalog order. Folders,
+    /// custom order and page splits are discarded.
+    func resetLayout() {
+        var next = LauncherLayout(capacity: pageCapacity)
+        next.reconcile(with: catalog.apps)
+        layout = next
+        refreshPageCount()
+        clampCurrentPage()
+        store.save(layout)
     }
 
     func uninstall(appID: String) {

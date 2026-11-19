@@ -10,19 +10,33 @@ import Foundation
 /// be sparse: dragging an icon past the last page creates a page that holds only
 /// that icon, so a new page does not need thirty-five icons to exist.
 struct LauncherLayout: Codable, Equatable, Sendable {
-    /// Slots per page, matching the default 7 × 5 grid.
-    static let pageCapacity = 35
+    /// Slots per page for the default 7 × 5 grid.
+    static let defaultPageCapacity = 35
+
+    /// Slots per page for the current grid. The settings can change it, so it
+    /// is stored with the layout and used by every page operation.
+    private(set) var capacity: Int
 
     /// One array per page, in display order. Always contains at least one page.
     private(set) var pages: [[LauncherItem]]
 
-    init(pages: [[LauncherItem]] = [[]]) {
+    init(pages: [[LauncherItem]] = [[]], capacity: Int = Self.defaultPageCapacity) {
+        self.capacity = max(1, capacity)
         self.pages = pages.isEmpty ? [[]] : pages
         normalize()
     }
 
-    init(items: [LauncherItem]) {
-        self.init(pages: Self.packing(items))
+    init(items: [LauncherItem], capacity: Int = Self.defaultPageCapacity) {
+        self.init(pages: Self.packing(items, capacity: capacity), capacity: capacity)
+    }
+
+    /// Repacks every item into pages of `newCapacity`. Sparse pages are
+    /// compacted, because a page can no longer be laid out with the old width.
+    mutating func setCapacity(_ newCapacity: Int) {
+        let next = max(1, newCapacity)
+        guard next != capacity else { return }
+        capacity = next
+        pages = Self.packing(items, capacity: next)
     }
 
     /// Flat list of every item, in grid order. Kept for lookups and for the
@@ -137,7 +151,7 @@ struct LauncherLayout: Codable, Equatable, Sendable {
         }
 
         for app in apps where !seen.contains(app.id) {
-            Self.appendToLastPage(.app(app.id), in: &rebuilt)
+            Self.appendToLastPage(.app(app.id), in: &rebuilt, capacity: capacity)
             seen.insert(app.id)
         }
 
@@ -157,7 +171,7 @@ struct LauncherLayout: Codable, Equatable, Sendable {
         guard from != target else { return false }
         let item = flat.remove(at: from)
         flat.insert(item, at: target)
-        pages = Self.packing(flat)
+        pages = Self.packing(flat, capacity: capacity)
         return true
     }
 
@@ -316,7 +330,7 @@ struct LauncherLayout: Codable, Equatable, Sendable {
             let clamped = min(max(slot, 0), flat.count)
             flat.insert(.app(appID), at: clamped)
         }
-        pages = Self.packing(flat)
+        pages = Self.packing(flat, capacity: capacity)
         return true
     }
 
@@ -458,13 +472,13 @@ struct LauncherLayout: Codable, Equatable, Sendable {
     private mutating func splitOverflowPages() {
         var page = 0
         while page < pages.count {
-            guard pages[page].count > Self.pageCapacity else {
+            guard pages[page].count > capacity else {
                 page += 1
                 continue
             }
 
-            let overflow = Array(pages[page][Self.pageCapacity...])
-            pages[page].removeSubrange(Self.pageCapacity...)
+            let overflow = Array(pages[page][capacity...])
+            pages[page].removeSubrange(capacity...)
             if page + 1 < pages.count {
                 pages[page + 1].insert(contentsOf: overflow, at: 0)
             } else {
@@ -481,21 +495,22 @@ struct LauncherLayout: Codable, Equatable, Sendable {
         for page in pages {
             guard !page.isEmpty else { continue }
             var rest = page
-            while rest.count > Self.pageCapacity {
-                split.append(Array(rest.prefix(Self.pageCapacity)))
-                rest.removeFirst(Self.pageCapacity)
+            while rest.count > capacity {
+                split.append(Array(rest.prefix(capacity)))
+                rest.removeFirst(capacity)
             }
             split.append(rest)
         }
         pages = split.isEmpty ? [[]] : split
     }
 
-    private static func packing(_ items: [LauncherItem]) -> [[LauncherItem]] {
+    private static func packing(_ items: [LauncherItem], capacity: Int) -> [[LauncherItem]] {
         guard !items.isEmpty else { return [[]] }
+        let capacity = max(1, capacity)
         var pages: [[LauncherItem]] = []
         var start = 0
         while start < items.count {
-            let end = min(start + pageCapacity, items.count)
+            let end = min(start + capacity, items.count)
             pages.append(Array(items[start..<end]))
             start = end
         }
@@ -504,13 +519,14 @@ struct LauncherLayout: Codable, Equatable, Sendable {
 
     private static func appendToLastPage(
         _ item: LauncherItem,
-        in pages: inout [[LauncherItem]]
+        in pages: inout [[LauncherItem]],
+        capacity: Int
     ) {
         guard !pages.isEmpty else {
             pages = [[item]]
             return
         }
-        if pages[pages.count - 1].count >= pageCapacity {
+        if pages[pages.count - 1].count >= capacity {
             pages.append([item])
         } else {
             pages[pages.count - 1].append(item)
@@ -522,21 +538,25 @@ struct LauncherLayout: Codable, Equatable, Sendable {
     private enum CodingKeys: String, CodingKey {
         case pages
         case items
+        case capacity
     }
 
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
+        let capacity = try container.decodeIfPresent(Int.self, forKey: .capacity)
+            ?? Self.defaultPageCapacity
         if let pages = try container.decodeIfPresent([[LauncherItem]].self, forKey: .pages) {
-            self.init(pages: pages)
+            self.init(pages: pages, capacity: capacity)
         } else {
             // Layouts saved before pages were explicit stored one flat list.
             let items = try container.decodeIfPresent([LauncherItem].self, forKey: .items) ?? []
-            self.init(items: items)
+            self.init(items: items, capacity: capacity)
         }
     }
 
     func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(capacity, forKey: .capacity)
         try container.encode(pages, forKey: .pages)
     }
 }

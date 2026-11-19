@@ -41,7 +41,9 @@ struct AppIconView: View {
     var body: some View {
         VStack(spacing: metrics.labelGap) {
             iconSquare
-            label
+            if metrics.showsLabels {
+                label
+            }
         }
         .frame(width: metrics.columnPitch, height: metrics.cellHeight, alignment: .top)
         // The tile is represented by the floating drag preview; keeping it

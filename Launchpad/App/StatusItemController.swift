@@ -5,14 +5,25 @@ import AppKit
 final class StatusItemController: NSObject {
     private let statusItem: NSStatusItem
     private let onShow: () -> Void
+    private let onSettings: () -> Void
     private let onQuit: () -> Void
 
-    init(onShow: @escaping () -> Void, onQuit: @escaping () -> Void) {
+    init(
+        onShow: @escaping () -> Void,
+        onSettings: @escaping () -> Void,
+        onQuit: @escaping () -> Void
+    ) {
         self.onShow = onShow
+        self.onSettings = onSettings
         self.onQuit = onQuit
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         super.init()
         configure()
+    }
+
+    /// Hides or shows the menu bar item without destroying it.
+    func setVisible(_ visible: Bool) {
+        statusItem.isVisible = visible
     }
 
     private func configure() {
@@ -40,10 +51,10 @@ final class StatusItemController: NSObject {
 
         let settings = NSMenuItem(
             title: NSLocalizedString("Settings…", comment: "Status item"),
-            action: nil,
+            action: #selector(showSettings),
             keyEquivalent: ","
         )
-        settings.isEnabled = false
+        settings.target = self
         menu.addItem(settings)
 
         menu.addItem(.separator())
@@ -61,6 +72,10 @@ final class StatusItemController: NSObject {
 
     @objc private func showLaunchpad() {
         onShow()
+    }
+
+    @objc private func showSettings() {
+        onSettings()
     }
 
     @objc private func quit() {

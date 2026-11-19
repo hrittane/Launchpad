@@ -18,8 +18,16 @@ final class BackdropView: NSView {
     /// True once a desktop picture was rendered for the current screen.
     private var hasWallpaper = false
 
+    /// The screen last presented, so a settings change can re-render in place.
+    private var screen: NSScreen?
+
     /// Set by the snapshot mode, which needs a deterministic opaque backdrop.
     private var usesFallbackOnly = false
+
+    /// User settings. The dim is a plain black tint; the blur is part of the
+    /// wallpaper composition and therefore re-renders the picture.
+    private var blursWallpaper = true
+    private var dimAlpha: CGFloat = 0.22
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
@@ -65,7 +73,20 @@ final class BackdropView: NSView {
     /// the same picture at the same scale and join without a seam.
     func present(on screen: NSScreen) {
         guard !usesFallbackOnly else { return }
-        hasWallpaper = wallpaper.render(screen: screen)
+        self.screen = screen
+        hasWallpaper = wallpaper.render(screen: screen, blurred: blursWallpaper)
+        updateVisibility()
+    }
+
+    /// Applies the look-and-feel settings, re-rendering the wallpaper when the
+    /// blur toggle changes.
+    func apply(blurWallpaper: Bool, dim: CGFloat) {
+        let blurChanged = blursWallpaper != blurWallpaper
+        blursWallpaper = blurWallpaper
+        dimAlpha = min(max(dim, 0), 0.85)
+        updateTint()
+        guard blurChanged, !usesFallbackOnly, let screen else { return }
+        hasWallpaper = wallpaper.render(screen: screen, blurred: blursWallpaper)
         updateVisibility()
     }
 
@@ -73,7 +94,7 @@ final class BackdropView: NSView {
     /// not pay Core Image's one-off shader compilation on the main thread.
     static func preheat() {
         guard let screen = NSScreen.main ?? NSScreen.screens.first else { return }
-        _ = WallpaperImage.blurred(for: screen)
+        _ = WallpaperImage.blurred(for: screen, blurred: true)
     }
 
     @objc private func accessibilityDisplayOptionsChanged() {
@@ -102,10 +123,14 @@ final class BackdropView: NSView {
     private func updateTint() {
         let workspace = NSWorkspace.shared
         let reduceTransparency = workspace.accessibilityDisplayShouldReduceTransparency
+        let increaseContrast = workspace.accessibilityDisplayShouldIncreaseContrast
 
-        let alpha: CGFloat = reduceTransparency
-            ? (workspace.accessibilityDisplayShouldIncreaseContrast ? 0.14 : 0.10)
-            : (workspace.accessibilityDisplayShouldIncreaseContrast ? 0.30 : 0.22)
+        let alpha: CGFloat
+        if reduceTransparency {
+            alpha = increaseContrast ? 0.14 : 0.10
+        } else {
+            alpha = min(0.85, dimAlpha + (increaseContrast ? 0.08 : 0))
+        }
         tint.layer?.backgroundColor = NSColor.black.withAlphaComponent(alpha).cgColor
         vignette.layer?.opacity = reduceTransparency ? 0.6 : 1.0
     }
@@ -134,8 +159,10 @@ private final class WallpaperView: NSView {
 
     /// - Returns: `false` when no desktop picture could be rendered, in which
     ///   case the caller falls back to the opaque gradient.
-    func render(screen: NSScreen) -> Bool {
-        guard let image = WallpaperImage.blurred(for: screen) else { return false }
+    func render(screen: NSScreen, blurred: Bool) -> Bool {
+        guard let image = WallpaperImage.blurred(for: screen, blurred: blurred) else {
+            return false
+        }
         layer?.contents = image
         return true
     }
@@ -151,6 +178,7 @@ private enum WallpaperImage {
         var path: String
         var width: Int
         var height: Int
+        var blurred: Bool
     }
 
     /// Blurring a 4K picture costs tens of milliseconds; the panel asks for the
@@ -171,7 +199,7 @@ private enum WallpaperImage {
         rawValue: "NSWorkspaceDesktopImageFillColorKey"
     )
 
-    static func blurred(for screen: NSScreen) -> CGImage? {
+    static func blurred(for screen: NSScreen, blurred: Bool) -> CGImage? {
         let workspace = NSWorkspace.shared
         guard let url = pictureURL(for: screen),
               let source = CGImageSourceCreateWithURL(url as CFURL, nil),
@@ -186,17 +214,22 @@ private enum WallpaperImage {
         let height = Int((screen.frame.height * scale).rounded())
         guard width > 0, height > 0 else { return nil }
 
-        let key = Key(path: url.path, width: width, height: height)
+        let key = Key(path: url.path, width: width, height: height, blurred: blurred)
         if let cached = cache[key] { return cached }
 
         let options = workspace.desktopImageOptions(for: screen)
         guard let composed = compose(picture, width: width, height: height, options: options)
         else { return nil }
 
-        let radius = max(4, CGFloat(width) * 0.022)
-        let blurred = blur(composed, radius: radius) ?? composed
-        cache[key] = blurred
-        return blurred
+        let result: CGImage
+        if blurred {
+            let radius = max(4, CGFloat(width) * 0.022)
+            result = blur(composed, radius: radius) ?? composed
+        } else {
+            result = composed
+        }
+        cache[key] = result
+        return result
     }
 
     /// Fraction of the screen's pixel size the backdrop is rendered at.

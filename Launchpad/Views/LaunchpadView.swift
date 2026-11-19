@@ -16,6 +16,7 @@ enum DebugSnapshot {
 /// The full-screen Launchpad interface: paged grid, folders, search, editing.
 struct LaunchpadView: View {
     @Bindable var model: AppModel
+    let settings: LaunchpadSettings
     let onDismiss: () -> Void
     let onLaunch: (AppItem) -> Void
     /// Called when the folder sheet starts or stops dimming the grid. The dim
@@ -74,7 +75,14 @@ struct LaunchpadView: View {
 
     var body: some View {
         GeometryReader { proxy in
-            let metrics = LaunchpadMetrics(size: proxy.size)
+            let metrics = LaunchpadMetrics(
+                size: proxy.size,
+                columns: model.columns,
+                rows: model.rows,
+                iconScale: CGFloat(settings.iconScale),
+                labelScale: CGFloat(settings.labelScale),
+                showsLabels: settings.showLabels
+            )
             let pageCount = model.pageCount
             let currentPage = min(model.currentPage, max(pageCount - 1, 0))
 
@@ -95,6 +103,21 @@ struct LaunchpadView: View {
                     x: proxy.size.width / 2,
                     y: metrics.searchTop + metrics.searchHeight / 2
                 )
+
+                if model.needsAccessibilityGrant, model.openFolder == nil {
+                    AccessibilityBanner(metrics: metrics) {
+                        AccessibilityAccess.grant()
+                    }
+                    .padding(.top, metrics.searchTop)
+                    .padding(.trailing, 28)
+                    .frame(
+                        maxWidth: .infinity,
+                        maxHeight: .infinity,
+                        alignment: .topTrailing
+                    )
+                    .transition(.opacity)
+                    .zIndex(2)
+                }
 
                 // Folder dim. It sits above the grid content (icons included)
                 // and below the sheet, and is animated by `FolderDim` in the
@@ -168,11 +191,19 @@ struct LaunchpadView: View {
             .coordinateSpace(.named(LaunchpadCanvas.space))
             .scaleEffect(appeared ? 1 : 1.04)
             .opacity(appeared ? 1 : 0)
+            .animation(.easeOut(duration: 0.2), value: model.needsAccessibilityGrant)
             .onAppear {
+                model.apply(settings: settings)
                 if !model.catalog.apps.isEmpty { model.reconcile() }
             }
             .onChange(of: model.catalog.apps) { _, apps in
                 if !apps.isEmpty { model.reconcile() }
+            }
+            .onChange(of: settings.columns) { _, _ in
+                model.apply(settings: settings)
+            }
+            .onChange(of: settings.rows) { _, _ in
+                model.apply(settings: settings)
             }
             .onChange(of: model.showCount) { _, _ in
                 isSearchFocused = false

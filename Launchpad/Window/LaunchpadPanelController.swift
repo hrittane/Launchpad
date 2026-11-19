@@ -7,6 +7,7 @@ final class LaunchpadContentView: NSView {
     private let backdrop = BackdropView()
     private let hosting: NSHostingView<LaunchpadView>
     private let model: AppModel
+    private let settings: LaunchpadSettings
     private let onDismiss: () -> Void
     private let onLaunch: (AppItem) -> Void
     private let onFolderObscured: (Bool) -> Void
@@ -23,12 +24,14 @@ final class LaunchpadContentView: NSView {
 
     init(
         model: AppModel,
+        settings: LaunchpadSettings,
         folderDim: FolderDim,
         onDismiss: @escaping () -> Void,
         onLaunch: @escaping (AppItem) -> Void,
         onFolderObscured: @escaping (Bool) -> Void
     ) {
         self.model = model
+        self.settings = settings
         self.folderDim = folderDim
         self.onDismiss = onDismiss
         self.onLaunch = onLaunch
@@ -36,6 +39,7 @@ final class LaunchpadContentView: NSView {
         hosting = NSHostingView(
             rootView: LaunchpadView(
                 model: model,
+                settings: settings,
                 onDismiss: onDismiss,
                 onLaunch: onLaunch,
                 onFolderObscured: onFolderObscured,
@@ -75,7 +79,19 @@ final class LaunchpadContentView: NSView {
 
     /// Draws the desktop picture of `screen` behind the interface.
     func presentBackdrop(on screen: NSScreen) {
+        backdrop.apply(
+            blurWallpaper: settings.blurWallpaper,
+            dim: settings.backgroundDim
+        )
         backdrop.present(on: screen)
+    }
+
+    /// Applies a live appearance change without waiting for the next show.
+    func applyAppearanceSettings() {
+        backdrop.apply(
+            blurWallpaper: settings.blurWallpaper,
+            dim: settings.backgroundDim
+        )
     }
 
     #if DEBUG
@@ -87,6 +103,7 @@ final class LaunchpadContentView: NSView {
         backdrop.forceFallbackForSnapshot()
         hosting.rootView = LaunchpadView(
             model: model,
+            settings: settings,
             onDismiss: onDismiss,
             onLaunch: onLaunch,
             onFolderObscured: onFolderObscured,
@@ -103,22 +120,30 @@ final class LaunchpadContentView: NSView {
 @MainActor
 final class LaunchpadPanelController {
     private let model: AppModel
+    private let settings: LaunchpadSettings
     private var window: LaunchpadWindow?
     private var coverWindow: MenuBarCoverWindow?
     private var previousApp: NSRunningApplication?
     private var escapeMonitor: Any?
     private var hideTask: Task<Void, Never>?
+    private var gestureReleaseTask: Task<Void, Never>?
+    /// Polls Accessibility while the panel is visible so the permission banner
+    /// appears or disappears without a relaunch.
+    private var accessibilityWatch: Task<Void, Never>?
     private var pagingInterpreter = PagingGestureInterpreter()
     /// Recent horizontal scroll deltas, used to estimate release velocity so a
     /// quick flick still turns a page after a short travel.
     private var scrollSamples: [(time: TimeInterval, delta: CGFloat)] = []
     private let folderDim = FolderDim()
 
-    init(model: AppModel) {
+    init(model: AppModel, settings: LaunchpadSettings) {
         self.model = model
+        self.settings = settings
 
         escapeMonitor = NSEvent.addLocalMonitorForEvents(matching: [.keyDown, .scrollWheel]) { [weak self] event in
-            guard let self, self.isVisible else { return event }
+            guard let self, self.isVisible, self.window?.isKeyWindow == true else {
+                return event
+            }
             if event.type == .keyDown {
                 return self.handleKeyDown(event)
             }
@@ -271,6 +296,39 @@ final class LaunchpadPanelController {
         return abs(deltaX) >= abs(deltaY)
     }
 
+    /// Four fingers travelling sideways page the grid, the way the system
+    /// gesture would switch desktops. The delta is a fraction of the trackpad
+    /// width, so a full-width swipe covers one page.
+    func handleFourFingerSwipe(_ event: FourFingerSwipeEvent) {
+        guard isVisible,
+              settings.suppressDesktopSwipe,
+              model.pageCount > 1,
+              model.openFolderID == nil,
+              !model.isSearching,
+              model.draggingID == nil else { return }
+
+        let width = pageWidth
+        switch event {
+        case .began:
+            model.beginPageGesture()
+        case .changed(let deltaX):
+            if !model.isPaging {
+                model.beginPageGesture()
+            }
+            model.updatePageGesture(
+                deltaX: CGFloat(deltaX) * width,
+                pageWidth: width
+            )
+        case .ended(let velocityX):
+            model.endPageGesture(
+                pageWidth: width,
+                velocityX: CGFloat(velocityX) * width
+            )
+        case .cancelled:
+            model.cancelPageGesture()
+        }
+    }
+
     /// A finger swipe translates the strip live, so the next page slides in at
     /// the speed of the fingers instead of the panel jumping a whole page.
     private func handleFingerScroll(
@@ -350,6 +408,58 @@ final class LaunchpadPanelController {
         window?.isVisible == true
     }
 
+    /// Adopts a live settings change while the panel is on screen.
+    func applySettings() {
+        guard isVisible else { return }
+        applyGestureBlocking()
+        (window?.contentView as? LaunchpadContentView)?.applyAppearanceSettings()
+    }
+
+    /// Native swipe, Mission Control and Show Desktop all stand down while the
+    /// panel owns the screen. The tap needs Accessibility; without it the
+    /// gestures simply stay enabled and the settings panel explains the grant.
+    private func applyGestureBlocking() {
+        let blocksGestures = settings.suppressDesktopSwipe
+        if blocksGestures, !TrackpadGestureBlocker.shared.installIfTrusted() {
+            TrackpadGestureBlocker.shared.requestAccessIfNeeded()
+        }
+        TrackpadGestureBlocker.shared.setBlocking(blocksGestures)
+        model.setAccessibilityGrantNeeded(
+            blocksGestures && !TrackpadGestureBlocker.shared.isTrusted
+        )
+        if blocksGestures, isVisible {
+            startAccessibilityWatch()
+        } else {
+            stopAccessibilityWatch()
+        }
+    }
+
+    /// An ad-hoc signature loses its Accessibility grant with every new build,
+    /// while macOS keeps showing the old switch as on. Polling turns that
+    /// silent failure into a banner with a fix button, and installs the tap the
+    /// moment the grant comes back.
+    private func startAccessibilityWatch() {
+        guard accessibilityWatch == nil else { return }
+        accessibilityWatch = Task { @MainActor [weak self] in
+            while !Task.isCancelled {
+                guard let self, self.isVisible else { break }
+                let blocker = TrackpadGestureBlocker.shared
+                let needed = self.settings.suppressDesktopSwipe && !blocker.isTrusted
+                self.model.setAccessibilityGrantNeeded(needed)
+                if !needed {
+                    _ = blocker.installIfTrusted()
+                }
+                try? await Task.sleep(for: .seconds(1.5))
+            }
+            self?.accessibilityWatch = nil
+        }
+    }
+
+    private func stopAccessibilityWatch() {
+        accessibilityWatch?.cancel()
+        accessibilityWatch = nil
+    }
+
     func toggle() {
         if isVisible { hide() } else { show() }
     }
@@ -367,6 +477,8 @@ final class LaunchpadPanelController {
         guard let screen = screenUnderMouse() else { return }
         hideTask?.cancel()
         hideTask = nil
+        gestureReleaseTask?.cancel()
+        gestureReleaseTask = nil
 
         if window == nil {
             window = makeWindow()
@@ -394,9 +506,18 @@ final class LaunchpadPanelController {
         Self.takeFocus(NSRunningApplication.current)
         window.makeKey()
 
+        // The Dock's desktop swipe, Mission Control and Show Desktop must not
+        // run underneath the panel: paging would slide the whole desktop away
+        // and the spread that closes Launchpad would also reveal the desktop.
+        applyGestureBlocking()
+
         // The menu bar is painted over rather than hidden: hiding it would take
         // the Dock with it, and the Dock stays visible under the panel.
-        let coverHeight = coverWindow.present(over: screen)
+        let coverHeight = coverWindow.present(
+            over: screen,
+            blurWallpaper: settings.blurWallpaper,
+            dimAlpha: settings.backgroundDim
+        )
         (window.contentView as? LaunchpadContentView)?.topInset = coverHeight ?? 0
 
         NSAnimationContext.runAnimationGroup { context in
@@ -412,6 +533,9 @@ final class LaunchpadPanelController {
 
     func hide(restoreFocus: Bool = true) {
         guard let window, window.isVisible else { return }
+        scheduleGestureRelease()
+        stopAccessibilityWatch()
+        model.setAccessibilityGrantNeeded(false)
         model.cancelPageGesture()
 
         let previous = previousApp
@@ -439,6 +563,22 @@ final class LaunchpadPanelController {
             if shouldRestore, let previous, !previous.isTerminated {
                 Self.takeFocus(previous)
             }
+        }
+    }
+
+    /// Stops blocking once the close has finished.
+    ///
+    /// The spread that closes Launchpad is the same one the Dock recognises as
+    /// Show Desktop, and the Dock resolves it a moment after the fingers lift.
+    /// Releasing the block immediately would let that late decision through,
+    /// so the block outlives the panel by a short, invisible margin.
+    private func scheduleGestureRelease() {
+        gestureReleaseTask?.cancel()
+        gestureReleaseTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .milliseconds(450))
+            guard !Task.isCancelled, let self, !self.isVisible else { return }
+            TrackpadGestureBlocker.shared.setBlocking(false)
+            self.gestureReleaseTask = nil
         }
     }
 
@@ -482,6 +622,7 @@ final class LaunchpadPanelController {
         let window = LaunchpadWindow()
         window.contentView = LaunchpadContentView(
             model: model,
+            settings: settings,
             folderDim: folderDim,
             onDismiss: { [weak self] in self?.hide() },
             onLaunch: { [weak self] item in self?.launch(item) },

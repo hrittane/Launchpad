@@ -60,6 +60,20 @@ final class GlobalHotKey {
         Self.registry[identifier] = self
     }
 
+    /// Releases the shortcut. The registry owns the instance, so this must be
+    /// called explicitly; letting the reference go would keep it alive forever.
+    func unregister() {
+        if let hotKey {
+            UnregisterEventHotKey(hotKey)
+            self.hotKey = nil
+        }
+        if let eventHandler {
+            RemoveEventHandler(eventHandler)
+            self.eventHandler = nil
+        }
+        Self.registry[identifier] = nil
+    }
+
     /// Called from the Carbon handler. The handler runs on the main thread
     /// because it is installed on the application event target, so the work can
     /// step straight back into the main actor.

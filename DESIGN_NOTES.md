@@ -769,3 +769,30 @@ Result: the folder has one material in every state — resting tile, lifted plat
 panel all use the same `.clear` glass, milkiness and specular rim — and dragging a folder, or
 hovering a dragged app over one, shows the same lifted lens as the reference, with the wallpaper
 and neighbouring icons visible through it.
+
+### 8.10 Desktop swipe while Launchpad is open
+
+The three- or four-finger “Swipe between full-screen applications” gesture belongs to the Dock,
+not to the frontmost app. Paging the grid with that gesture therefore slid the whole desktop
+away instead of turning the page, and the Dock exposes no public switch to pause it.
+
+The gesture reaches the session as a private `dockControl` event (CGEvent type 30) and companion
+`gesture` events (type 29); the same pair carries Mission Control, App Exposé and Show Desktop.
+`TrackpadGestureBlocker` installs head-insert taps for exactly those two event types on both the
+session and the annotated session stream, because the Dock does not use one location exclusively.
+While the panel is visible every event of those types is dropped before the Dock sees it, and the
+block outlives the panel by 450 ms so the Dock's late decision for the closing spread cannot slip
+through. Two-finger paging arrives as scroll-wheel events (type 22) and is untouched, and the raw
+contacts behind pinch, spread and the four-finger page swipe are read straight from the trackpad,
+so they keep working while their system equivalents stand down. A four-finger sideways swipe is
+recognised from those contacts and pages the grid instead of switching desktops. The tap also
+survives the system disabling it (timeout / user input) by re-enabling itself.
+
+The taps need Accessibility access. macOS keys an ad-hoc signature's grant to the build's code
+hash, so a new install leaves System Settings showing an enabled switch that no longer applies to
+the running binary — the silent failure that made both the spread and the desktop swipe still
+fire. `AccessibilityAccess.grant()` clears that stale entry and requests access again, which is
+what the Settings button does; it has to be clicked once after each install. A certificate-based
+signature would keep the grant across rebuilds, but it requires a trusted signing identity and is
+not used here.
+

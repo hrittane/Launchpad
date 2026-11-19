@@ -4,17 +4,23 @@ import Carbon.HIToolbox
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private let model = AppModel()
+    private let settings = LaunchpadSettings.shared
     private var panelController: LaunchpadPanelController?
     private var statusItemController: StatusItemController?
+    private var settingsWindowController: SettingsWindowController?
     private var hotKey: GlobalHotKey?
+    private var hotKeyWanted: Bool?
+    private var hotCornerMonitor: HotCornerMonitor?
     private var resignObserver: NSObjectProtocol?
+    private var settingsObserver: NSObjectProtocol?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         _ = NSApp.setActivationPolicy(.accessory)
 
         model.catalog.scanIfNeeded()
+        model.apply(settings: settings)
 
-        let controller = LaunchpadPanelController(model: model)
+        let controller = LaunchpadPanelController(model: model, settings: settings)
         panelController = controller
 
         // Like the real Launchpad, the panel is modal in spirit: switching to
@@ -32,15 +38,30 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         statusItemController = StatusItemController(
             onShow: { [weak controller] in controller?.show() },
+            onSettings: { [weak self] in self?.showSettings() },
             onQuit: { NSApp.terminate(nil) }
         )
+        statusItemController?.setVisible(settings.showMenuBarIcon)
 
-        // ⌥Space toggles the panel from any application, the way the Launchpad
-        // key does. A shortcut that another app already owns cannot be
-        // registered; the menu bar item keeps working in that case.
-        hotKey = GlobalHotKey(keyCode: UInt32(kVK_Space), modifiers: UInt32(optionKey)) {
-            [weak controller] in
-            controller?.toggle()
+        configureHotKey()
+        hotCornerMonitor = HotCornerMonitor()
+        configureHotCorner()
+        configurePinch()
+
+        // If the app was killed while it owned the system pinch, the override
+        // flag is still set; restoring at launch puts the Dock back.
+        SystemLaunchpadGesture.shared.setEnabled(settings.pinchEnabled)
+        SystemLaunchpadGesture.shared.restoreShowDesktopGestureOnce()
+
+        // Every persisted change re-applies the settings. The handlers are all
+        // idempotent, so a slider drag is cheap and a toggle needs no special
+        // case.
+        settingsObserver = NotificationCenter.default.addObserver(
+            forName: .launchpadSettingsDidChange,
+            object: settings,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor in self?.applySettings() }
         }
 
         // Compose and blur the backdrop now: the first panel presentation then
@@ -58,6 +79,90 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         #if DEBUG
         handleSnapshotRequestIfNeeded(controller: controller)
         #endif
+    }
+
+    func applicationWillTerminate(_ notification: Notification) {
+        if let settingsObserver {
+            NotificationCenter.default.removeObserver(settingsObserver)
+        }
+        if let resignObserver {
+            NotificationCenter.default.removeObserver(resignObserver)
+        }
+        hotKey?.unregister()
+        hotKey = nil
+        TrackpadGestureBlocker.shared.uninstall()
+        SystemLaunchpadGesture.shared.setEnabled(false)
+    }
+
+    // MARK: - Settings
+
+    private func showSettings() {
+        panelController?.hide(restoreFocus: false)
+        if settingsWindowController == nil {
+            settingsWindowController = SettingsWindowController(
+                model: model,
+                settings: settings
+            )
+        }
+        settingsWindowController?.present()
+    }
+
+    /// Re-applies every setting that has an AppKit side effect.
+    private func applySettings() {
+        statusItemController?.setVisible(settings.showMenuBarIcon)
+        configureHotKey()
+        configureHotCorner()
+        configurePinch()
+        SystemLaunchpadGesture.shared.setEnabled(settings.pinchEnabled)
+        model.apply(settings: settings)
+        panelController?.applySettings()
+    }
+
+    private func configureHotKey() {
+        // A slider drag posts one notification per step; re-registering the
+        // Carbon shortcut on every step would be needless churn.
+        guard hotKeyWanted != settings.hotKeyEnabled else { return }
+        hotKeyWanted = settings.hotKeyEnabled
+        hotKey?.unregister()
+        hotKey = nil
+        guard settings.hotKeyEnabled else { return }
+
+        // ⌥Space toggles the panel from any application, the way the Launchpad
+        // key does. A shortcut that another app already owns cannot be
+        // registered; the menu bar item keeps working in that case.
+        hotKey = GlobalHotKey(keyCode: UInt32(kVK_Space), modifiers: UInt32(optionKey)) {
+            [weak self] in
+            self?.panelController?.toggle()
+        }
+    }
+
+    private func configureHotCorner() {
+        guard let hotCornerMonitor else { return }
+        hotCornerMonitor.configure(
+            enabled: settings.hotCornerEnabled,
+            corner: settings.hotCorner
+        ) { [weak self] in
+            self?.panelController?.show()
+        }
+    }
+
+    private func configurePinch() {
+        // The monitor is started once and stays on: pinch-to-open is optional,
+        // but spread-to-close and four-finger paging should work whenever the
+        // panel is visible, even when it was opened with ⌥Space.
+        PinchGestureMonitor.shared.start(
+            onPinch: { [weak self] in
+                guard let self, self.settings.pinchEnabled else { return }
+                self.panelController?.show()
+            },
+            onSpread: { [weak self] in
+                guard let self, self.panelController?.isVisible == true else { return }
+                self.panelController?.hide()
+            },
+            onSwipe: { [weak self] event in
+                self?.panelController?.handleFourFingerSwipe(event)
+            }
+        )
     }
 
     #if DEBUG
