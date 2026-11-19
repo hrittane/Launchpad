@@ -553,6 +553,15 @@ wrapper is used on folder tiles and on apps inside an open folder.
   itself swallows clicks so it cannot close by accident. Opening a folder does **not** end
   edit mode: apps inside jiggle with the rest of the grid, and closing the folder returns to
   the still-wobbling grid.
+- **The dim covers the menu-bar strip too.** The 18 % black layer sits above the grid in the
+  panel window, not in the folder sheet, but the menu bar is painted by
+  `MenuBarCoverWindow`, a separate window above it. Left alone, the strip stayed undimmed and
+  read as a bar across the top the moment a folder opened. `FolderDim` owns both layers — the
+  grid's `FolderDimView` and the cover's — and animates them in a single animation group, so
+  the two windows cannot disagree: a state flag only reaching one of them, or the two
+  animating on different clocks, is what left a bright strip at the top while an app was
+  dragged out of a folder. The cover's bottom fade and the panel's layer meet at the same
+  value, so there is no edge. The dim resets on every presentation and on hide.
 - **Rename**: triple-click the title (select-all), type, Return commits, Esc cancels;
   whitespace is trimmed (blank names are rejected). Double-clicking the title also enters
   the field.

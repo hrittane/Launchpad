@@ -9,6 +9,8 @@ final class LaunchpadContentView: NSView {
     private let model: AppModel
     private let onDismiss: () -> Void
     private let onLaunch: (AppItem) -> Void
+    private let onFolderObscured: (Bool) -> Void
+    private let folderDim: FolderDim
 
     /// Height of the strip at the top that belongs to the menu-bar cover.
     ///
@@ -21,14 +23,24 @@ final class LaunchpadContentView: NSView {
 
     init(
         model: AppModel,
+        folderDim: FolderDim,
         onDismiss: @escaping () -> Void,
-        onLaunch: @escaping (AppItem) -> Void
+        onLaunch: @escaping (AppItem) -> Void,
+        onFolderObscured: @escaping (Bool) -> Void
     ) {
         self.model = model
+        self.folderDim = folderDim
         self.onDismiss = onDismiss
         self.onLaunch = onLaunch
+        self.onFolderObscured = onFolderObscured
         hosting = NSHostingView(
-            rootView: LaunchpadView(model: model, onDismiss: onDismiss, onLaunch: onLaunch)
+            rootView: LaunchpadView(
+                model: model,
+                onDismiss: onDismiss,
+                onLaunch: onLaunch,
+                onFolderObscured: onFolderObscured,
+                folderDim: folderDim
+            )
         )
         super.init(frame: .zero)
         wantsLayer = true
@@ -73,7 +85,13 @@ final class LaunchpadContentView: NSView {
         DebugSnapshot.flattenGlass = true
         topInset = 0
         backdrop.forceFallbackForSnapshot()
-        hosting.rootView = LaunchpadView(model: model, onDismiss: onDismiss, onLaunch: onLaunch)
+        hosting.rootView = LaunchpadView(
+            model: model,
+            onDismiss: onDismiss,
+            onLaunch: onLaunch,
+            onFolderObscured: onFolderObscured,
+            folderDim: folderDim
+        )
         needsLayout = true
         layoutSubtreeIfNeeded()
     }
@@ -91,6 +109,7 @@ final class LaunchpadPanelController {
     private var escapeMonitor: Any?
     private var hideTask: Task<Void, Never>?
     private var pagingInterpreter = PagingGestureInterpreter()
+    private let folderDim = FolderDim()
 
     init(model: AppModel) {
         self.model = model
@@ -270,7 +289,7 @@ final class LaunchpadPanelController {
             window = makeWindow()
         }
         if coverWindow == nil {
-            coverWindow = MenuBarCoverWindow()
+            coverWindow = MenuBarCoverWindow(folderDim: folderDim)
         }
         guard let window, let coverWindow else { return }
 
@@ -378,8 +397,12 @@ final class LaunchpadPanelController {
         let window = LaunchpadWindow()
         window.contentView = LaunchpadContentView(
             model: model,
+            folderDim: folderDim,
             onDismiss: { [weak self] in self?.hide() },
-            onLaunch: { [weak self] item in self?.launch(item) }
+            onLaunch: { [weak self] item in self?.launch(item) },
+            onFolderObscured: { [weak self] obscured in
+                self?.folderDim.setDimmed(obscured)
+            }
         )
         return window
     }

@@ -60,7 +60,10 @@ struct FolderView: View {
 
     var body: some View {
         ZStack {
-            Color.black.opacity(0.18)
+            // Tap target that closes the folder. The dim itself is drawn by the
+            // grid behind (see `LaunchpadView`), so that the menu-bar cover can
+            // fade with it in step.
+            Color.clear
                 .contentShape(Rectangle())
                 .onTapGesture(perform: onClose)
                 .accessibilityHidden(true)

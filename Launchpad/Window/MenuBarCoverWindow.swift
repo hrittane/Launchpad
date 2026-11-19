@@ -16,8 +16,13 @@ final class MenuBarCoverWindow: NSWindow {
     private let clip = NSView()
     private let fade = CAGradientLayer()
     private let backdrop = BackdropView()
+    /// The cover's share of the folder dim. `FolderDim` animates this layer and
+    /// the grid's layer together, in one animation group.
+    private let dim = NSView()
+    private let folderDim: FolderDim
 
-    init() {
+    init(folderDim: FolderDim) {
+        self.folderDim = folderDim
         super.init(contentRect: .zero, styleMask: [.borderless], backing: .buffered, defer: false)
         isOpaque = false
         backgroundColor = .clear
@@ -34,6 +39,15 @@ final class MenuBarCoverWindow: NSWindow {
         clip.layer?.masksToBounds = true
         clip.layer?.mask = fade
         clip.addSubview(backdrop)
+
+        dim.wantsLayer = true
+        dim.layer?.backgroundColor = NSColor.black.cgColor
+        dim.autoresizingMask = [.width, .height]
+        if let layer = dim.layer {
+            folderDim.attach(cover: layer)
+        }
+        clip.addSubview(dim)
+
         contentView = clip
     }
 
@@ -66,6 +80,7 @@ final class MenuBarCoverWindow: NSWindow {
             width: screen.frame.width,
             height: screen.frame.height
         )
+        dim.frame = clip.bounds
 
         // Opaque over the menu bar, then fading out over the panel.
         fade.frame = clip.bounds
@@ -74,6 +89,7 @@ final class MenuBarCoverWindow: NSWindow {
         fade.startPoint = CGPoint(x: 0.5, y: 1)
         fade.endPoint = CGPoint(x: 0.5, y: 0)
 
+        folderDim.setDimmed(false, animated: false)
         orderFrontRegardless()
         return menuBarHeight
     }

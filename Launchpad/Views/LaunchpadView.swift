@@ -18,6 +18,12 @@ struct LaunchpadView: View {
     @Bindable var model: AppModel
     let onDismiss: () -> Void
     let onLaunch: (AppItem) -> Void
+    /// Called when the folder sheet starts or stops dimming the grid. The dim
+    /// object animates the grid layer and the menu-bar cover together.
+    let onFolderObscured: (Bool) -> Void
+
+    /// Shared with the menu-bar cover so both dim layers fade on one clock.
+    let folderDim: FolderDim
 
     @State private var appeared = false
     @State private var dragOffset: CGFloat = 0
@@ -81,6 +87,15 @@ struct LaunchpadView: View {
                     x: proxy.size.width / 2,
                     y: metrics.searchTop + metrics.searchHeight / 2
                 )
+
+                // Folder dim. It sits above the grid content (icons included)
+                // and below the sheet, and is animated by `FolderDim` in the
+                // same animation group as the menu-bar cover's share of it, so
+                // the two windows cannot disagree about how dark the screen is.
+                FolderDimView(dim: folderDim)
+                    .allowsHitTesting(false)
+                    .accessibilityHidden(true)
+                    .zIndex(1)
 
                 if model.openFolder == nil && !model.isSearching {
                     PageDotsView(
@@ -168,6 +183,9 @@ struct LaunchpadView: View {
                     edgeStartedAt = nil
                 }
             }
+            .onChange(of: isFolderObscuringGrid) { _, obscured in
+                onFolderObscured(obscured)
+            }
         }
         .ignoresSafeArea()
         .task(id: model.showCount) {
@@ -175,6 +193,7 @@ struct LaunchpadView: View {
             dragOffset = 0
             dragSession = nil
             folderDrag = nil
+            onFolderObscured(false)
             await Task.yield()
             withAnimation(.spring(duration: 0.42, bounce: 0.06)) {
                 appeared = true
