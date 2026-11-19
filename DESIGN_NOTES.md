@@ -95,6 +95,13 @@ proportions of screen width (W) / height (H). "measured" = pixel-scanned with
 > (60 px at 1107 W, column centres identical). Labels measured 48 × 10 px in the reference;
 > 17 pt at 1920 W reproduces that exactly at equal scale.
 
+The grid follows the **system icon style**. `NSWorkspace.icon(forFile:)` returns the current
+Normal / Clear / Dark / Tinted variant, and `IconProvider` keys its cache by the icon style,
+`AppleInterfaceStyle`, and — for Tinted — the tint color. When any of them changes, the cache is
+dropped and the visible tiles reload; a one-second poll covers the change while Launchpad is
+open, and every presentation refreshes first. In-flight loads from the previous style are never
+written back into the new cache.
+
 At 8×5 (frame 046) and 9×5 (frame 048) the same total width/height is divided, so icons and labels
 shrink (≈51 px icons at 8 cols, ≈46 px at 9 cols) and gaps compress. Icon size is therefore
 **derived from column count**, not fixed.

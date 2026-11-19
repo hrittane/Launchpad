@@ -13,6 +13,10 @@ struct AppIconImage: View {
     @State private var image: NSImage?
 
     var body: some View {
+        // Reading the revision makes the view observe icon-style changes; the
+        // task id below then reloads the image with the new system variant.
+        let revision = IconProvider.shared.revision
+
         ZStack {
             if let image {
                 Image(nsImage: image)
@@ -41,12 +45,17 @@ struct AppIconImage: View {
             }
         }
         .frame(width: size, height: size)
-        .task(id: item.id) {
+        .task(id: "\(item.id)-\(revision)") {
+            let loaded: NSImage?
             if let cached = IconProvider.shared.cachedIcon(for: item) {
-                image = cached
+                loaded = cached
             } else {
-                image = await IconProvider.shared.icon(for: item)
+                loaded = await IconProvider.shared.icon(for: item)
             }
+            // A style change cancels this task; do not let the previous
+            // appearance land after the new icon has already been set.
+            guard !Task.isCancelled else { return }
+            image = loaded
         }
     }
 }

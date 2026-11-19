@@ -382,6 +382,7 @@ final class LaunchpadPanelController {
         window.alphaValue = 0
         (window.contentView as? LaunchpadContentView)?.presentBackdrop(on: screen)
         model.notePresented()
+        IconProvider.shared.refreshForCurrentAppearance()
         IconProvider.shared.prefetch(Array(model.catalog.apps.prefix(35)))
 
         NSApp.activate()
