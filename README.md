@@ -12,7 +12,7 @@ for what that means for users.
 ## Quick start
 
 ```sh
-# Debug build + full test suite (110 tests in 14 suites)
+# Debug build + full test suite (132 tests in 17 suites)
 xcodebuild -project Launchpad.xcodeproj -scheme Launchpad -configuration Debug \
   -derivedDataPath /tmp/launchpad-debug test
 
@@ -50,6 +50,10 @@ human on a real Mac — the test suite covers logic, not gestures.
   at most one gesture, so relaxing the fingers after a pinch cannot immediately close it. The
   gesture pair is shared with macOS's Show Desktop, so the pinch that restores the windows does not
   also open Launchpad.
+- The edit-mode “×” opens the uninstall panel from frames 065–066: it scans the app bundle
+  and the matching folders under `~/Library` (Application Support, Caches, Preferences, Saved
+  State, Containers, WebKit, HTTP storage, LaunchAgents, Logs), shows each item with its size,
+  and moves only the checked items to the Trash.
 - `⌥Space` toggles the panel (configurable), plus an optional screen-corner trigger.
 - The Dock stays visible; the menu bar is painted over rather than hidden, because hiding it
   hides the Dock as well.
@@ -70,6 +74,8 @@ human on a real Mac — the test suite covers logic, not gestures.
 | `Launchpad/Services/PinchGestureMonitor.swift` | Raw `MultitouchSupport` contacts; pinch/spread recognizer and four-finger swipe tracker |
 | `Launchpad/Services/TrackpadGestureBlocker.swift` | Session event taps and the swallow policy |
 | `Launchpad/Services/AccessibilityAccess.swift` | Permission prompt, stale-grant repair, installer helpers |
+| `Launchpad/Services/UninstallInventory.swift`, `AppUninstaller.swift` | App-footprint scan, sizes and the trash flow |
+| `Launchpad/Views/UninstallDialog.swift` | White uninstall panel from frames 065–066 |
 | `LaunchpadTests/` | Swift Testing suites (layout, settings, gestures, policy, geometry) |
 
 User data:

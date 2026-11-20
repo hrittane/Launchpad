@@ -507,12 +507,12 @@ clicks/keys), not only in unit tests. Release build: `x86_64 arm64`, no Swift wa
 | Reorder | Drag an icon straight from the resting grid: the page switches to jiggle mode and the icons slide aside live to open the gap under the pointer. Dropping on an empty slot reorders (persisted); dropping on an icon creates a folder or adds to one. A long-press without moving also enters jiggle mode |
 | Page from edit mode | Dragging into the outer **5 %** bands for **0.55 s** turns one page; a timer drives the dwell, so a pointer that arrives and stops still flips. Holding at the right edge of the last page creates one new page per drag, even if that page will hold a single icon |
 | Uninstall badge | White translucent “×” only on apps the catalog marks removable; system apps have none |
-| Confirmation | Native `NSAlert` with the app’s own icon, name, and Cancel / Delete |
-| Delete | `FileManager.trashItem` → app lands in `~/.Trash`, removed from catalog **and** `layout.json`; the grid reflows |
+| Confirmation | White 420 × 300 panel (frames 065–066): the app’s icon, name and total footprint, then checkable **Application Files / Application Support / Caches / Preferences / Saved State / Containers / Other Data** rows with per-item sizes, an **All** switch and Cancel / Move to Trash. Sizes are measured recursively off the main thread while the panel shows the reference spinner |
+| Delete | `FileManager.trashItem` on every checked component; the app is removed from the catalog **and** `layout.json` only when its bundle was trashed, and failures are reported in a follow-up alert |
 
 Verified: a throwaway app in `~/Applications` moved to the Trash through the badge flow,
-and the layout lost its ID (`grep` count 0). The alert icon matches the reference frame 065
-(an alert without the icon was rejected during review).
+and the layout lost its ID (`grep` count 0). The panel carries the app’s own icon, matching
+frame 065; unchecking a category keeps that data on disk.
 
 Reorder and folder creation were verified with direct drags (no prior hold): a press-and-drag
 of Activity Monitor into a neighbouring slot reordered `layout.json`, dropping an icon on
@@ -682,11 +682,15 @@ monitor is the source of truth for typing:
 - The edge-drag page turn is implemented (5 % bands, 0.55 s dwell) but was not exercised
   end-to-end; only programmatic paging and the arrow keys are verified.
 - Edit mode has no “Done” button, matching the reference frames.
-- The uninstall flow moves the `.app` bundle itself to the Trash; it does not enumerate
-  Application Support / Caches / Preferences the way frame 066 does. A future iteration can
-  add the detail list without changing the confirmation flow.
-- `NSAlert` is opaque by design (frame 065 is a white dialog), while folders and the pill
-  are Liquid Glass — the mix is intentional.
+- The uninstall panel scans the app bundle plus the matching folders under `~/Library`
+  (Application Support, Caches, Preferences, Saved Application State, Containers, WebKit,
+  HTTPStorages, Application Scripts, LaunchAgents, Logs) for the bundle identifier and, where
+  installers commonly use it, the display name. It does not enumerate `ByHost` preferences or
+  team-prefixed group containers.
+- Measuring a large app (Chrome-sized caches, multi-GB bundles) can keep the spinner up for a
+  moment; the scan runs on a detached task, so the panel still responds and can be cancelled.
+- The uninstall panel is drawn in the light appearance even when the launcher is dark, because
+  frame 065 is a white dialog; the rest of the UI keeps Liquid Glass.
 
 ### 8.7 Deliberate deviations from the reference (user requests)
 

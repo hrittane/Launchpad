@@ -1,45 +1,56 @@
 import AppKit
 
-/// Confirms and performs the removal of an application.
+/// Confirms and performs the removal of an application and the data it left
+/// in the user's Library folders.
 ///
 /// Apps outside `/Applications` are never offered this by the UI; the guard is
 /// repeated here so a wrong call cannot delete a system app.
 @MainActor
 enum AppUninstaller {
-    /// Returns true when the app was moved to the Trash.
+    /// Returns true when the app bundle itself was moved to the Trash.
     @discardableResult
     static func confirmAndTrash(_ app: AppItem) -> Bool {
         guard app.isRemovable else { return false }
 
-        NSRunningApplication.current.activate(
-            options: NSApplication.ActivationOptions(rawValue: 1 << 1)
-        )
+        let controller = UninstallDialogController(app: app)
+        guard let selection = controller.run(), !selection.isEmpty else { return false }
+
+        var failures: [String] = []
+        var trashedApp = false
+        for component in selection {
+            // A file can vanish between the scan and the confirmation.
+            guard FileManager.default.fileExists(atPath: component.url.path) else {
+                continue
+            }
+            do {
+                try FileManager.default.trashItem(at: component.url, resultingItemURL: nil)
+                if component.kind == .applicationFiles {
+                    trashedApp = true
+                }
+            } catch {
+                failures.append("\(component.name) — \(error.localizedDescription)")
+            }
+        }
+
+        if !failures.isEmpty {
+            presentFailureAlert(appName: app.name, failures: failures)
+        }
+
+        return trashedApp
+    }
+
+    private static func presentFailureAlert(appName: String, failures: [String]) {
+        let shown = failures.prefix(6).joined(separator: "\n")
+        let remaining = failures.count - min(failures.count, 6)
 
         let alert = NSAlert()
         alert.alertStyle = .warning
-        alert.icon = NSWorkspace.shared.icon(forFile: app.url.path)
-        alert.messageText = "Are you sure you want to delete “\(app.name)”?"
-        alert.informativeText = """
-            Deleting this app will also delete its data. You can reinstall it from the App Store.
-            """
-        alert.addButton(withTitle: "Delete")
-        alert.addButton(withTitle: "Cancel")
-        alert.buttons.first?.hasDestructiveAction = true
+        alert.messageText = "Some files from “\(appName)” could not be moved to the Trash."
+        alert.informativeText = remaining > 0
+            ? shown + "\n…and \(remaining) more."
+            : shown
+        alert.addButton(withTitle: "OK")
         alert.window.level = .floating
-
-        guard alert.runModal() == .alertFirstButtonReturn else { return false }
-
-        do {
-            try FileManager.default.trashItem(at: app.url, resultingItemURL: nil)
-            return true
-        } catch {
-            let failure = NSAlert()
-            failure.alertStyle = .warning
-            failure.messageText = "“\(app.name)” could not be deleted."
-            failure.informativeText = error.localizedDescription
-            failure.addButton(withTitle: "OK")
-            failure.runModal()
-            return false
-        }
+        alert.runModal()
     }
 }
