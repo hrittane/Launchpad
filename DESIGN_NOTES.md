@@ -240,8 +240,9 @@ overlay (~35–45 % white) + adjustable material slider**; wallpaper still faint
   search pill is above the window (y 38…67), window starts at 116; in 032 the window overlaps the
   grid and the search pill is hidden behind it. So the settings panel is a separate floating panel
   that can overlap the pill depending on position.
-- This build’s General tab carries the requested additions: **Start on login** through
-  `SMAppService`, and **Show Launchpad in the Dock** with Classic / Midnight / Aurora icon faces.
+- This build’s General tab is a compact, non-scrolling page: **Trigger** (shortcut, hot corner,
+  pinch, chassis), **Trackpad**, **Accessibility** (start on login through `SMAppService`, then the
+  Accessibility grant), **Menu Bar**, then **Dock** with Classic / Midnight / Aurora icon faces.
   Advanced exports and imports the layout as JSON.
 
 ---

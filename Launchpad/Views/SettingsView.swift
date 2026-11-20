@@ -105,12 +105,19 @@ struct SettingsView: View {
 
             Divider().opacity(0.5)
 
-            ScrollView {
-                tabContent
+            if navigation.tab == .general {
+                generalTab
                     .padding(.horizontal, 18)
-                    .padding(.vertical, 16)
+                    .padding(.vertical, 8)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+            } else {
+                ScrollView {
+                    tabContent
+                        .padding(.horizontal, 18)
+                        .padding(.vertical, 10)
+                }
+                .scrollIndicators(.automatic)
             }
-            .scrollIndicators(.automatic)
         }
         .frame(width: 560, height: 640)
         .background(panelBackground)
@@ -232,39 +239,15 @@ struct SettingsView: View {
     }
 
     private var generalTab: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            group("Launch") {
+        VStack(alignment: .leading, spacing: 8) {
+            group("Trigger") {
                 toggleRow("Open with ⌥Space", isOn: $settings.hotKeyEnabled)
-                toggleRow("Open at a screen corner", isOn: $settings.hotCornerEnabled)
-                if settings.hotCornerEnabled {
-                    pickerRow("Corner", selection: $settings.hotCorner) {
-                        ForEach(LaunchpadSettings.HotCorner.allCases) { corner in
-                            Text(corner.title).tag(corner)
-                        }
-                    }
-                }
+                hotCornerRow
                 toggleRow("Pinch with four fingers", isOn: $settings.pinchEnabled)
-                launchAtLoginRow
                 toggleRow("Tap on chassis", isOn: $settings.tapOnChassisEnabled)
                     .disabled(true)
                     .opacity(0.5)
                     .help("Coming in a later update")
-                caption(
-                    "Pinch needs Accessibility and “Block system gestures while open”. "
-                        + "Turning it off hands macOS's Apps pinch back to the system. "
-                        + "Tapping the chassis is coming in a later update."
-                )
-            }
-
-            group("Dock") {
-                toggleRow("Show Launchpad in the Dock", isOn: $settings.showInDock)
-                if settings.showInDock {
-                    dockIconRow
-                }
-                caption(
-                    "The Dock icon opens Launchpad. Pick the face it wears; Classic matches "
-                        + "the app icon, Midnight is the dark treatment and Aurora is the glass one."
-                )
             }
 
             group("Trackpad") {
@@ -272,21 +255,23 @@ struct SettingsView: View {
                     "Block system gestures while open",
                     isOn: $settings.suppressDesktopSwipe
                 )
-                caption(
-                    "While Launchpad is open, two-, three-, four- and five-finger swipes page "
-                        + "the grid, and the desktop swipe, Mission Control and Show Desktop stand "
-                        + "down. With “Pinch with four fingers” on, macOS's own Apps view is also "
-                        + "disabled so it cannot open instead of Launchpad; turning that off gives "
-                        + "its pinch back. Spotlight stays available on ⌘Space. Requires Accessibility."
-                )
+                compactCaption("Requires Accessibility while Launchpad is open.")
             }
 
             group("Accessibility") {
+                launchAtLoginRow
                 accessibilityRow
             }
 
             group("Menu Bar") {
                 toggleRow("Show menu bar icon", isOn: $settings.showMenuBarIcon)
+            }
+
+            group("Dock") {
+                toggleRow("Show Launchpad in the Dock", isOn: $settings.showInDock)
+                if settings.showInDock {
+                    dockIconRow
+                }
             }
         }
     }
@@ -408,104 +393,131 @@ struct SettingsView: View {
 
     // MARK: - Rows
 
-    private var launchAtLoginRow: some View {
-        VStack(alignment: .leading, spacing: 5) {
-            HStack {
-                Text("Start on login")
-                    .font(.system(size: 13))
-                Spacer(minLength: 12)
-                Toggle(
-                    "",
-                    isOn: Binding(
-                        get: { launchAtLogin },
-                        set: { updateLaunchAtLogin($0) }
-                    )
-                )
+    private var hotCornerRow: some View {
+        HStack(spacing: 10) {
+            Text("Open at a screen corner")
+                .font(.system(size: 13))
+            Spacer(minLength: 12)
+            if settings.hotCornerEnabled {
+                Picker("", selection: $settings.hotCorner) {
+                    ForEach(LaunchpadSettings.HotCorner.allCases) { corner in
+                        Text(corner.title).tag(corner)
+                    }
+                }
+                .labelsHidden()
+                .pickerStyle(.menu)
+                .frame(width: 116)
+                .controlSize(.small)
+            }
+            Toggle("", isOn: $settings.hotCornerEnabled)
                 .labelsHidden()
                 .toggleStyle(.switch)
                 .controlSize(.small)
-            }
-
-            if loginItemNeedsApproval {
-                HStack(spacing: 8) {
-                    Text("Approve Launchpad in Login Items to finish.")
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                    Button("Open Login Items") {
-                        LoginItemController.openSystemSettings()
-                    }
-                    .buttonStyle(.link)
-                    .font(.caption2)
-                    Spacer(minLength: 0)
-                }
-            } else if let loginItemError {
-                Text(loginItemError)
-                    .font(.caption2)
-                    .foregroundStyle(.red)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
         }
         .padding(.horizontal, 14)
-        .padding(.vertical, 9)
+        .frame(minHeight: 32)
+        .overlay(alignment: .bottom) {
+            Divider().opacity(0.5).padding(.leading, 14)
+        }
+    }
+
+    private var launchAtLoginRow: some View {
+        HStack(spacing: 10) {
+            Text("Start on login")
+                .font(.system(size: 13))
+
+            Spacer(minLength: 12)
+
+            if loginItemNeedsApproval {
+                Button("Approve") {
+                    LoginItemController.openSystemSettings()
+                }
+                .buttonStyle(.link)
+                .font(.caption2)
+                .help("Open Login Items and approve Launchpad")
+            } else if let loginItemError {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .font(.system(size: 10))
+                    .foregroundStyle(.orange)
+                    .help(loginItemError)
+            }
+
+            Toggle(
+                "",
+                isOn: Binding(
+                    get: { launchAtLogin },
+                    set: { updateLaunchAtLogin($0) }
+                )
+            )
+            .labelsHidden()
+            .toggleStyle(.switch)
+            .controlSize(.small)
+        }
+        .padding(.horizontal, 14)
+        .frame(minHeight: 32)
         .overlay(alignment: .bottom) {
             Divider().opacity(0.5).padding(.leading, 14)
         }
     }
 
     private var dockIconRow: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        HStack(spacing: 12) {
             Text("Dock icon")
                 .font(.system(size: 13))
+            Spacer(minLength: 12)
 
-            HStack(spacing: 10) {
+            HStack(spacing: 6) {
                 ForEach(DockIconStyle.allCases) { style in
                     let isSelected = settings.dockIconStyle == style
                     Button {
                         settings.dockIconStyle = style
                     } label: {
-                        VStack(spacing: 5) {
+                        VStack(spacing: 1) {
                             Image(nsImage: DockIconArt.image(for: style))
                                 .resizable()
                                 .interpolation(.high)
-                                .frame(width: 42, height: 42)
+                                .frame(width: 27, height: 27)
                                 .overlay {
-                                    RoundedRectangle(cornerRadius: 11, style: .continuous)
+                                    RoundedRectangle(cornerRadius: 7, style: .continuous)
                                         .strokeBorder(
                                             isSelected ? Color.accentColor : Color.clear,
-                                            lineWidth: 2
+                                            lineWidth: 1.5
                                         )
                                 }
                             Text(style.title)
-                                .font(.caption2)
-                                .foregroundStyle(isSelected ? Color.accentColor : Color.secondary)
+                                .font(.system(size: 8, weight: .medium))
+                                .foregroundStyle(
+                                    isSelected ? Color.accentColor : Color.secondary
+                                )
                         }
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 7)
+                        .padding(.horizontal, 4)
+                        .padding(.vertical, 3)
                         .background {
-                            RoundedRectangle(cornerRadius: 9, style: .continuous)
+                            RoundedRectangle(cornerRadius: 8, style: .continuous)
                                 .fill(
                                     isSelected
                                         ? Color.accentColor.opacity(0.12)
                                         : Color.clear
                                 )
                         }
-                        .contentShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
+                        .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
                     }
                     .buttonStyle(.plain)
+                    .help(style.title)
                     .accessibilityLabel(Text("\(style.title) Dock icon"))
                     .accessibilityAddTraits(isSelected ? .isSelected : [])
                 }
             }
-            .padding(.horizontal, 14)
         }
-        .padding(.vertical, 9)
+        .padding(.horizontal, 14)
+        .frame(minHeight: 46)
         .overlay(alignment: .bottom) {
             Divider().opacity(0.5).padding(.leading, 14)
         }
     }
 
     private var accessibilityRow: some View {
-        VStack(alignment: .leading, spacing: 9) {
+        VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 10) {
                 Circle()
                     .fill(isTrusted ? Color.green : Color.orange)
@@ -554,15 +566,17 @@ struct SettingsView: View {
                 }
                 .controlSize(.small)
                 .buttonStyle(.link)
+                .font(.caption2)
 
                 Text(accessGuidance)
                     .font(.caption2)
                     .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
+                    .lineLimit(1)
+                    .help(accessGuidance)
             }
         }
         .padding(.horizontal, 14)
-        .padding(.vertical, 9)
+        .padding(.vertical, 6)
         .background {
             RoundedRectangle(cornerRadius: 9, style: .continuous)
                 .fill(navigation.highlightsAccessibility ? Color.red.opacity(0.10) : Color.clear)
@@ -590,11 +604,9 @@ struct SettingsView: View {
             return installError
         }
         if hasInstalledCopy, !AccessibilityAccess.isRunningInstalledCopy {
-            return "Launchpad is installed in Applications. Use Relaunch from Applications, "
-                + "then grant access to that copy."
+            return "Installed in Applications. Relaunch from there, then click Enable."
         }
-        return "Enable opens System Settings and turns on Launchpad under Accessibility. "
-            + "If the switch already looks on but blocking does nothing, Enable refreshes it."
+        return "Enable opens System Settings; use it again if the switch already looks on."
     }
 
     private func toggleRow(_ title: String, isOn: Binding<Bool>) -> some View {
@@ -608,7 +620,7 @@ struct SettingsView: View {
                 .controlSize(.small)
         }
         .padding(.horizontal, 14)
-        .frame(minHeight: 38)
+        .frame(minHeight: 32)
         .overlay(alignment: .bottom) {
             Divider().opacity(0.5).padding(.leading, 14)
         }
@@ -629,7 +641,7 @@ struct SettingsView: View {
                 .frame(width: 150)
         }
         .padding(.horizontal, 14)
-        .frame(minHeight: 38)
+        .frame(minHeight: 32)
         .overlay(alignment: .bottom) {
             Divider().opacity(0.5).padding(.leading, 14)
         }
@@ -654,7 +666,7 @@ struct SettingsView: View {
             .frame(width: 126)
         }
         .padding(.horizontal, 14)
-        .frame(minHeight: 38)
+        .frame(minHeight: 32)
         .overlay(alignment: .bottom) {
             Divider().opacity(0.5).padding(.leading, 14)
         }
@@ -696,7 +708,7 @@ struct SettingsView: View {
             Spacer()
         }
         .padding(.horizontal, 14)
-        .frame(minHeight: 38)
+        .frame(minHeight: 32)
         .overlay(alignment: .bottom) {
             Divider().opacity(0.5).padding(.leading, 14)
         }
@@ -709,6 +721,18 @@ struct SettingsView: View {
             .fixedSize(horizontal: false, vertical: true)
             .padding(.horizontal, 14)
             .padding(.bottom, 10)
+    }
+
+    /// One-line note for the compact General page. The detailed explanation
+    /// lives in the tooltip so the page never needs to scroll.
+    private func compactCaption(_ text: String) -> some View {
+        Text(text)
+            .font(.caption2)
+            .foregroundStyle(.secondary)
+            .lineLimit(1)
+            .padding(.horizontal, 14)
+            .padding(.top, 5)
+            .padding(.bottom, 6)
     }
 
     private func statusCaption(_ text: String, isError: Bool) -> some View {
@@ -725,7 +749,7 @@ struct SettingsView: View {
         _ title: String,
         @ViewBuilder content: () -> Content
     ) -> some View {
-        VStack(alignment: .leading, spacing: 7) {
+        VStack(alignment: .leading, spacing: 5) {
             Text(title.uppercased())
                 .font(.system(size: 10, weight: .semibold))
                 .foregroundStyle(.secondary)
