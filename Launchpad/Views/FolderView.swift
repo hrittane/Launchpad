@@ -179,7 +179,7 @@ struct FolderView: View {
                         artworkScale: metrics.iconArtworkScale,
                         isEditing: isEditing,
                         isDragging: draggingAppID == app.id,
-                        wigglePhase: Double(index % 3),
+                        wiggleSeed: Double(index),
                         onLaunch: { onLaunch(app) },
                         onDragChanged: { location in onAppDragChanged(app, location) },
                         onDragEnded: { location in onAppDragEnded(app, location) }
@@ -214,25 +214,37 @@ private struct FolderAppIcon: View {
     let artworkScale: CGFloat
     let isEditing: Bool
     let isDragging: Bool
-    let wigglePhase: Double
+    /// Per-icon seed for the edit-mode jiggle (see `IconWiggle`).
+    let wiggleSeed: Double
     let onLaunch: () -> Void
     let onDragChanged: (CGPoint) -> Void
     let onDragEnded: (CGPoint) -> Void
 
+    private var wiggle: IconWiggle.Motion {
+        IconWiggle.motion(seed: wiggleSeed)
+    }
+
     /// Timeline-driven wobble; 0° whenever edit mode is off.
     private func jiggleAngle(_ date: Date) -> Double {
-        guard isEditing else { return 0 }
-        let period = 0.3 + wigglePhase * 0.06
-        let phase = date.timeIntervalSinceReferenceDate * 2 * .pi / period
-        return sin(phase) * 1.2
+        isEditing ? IconWiggle.angle(at: date, motion: wiggle) : 0
+    }
+
+    private func jiggleBounce(_ date: Date) -> CGFloat {
+        isEditing ? IconWiggle.offset(at: date, motion: wiggle) : 0
     }
 
     var body: some View {
         VStack(spacing: max(6, iconSize * 0.17)) {
-            TimelineView(.animation(minimumInterval: 1.0 / 30.0, paused: !isEditing)) { context in
+            TimelineView(
+                .animation(
+                    minimumInterval: 1.0 / IconWiggle.framesPerSecond,
+                    paused: !isEditing
+                )
+            ) { context in
                 AppIconImage(item: item, size: iconSize, artworkScale: artworkScale)
                     .frame(width: iconSize, height: iconSize)
-                    .rotationEffect(.degrees(jiggleAngle(context.date)), anchor: .center)
+                    .rotationEffect(.degrees(jiggleAngle(context.date)), anchor: wiggle.anchor)
+                    .offset(y: jiggleBounce(context.date))
             }
             .contentShape(Rectangle())
             .onTapGesture(perform: onLaunch)

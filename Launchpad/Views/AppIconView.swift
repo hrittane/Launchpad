@@ -10,7 +10,9 @@ struct AppIconView: View {
     let isDragging: Bool
     let showsRemoveBadge: Bool
     let dropsIntoFolder: Bool
-    let wigglePhase: Double
+    /// Per-icon seed for the edit-mode jiggle. Adjacent slots get different
+    /// periods, pivots and phases so the page never rocks in lockstep.
+    let wiggleSeed: Double
 
     let onLaunch: () -> Void
     let onRemove: () -> Void
@@ -18,15 +20,20 @@ struct AppIconView: View {
 
     private var iconSize: CGFloat { metrics.iconSize }
 
+    private var wiggle: IconWiggle.Motion {
+        IconWiggle.motion(seed: wiggleSeed)
+    }
+
     /// Angle for the wobble at a given instant. While edit mode is off this is
     /// always 0°, so the tile settles as soon as jiggle ends. Driving it from
     /// the timeline (instead of a `repeatForever` animation) means there is no
     /// infinite animation left running to keep the icon rocking afterwards.
     private func jiggleAngle(_ date: Date) -> Double {
-        guard isEditing else { return 0 }
-        let period = 0.3 + wigglePhase * 0.06
-        let phase = date.timeIntervalSinceReferenceDate * 2 * .pi / period
-        return sin(phase) * 1.2
+        isEditing ? IconWiggle.angle(at: date, motion: wiggle) : 0
+    }
+
+    private func jiggleBounce(_ date: Date) -> CGFloat {
+        isEditing ? IconWiggle.offset(at: date, motion: wiggle) : 0
     }
 
     /// Width of the name itself, so the clickable strip under the icon never
@@ -52,7 +59,12 @@ struct AppIconView: View {
     }
 
     private var iconSquare: some View {
-        TimelineView(.animation(minimumInterval: 1.0 / 30.0, paused: !isEditing)) { context in
+        TimelineView(
+            .animation(
+                minimumInterval: 1.0 / IconWiggle.framesPerSecond,
+                paused: !isEditing
+            )
+        ) { context in
             ZStack {
                 // Always in the tree (visibility is animated) so hovering a
                 // target never rebuilds the icon subtree during a drag.
@@ -60,7 +72,8 @@ struct AppIconView: View {
 
                 AppIconImage(item: item, size: iconSize, artworkScale: metrics.iconArtworkScale)
             }
-            .rotationEffect(.degrees(jiggleAngle(context.date)), anchor: .center)
+            .rotationEffect(.degrees(jiggleAngle(context.date)), anchor: wiggle.anchor)
+            .offset(y: jiggleBounce(context.date))
         }
         .frame(width: iconSize, height: iconSize)
         // The icon square and its name are the only targets: the grid cell

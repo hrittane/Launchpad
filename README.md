@@ -12,7 +12,7 @@ for what that means for users.
 ## Quick start
 
 ```sh
-# Debug build + full test suite (140 tests in 18 suites)
+# Debug build + full test suite (145 tests in 19 suites)
 xcodebuild -project Launchpad.xcodeproj -scheme Launchpad -configuration Debug \
   -derivedDataPath /tmp/launchpad-debug test
 

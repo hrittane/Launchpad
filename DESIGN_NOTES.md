@@ -287,7 +287,7 @@ page 0.35 s, folder morph 0.40 s, hover 0.12 s, badge pop 0.20 s.
 | Typed search + results | the pages are replaced by a single results grid; ranking = exact → prefix → word-prefix → substring → initials; Return launches the selected tile, arrows move a 2 pt white ring |
 | Page swipe mid-animation | horizontal slide with rubber band + spring snap, 0.35 s |
 | Folder morph animation | `glassEffectID` + `@Namespace` matched geometry from icon to panel, 0.40 s |
-| Edit-mode jiggle amplitude | ±2.5°, 0.16 s alternate, staggered |
+| Edit-mode jiggle | iOS-style: ±1.8–2.2° off-centre swing (pivot near the icon top), 0.24–0.30 s per cycle, sub-point bounce; period, pivot and phase vary per slot (see `IconWiggle`) |
 | Edge-drag page flip | dwell **0.55 s** in the outer **5 %** bands, driven by a timer so a motionless pointer still flips; holding at the right edge of the last page creates one new page per drag (shipped; the strip itself does not follow the drag while editing) |
 | “Done” control in edit mode | **not in reference and not implemented**: screenshots win, so edit mode ends via Esc, background click, or launching an app |
 | Status-bar item/menu | Show Launchpad / Settings / Quit |
@@ -502,7 +502,7 @@ clicks/keys), not only in unit tests. Release build: `x86_64 arm64`, no Swift wa
 
 | Behaviour | Implementation |
 |---|---|
-| Enter edit mode | Long-press **0.65 s** on an icon (14 pt tolerance) or the “Edit” toggle; all icons jiggle ±2.5° |
+| Enter edit mode | Long-press **0.65 s** on an icon (14 pt tolerance) or the “Edit” toggle; all icons jiggle with the iOS-style `IconWiggle` swing (±1.8–2.2°, off-centre pivot, 0.24–0.30 s cycle) |
 | Leave | Esc, background click, or launching an app. A background click steps out one layer at a time: the first stops the jiggle, the next closes the panel |
 | Reorder | Drag an icon straight from the resting grid: the page switches to jiggle mode and the icons slide aside live to open the gap under the pointer. Dropping on an empty slot reorders (persisted); dropping on an icon creates a folder or adds to one. A long-press without moving also enters jiggle mode |
 | Page from edit mode | Dragging into the outer **5 %** bands for **0.55 s** turns one page; a timer drives the dwell, so a pointer that arrives and stops still flips. Holding at the right edge of the last page creates one new page per drag, even if that page will hold a single icon |
@@ -549,16 +549,20 @@ reaches the tile and disappears **without animating**: the add-pop starts on the
 a plate still fading out reads as a second, static folder behind the one that is
 magnifying.
 
-**Stopping the jiggle.** The wobble is not an animation at all: each tile is wrapped in a
-`TimelineView(.animation(minimumInterval: 1/30, paused: !isEditing))` and asks it for the
-angle at `context.date`, `sin(2π·t / period) · 1.2°`, with a slightly different period per
-slot so the grid never rocks in lockstep. Two approaches were tried and rejected. A
+**The jiggle itself.** `IconWiggle` models the iOS Home Screen effect from its observable
+parts: a ±1.8–2.2° swing eased at each end (sine), a pivot near the top of the icon so the
+bottom edge travels further than the top, and a sub-point vertical bounce on a slower clock.
+Every icon derives its own period (0.24–0.30 s per cycle), amplitude, pivot and phase from
+its slot index, so the page never rocks in lockstep. That is faster than the first shipped
+version (±1.2°, 0.30–0.42 s, centred pivot), which read as a slow metronome. Two approaches
+were tried and rejected. A
 `repeatForever` animation keeps running after the state flips back to idle: the delete
 badges would vanish while every tile kept rocking, and neither a finite animation nor a
 transaction with `disablesAnimations` stopped it. `phaseAnimator` did not animate at all on
 this target (measured zero pixel movement). Because the timeline only *renders* the angle,
 leaving edit mode simply returns 0° on the next frame — nothing is left running. The same
-wrapper is used on folder tiles and on apps inside an open folder.
+`TimelineView` at 60 Hz is used on folder tiles and on apps inside an open folder; its angle,
+pivot and bounce all come from the same `IconWiggle` motion.
 
 ### 8.3 Folders
 
@@ -712,8 +716,9 @@ monitor is the source of truth for typing:
 
 ### 8.8 Folder wiggle and Liquid Glass
 
-The folder tile wiggles ±1.2° once per phase (its own phase offset keeps neighbouring
-folders out of sync). Frame-capturing the edit-mode animation exposed a compositing trap:
+The folder tile uses the same `IconWiggle` swing as an app icon (its own seed keeps
+neighbouring folders out of sync). Frame-capturing the edit-mode animation exposed a
+compositing trap:
 
 - `.glassEffect` is not drawn by the view it is attached to. SwiftUI hoists it into the
   enclosing `GlassEffectContainer` (rendered in container space) and the rotated subtree is
@@ -728,9 +733,9 @@ folders out of sync). Frame-capturing the edit-mode animation exposed a composit
 
 Shipped fix: `FolderTileGlass` applies `.glassEffect` **only when not editing**. In edit
 mode the tile is the plain translucent fill (`.white.opacity(0.13)` + 1 pt border) plus the
-miniature grid, so rotation moves the whole square as one piece. Measured top-edge tilt now
-alternates ≈ +0.7° / −0.9° (the sampling threshold on anti-aliased edges under-reads the
-1.2°), and the at-rest appearance is unchanged — the non-edit capture still shows the glass
+miniature grid, so rotation moves the whole square as one piece. The measured top-edge tilt
+tracks the `IconWiggle` swing (±1.8–2.2°; the sampling threshold on anti-aliased edges
+under-reads it), and the at-rest appearance is unchanged — the non-edit capture still shows the glass
 plate, specular rim and miniatures. The swap is invisible in practice because the wiggle
 only exists while editing and the two fills are close in value on the dark backdrop.
 

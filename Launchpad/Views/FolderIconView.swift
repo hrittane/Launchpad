@@ -32,7 +32,8 @@ struct FolderIconView: View {
     let isEditing: Bool
     let isDragging: Bool
     let dropsIntoFolder: Bool
-    let wigglePhase: Double
+    /// Per-icon seed for the edit-mode jiggle (see `IconWiggle`).
+    let wiggleSeed: Double
 
     let onOpen: () -> Void
     let onBeginEditing: () -> Void
@@ -42,12 +43,17 @@ struct FolderIconView: View {
 
     private var iconSize: CGFloat { metrics.iconSize }
 
+    private var wiggle: IconWiggle.Motion {
+        IconWiggle.motion(seed: wiggleSeed)
+    }
+
     /// Timeline-driven wobble; 0° whenever edit mode is off.
     private func jiggleAngle(_ date: Date) -> Double {
-        guard isEditing else { return 0 }
-        let period = 0.3 + wigglePhase * 0.06
-        let phase = date.timeIntervalSinceReferenceDate * 2 * .pi / period
-        return sin(phase) * 1.2
+        isEditing ? IconWiggle.angle(at: date, motion: wiggle) : 0
+    }
+
+    private func jiggleBounce(_ date: Date) -> CGFloat {
+        isEditing ? IconWiggle.offset(at: date, motion: wiggle) : 0
     }
 
     private var labelWidth: CGFloat {
@@ -97,7 +103,12 @@ struct FolderIconView: View {
             // Purely visual: the plate swaps between Liquid Glass and a plain
             // fill when edit mode starts, so nothing that must survive that
             // swap lives in here.
-            TimelineView(.animation(minimumInterval: 1.0 / 30.0, paused: !isEditing)) { context in
+            TimelineView(
+                .animation(
+                    minimumInterval: 1.0 / IconWiggle.framesPerSecond,
+                    paused: !isEditing
+                )
+            ) { context in
                 ZStack {
                     // The folder plate that appears when a dragged app hovers
                     // this folder: the same lifted glass squircle as the
@@ -126,7 +137,8 @@ struct FolderIconView: View {
                     folderTile
                         .opacity(dropsIntoFolder ? 0 : 1)
                 }
-                .rotationEffect(.degrees(jiggleAngle(context.date)), anchor: .center)
+                .rotationEffect(.degrees(jiggleAngle(context.date)), anchor: wiggle.anchor)
+                .offset(y: jiggleBounce(context.date))
             }
             .frame(width: iconSize, height: iconSize)
             .scaleEffect(addMagnification)

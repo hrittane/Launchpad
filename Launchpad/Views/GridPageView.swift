@@ -56,7 +56,7 @@ struct GridPageView: View {
                     isDragging: draggingID == item.id,
                     showsRemoveBadge: app.isRemovable,
                     dropsIntoFolder: folderTargetID == item.id,
-                    wigglePhase: Double(index % 3),
+                    wiggleSeed: Double(index),
                     onLaunch: { onLaunch(app) },
                     onRemove: { onRemove(app) },
                     onBeginEditing: onBeginEditing
@@ -71,7 +71,7 @@ struct GridPageView: View {
                 isEditing: isEditing,
                 isDragging: draggingID == item.id,
                 dropsIntoFolder: folderTargetID == item.id,
-                wigglePhase: Double(index % 3),
+                wiggleSeed: Double(index),
                 onOpen: { onOpenFolder(folder.id) },
                 onBeginEditing: onBeginEditing
             )
