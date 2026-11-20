@@ -12,7 +12,7 @@ for what that means for users.
 ## Quick start
 
 ```sh
-# Debug build + full test suite (151 tests in 20 suites)
+# Debug build + full test suite (154 tests in 21 suites)
 xcodebuild -project Launchpad.xcodeproj -scheme Launchpad -configuration Debug \
   -derivedDataPath /tmp/launchpad-debug test
 
@@ -59,6 +59,12 @@ human on a real Mac — the test suite covers logic, not gestures.
   restarting. Drop it on the Trash instead and the same uninstall list opens before anything is
   moved, so leftover files can be reviewed.
 - `⌥Space` toggles the panel (configurable), plus an optional screen-corner trigger.
+- The gear at the right edge of the search pill opens Settings directly.
+- **Start on login** registers the app through `SMAppService`; **Show Launchpad in the Dock**
+  switches the app to a regular Dock presence and offers three icon faces: Classic, Midnight and
+  Aurora.
+- Advanced can **export** the current pages, folders and order as pretty-printed JSON and
+  **import** a previous layout. Import drops apps that are not installed and appends new ones.
 - The Dock stays visible; the menu bar is painted over rather than hidden, because hiding it
   hides the Dock as well.
 - App icons follow the system style (Normal / Clear / Dark / Tinted) live, via `NSWorkspace`.
@@ -72,6 +78,8 @@ human on a real Mac — the test suite covers logic, not gestures.
 | `Launchpad/App/LaunchpadSettings.swift` | Persisted preferences (`UserDefaults`, keys `Launchpad.*`) |
 | `Launchpad/App/SystemLaunchpadGesture.swift` | Dock preference override for the system Apps pinch |
 | `Launchpad/App/GlobalHotKey.swift`, `HotCornerMonitor.swift` | Global activation |
+| `Launchpad/Services/LoginItemController.swift` | `SMAppService` login-item registration |
+| `Launchpad/Views/DockIconArt.swift` | The three Dock icon faces, drawn at runtime |
 | `Launchpad/Window/LaunchpadPanelController.swift` | Panel presentation, paging scroll events, gesture suppression, banner state |
 | `Launchpad/Window/BackdropView.swift`, `MenuBarCoverWindow.swift` | Wallpaper backdrop and menu-bar cover |
 | `Launchpad/Views/` | SwiftUI grid, folders, search, settings and the permission banner |

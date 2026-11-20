@@ -208,7 +208,10 @@ overlay (~35–45 % white) + adjustable material slider**; wallpaper still faint
 - Delete flow: opaque white dialog (420 × 290, r 12, standard macOS alert look, **not glass**),
   app icon + name + size, grey Cancel and blue “Move to Trash”.
 
-### 2.8 Overflow menu (“…” in search pill, frames 026–029)
+### 2.8 Search pill button (frames 026–029)
+
+- The reference opens a glass overflow menu from the pill’s right button; this build deliberately
+  replaces the “…” with a gear that opens Settings directly, as requested.
 
 - Glass popover ≈ 250 × 335 px, r 14, 1 px light border, drop shadow, anchored under the pill’s
   right button (x ≈ 480…730, y ≈ 70…405).
@@ -237,6 +240,9 @@ overlay (~35–45 % white) + adjustable material slider**; wallpaper still faint
   search pill is above the window (y 38…67), window starts at 116; in 032 the window overlaps the
   grid and the search pill is hidden behind it. So the settings panel is a separate floating panel
   that can overlap the pill depending on position.
+- This build’s General tab carries the requested additions: **Start on login** through
+  `SMAppService`, and **Show Launchpad in the Dock** with Classic / Midnight / Aurora icon faces.
+  Advanced exports and imports the layout as JSON.
 
 ---
 

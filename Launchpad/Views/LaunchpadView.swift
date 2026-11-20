@@ -23,6 +23,8 @@ struct LaunchpadView: View {
     /// Opens Settings on the Accessibility row when the permission banner's
     /// button is clicked.
     let onGrantPermissions: () -> Void
+    /// Opens Settings from the gear in the search pill.
+    let onOpenSettings: () -> Void
     /// Called when the folder sheet starts or stops dimming the grid. The dim
     /// object animates the grid layer and the menu-bar cover together.
     let onFolderObscured: (Bool) -> Void
@@ -149,7 +151,8 @@ struct LaunchpadView: View {
                     text: $model.searchQuery,
                     isFocused: $isSearchFocused,
                     onSubmit: launchSearchSelection,
-                    onTap: { model.requestSearchFocus() }
+                    onTap: { model.requestSearchFocus() },
+                    onSettings: onOpenSettings
                 )
                 .position(
                     x: proxy.size.width / 2,

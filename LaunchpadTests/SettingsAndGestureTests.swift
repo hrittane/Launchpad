@@ -42,6 +42,8 @@ struct LaunchpadSettingsTests {
         #expect(!settings.tapOnChassisEnabled)
         #expect(settings.suppressDesktopSwipe)
         #expect(settings.showMenuBarIcon)
+        #expect(!settings.showInDock)
+        #expect(settings.dockIconStyle == .classic)
     }
 
     @Test
@@ -61,6 +63,8 @@ struct LaunchpadSettingsTests {
         first.pinchEnabled = true
         first.tapOnChassisEnabled = true
         first.backgroundDim = 0.4
+        first.showInDock = true
+        first.dockIconStyle = .aurora
 
         let second = LaunchpadSettings(defaults: defaults)
         #expect(second.columns == 9)
@@ -72,6 +76,8 @@ struct LaunchpadSettingsTests {
         #expect(second.pinchEnabled)
         #expect(second.tapOnChassisEnabled)
         #expect(second.backgroundDim == 0.4)
+        #expect(second.showInDock)
+        #expect(second.dockIconStyle == .aurora)
     }
 
     @Test
@@ -84,12 +90,14 @@ struct LaunchpadSettingsTests {
         defaults.set(0, forKey: "Launchpad.rows")
         defaults.set(9.5, forKey: "Launchpad.iconScale")
         defaults.set(-1.0, forKey: "Launchpad.backgroundDim")
+        defaults.set("unknown", forKey: "Launchpad.dockIconStyle")
 
         let settings = LaunchpadSettings(defaults: defaults)
         #expect(settings.columns == 7)
         #expect(settings.rows == 5)
         #expect(settings.iconScale == 1.3)
         #expect(settings.backgroundDim == 0)
+        #expect(settings.dockIconStyle == .classic)
     }
 
     @Test
@@ -104,6 +112,8 @@ struct LaunchpadSettingsTests {
         settings.suppressDesktopSwipe = false
         settings.pinchEnabled = true
         settings.tapOnChassisEnabled = true
+        settings.showInDock = true
+        settings.dockIconStyle = .midnight
 
         settings.resetToDefaults()
 
@@ -112,6 +122,8 @@ struct LaunchpadSettingsTests {
         #expect(settings.suppressDesktopSwipe)
         #expect(!settings.pinchEnabled)
         #expect(!settings.tapOnChassisEnabled)
+        #expect(!settings.showInDock)
+        #expect(settings.dockIconStyle == .classic)
     }
 }
 

@@ -1,6 +1,7 @@
 import AppKit
 import Observation
 import SwiftUI
+import UniformTypeIdentifiers
 
 /// Navigation state shared by the settings window and the launcher's
 /// permission banner. The banner can ask the window to open on General and
@@ -44,6 +45,13 @@ final class SettingsWindowController: NSWindowController {
         window.isOpaque = false
         window.hasShadow = true
         window.styleMask = [.borderless]
+        if let content = window.contentView {
+            content.wantsLayer = true
+            content.layer?.backgroundColor = NSColor.clear.cgColor
+            content.layer?.cornerRadius = 26
+            content.layer?.cornerCurve = .continuous
+            content.layer?.masksToBounds = true
+        }
         super.init(window: window)
     }
 
@@ -83,10 +91,15 @@ struct SettingsView: View {
     @State private var hasInstalledCopy = false
     @State private var installError: String?
     @State private var showsResetLayoutAlert = false
+    @State private var launchAtLogin = false
+    @State private var loginItemNeedsApproval = false
+    @State private var loginItemError: String?
+    @State private var layoutTransferMessage: String?
+    @State private var layoutTransferFailed = false
 
     var body: some View {
         VStack(spacing: 0) {
-            tabStrip
+            header
                 .padding(.top, 18)
                 .padding(.bottom, 14)
 
@@ -101,13 +114,15 @@ struct SettingsView: View {
         }
         .frame(width: 560, height: 640)
         .background(panelBackground)
-        .overlay(alignment: .topLeading) { closeButton }
+        .clipShape(RoundedRectangle(cornerRadius: 26, style: .continuous))
         .onExitCommand(perform: onClose)
         .task {
             hasInstalledCopy = AccessibilityAccess.isInstalled
+            refreshLoginItemState()
             while !Task.isCancelled {
                 isTrusted = AccessibilityAccess.isTrusted
                 hasInstalledCopy = AccessibilityAccess.isInstalled
+                refreshLoginItemState()
                 try? await Task.sleep(for: .seconds(1))
             }
         }
@@ -128,16 +143,24 @@ struct SettingsView: View {
 
     // MARK: - Panel chrome
 
+    private var header: some View {
+        HStack(spacing: 14) {
+            closeButton
+            tabStrip
+        }
+        .padding(.leading, 20)
+        .padding(.trailing, 18)
+    }
+
     private var panelBackground: some View {
         ZStack {
-            RoundedRectangle(cornerRadius: 24, style: .continuous)
+            RoundedRectangle(cornerRadius: 26, style: .continuous)
                 .fill(.regularMaterial)
-            RoundedRectangle(cornerRadius: 24, style: .continuous)
+            RoundedRectangle(cornerRadius: 26, style: .continuous)
                 .fill(Color(nsColor: .windowBackgroundColor).opacity(0.55))
-            RoundedRectangle(cornerRadius: 24, style: .continuous)
+            RoundedRectangle(cornerRadius: 26, style: .continuous)
                 .strokeBorder(.white.opacity(0.28), lineWidth: 1)
         }
-        .shadow(color: .black.opacity(0.35), radius: 40, y: 18)
     }
 
     private var closeButton: some View {
@@ -150,7 +173,7 @@ struct SettingsView: View {
                 }
         }
         .buttonStyle(.plain)
-        .padding(14)
+        .frame(width: 20, height: 20)
         .help("Close")
         .accessibilityLabel(Text("Close settings"))
     }
@@ -189,7 +212,7 @@ struct SettingsView: View {
             RoundedRectangle(cornerRadius: 14, style: .continuous)
                 .fill(Color.primary.opacity(0.055))
         }
-        .padding(.horizontal, 18)
+        .frame(maxWidth: .infinity)
     }
 
     // MARK: - Tabs
@@ -221,6 +244,7 @@ struct SettingsView: View {
                     }
                 }
                 toggleRow("Pinch with four fingers", isOn: $settings.pinchEnabled)
+                launchAtLoginRow
                 toggleRow("Tap on chassis", isOn: $settings.tapOnChassisEnabled)
                     .disabled(true)
                     .opacity(0.5)
@@ -229,6 +253,17 @@ struct SettingsView: View {
                     "Pinch needs Accessibility and “Block system gestures while open”. "
                         + "Turning it off hands macOS's Apps pinch back to the system. "
                         + "Tapping the chassis is coming in a later update."
+                )
+            }
+
+            group("Dock") {
+                toggleRow("Show Launchpad in the Dock", isOn: $settings.showInDock)
+                if settings.showInDock {
+                    dockIconRow
+                }
+                caption(
+                    "The Dock icon opens Launchpad. Pick the face it wears; Classic matches "
+                        + "the app icon, Midnight is the dark treatment and Aurora is the glass one."
                 )
             }
 
@@ -300,6 +335,18 @@ struct SettingsView: View {
                 }
             }
 
+            group("Layout file") {
+                buttonRow("Export layout as JSON…") {
+                    exportLayout()
+                }
+                buttonRow("Import layout from JSON…") {
+                    importLayout()
+                }
+                if let layoutTransferMessage {
+                    statusCaption(layoutTransferMessage, isError: layoutTransferFailed)
+                }
+            }
+
             group("Settings") {
                 buttonRow("Restore default settings") {
                     settings.resetToDefaults()
@@ -360,6 +407,102 @@ struct SettingsView: View {
     }
 
     // MARK: - Rows
+
+    private var launchAtLoginRow: some View {
+        VStack(alignment: .leading, spacing: 5) {
+            HStack {
+                Text("Start on login")
+                    .font(.system(size: 13))
+                Spacer(minLength: 12)
+                Toggle(
+                    "",
+                    isOn: Binding(
+                        get: { launchAtLogin },
+                        set: { updateLaunchAtLogin($0) }
+                    )
+                )
+                .labelsHidden()
+                .toggleStyle(.switch)
+                .controlSize(.small)
+            }
+
+            if loginItemNeedsApproval {
+                HStack(spacing: 8) {
+                    Text("Approve Launchpad in Login Items to finish.")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                    Button("Open Login Items") {
+                        LoginItemController.openSystemSettings()
+                    }
+                    .buttonStyle(.link)
+                    .font(.caption2)
+                    Spacer(minLength: 0)
+                }
+            } else if let loginItemError {
+                Text(loginItemError)
+                    .font(.caption2)
+                    .foregroundStyle(.red)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 9)
+        .overlay(alignment: .bottom) {
+            Divider().opacity(0.5).padding(.leading, 14)
+        }
+    }
+
+    private var dockIconRow: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Dock icon")
+                .font(.system(size: 13))
+
+            HStack(spacing: 10) {
+                ForEach(DockIconStyle.allCases) { style in
+                    let isSelected = settings.dockIconStyle == style
+                    Button {
+                        settings.dockIconStyle = style
+                    } label: {
+                        VStack(spacing: 5) {
+                            Image(nsImage: DockIconArt.image(for: style))
+                                .resizable()
+                                .interpolation(.high)
+                                .frame(width: 42, height: 42)
+                                .overlay {
+                                    RoundedRectangle(cornerRadius: 11, style: .continuous)
+                                        .strokeBorder(
+                                            isSelected ? Color.accentColor : Color.clear,
+                                            lineWidth: 2
+                                        )
+                                }
+                            Text(style.title)
+                                .font(.caption2)
+                                .foregroundStyle(isSelected ? Color.accentColor : Color.secondary)
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 7)
+                        .background {
+                            RoundedRectangle(cornerRadius: 9, style: .continuous)
+                                .fill(
+                                    isSelected
+                                        ? Color.accentColor.opacity(0.12)
+                                        : Color.clear
+                                )
+                        }
+                        .contentShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(Text("\(style.title) Dock icon"))
+                    .accessibilityAddTraits(isSelected ? .isSelected : [])
+                }
+            }
+            .padding(.horizontal, 14)
+        }
+        .padding(.vertical, 9)
+        .overlay(alignment: .bottom) {
+            Divider().opacity(0.5).padding(.leading, 14)
+        }
+    }
 
     private var accessibilityRow: some View {
         VStack(alignment: .leading, spacing: 9) {
@@ -568,6 +711,16 @@ struct SettingsView: View {
             .padding(.bottom, 10)
     }
 
+    private func statusCaption(_ text: String, isError: Bool) -> some View {
+        Text(text)
+            .font(.caption2)
+            .foregroundStyle(isError ? Color.red : Color.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+            .padding(.horizontal, 14)
+            .padding(.top, 8)
+            .padding(.bottom, 10)
+    }
+
     private func group<Content: View>(
         _ title: String,
         @ViewBuilder content: () -> Content
@@ -594,6 +747,59 @@ struct SettingsView: View {
     private var version: String {
         Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String
             ?? "1.0"
+    }
+
+    private func refreshLoginItemState() {
+        let status = LoginItemController.status
+        launchAtLogin = status == .enabled || status == .requiresApproval
+        loginItemNeedsApproval = status == .requiresApproval
+    }
+
+    private func updateLaunchAtLogin(_ enabled: Bool) {
+        do {
+            try LoginItemController.setEnabled(enabled)
+            loginItemError = nil
+        } catch {
+            loginItemError = "Could not update the login item: \(error.localizedDescription)"
+        }
+        refreshLoginItemState()
+    }
+
+    private func exportLayout() {
+        let panel = NSSavePanel()
+        panel.allowedContentTypes = [.json]
+        panel.nameFieldStringValue = "Launchpad Layout.json"
+        panel.title = "Export Layout"
+        panel.message = "Save the current pages, folders and icon order as JSON."
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+
+        do {
+            try model.exportLayout(to: url)
+            layoutTransferFailed = false
+            layoutTransferMessage = "Exported to \(url.lastPathComponent)."
+        } catch {
+            layoutTransferFailed = true
+            layoutTransferMessage = "Could not export: \(error.localizedDescription)"
+        }
+    }
+
+    private func importLayout() {
+        let panel = NSOpenPanel()
+        panel.allowedContentTypes = [.json]
+        panel.allowsMultipleSelection = false
+        panel.canChooseDirectories = false
+        panel.title = "Import Layout"
+        panel.message = "Choose a Launchpad layout JSON file to replace the current grid."
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+
+        do {
+            try model.importLayout(from: url)
+            layoutTransferFailed = false
+            layoutTransferMessage = "Imported \(url.lastPathComponent)."
+        } catch {
+            layoutTransferFailed = true
+            layoutTransferMessage = "Could not import: \(error.localizedDescription)"
+        }
     }
 
     private func grantAccess() {

@@ -52,6 +52,8 @@ final class LaunchpadSettings {
         static let tapOnChassisEnabled = "Launchpad.tapOnChassisEnabled"
         static let suppressDesktopSwipe = "Launchpad.suppressDesktopSwipe"
         static let showMenuBarIcon = "Launchpad.showMenuBarIcon"
+        static let showInDock = "Launchpad.showInDock"
+        static let dockIconStyle = "Launchpad.dockIconStyle"
     }
 
     @ObservationIgnored private let defaults: UserDefaults
@@ -131,6 +133,18 @@ final class LaunchpadSettings {
         didSet { persist(showMenuBarIcon, Key.showMenuBarIcon) }
     }
 
+    /// Keeps the app in the Dock while it runs. The activation policy is
+    /// switched at runtime, so turning it off restores the accessory menu-bar
+    /// app without relaunching.
+    var showInDock: Bool {
+        didSet { persist(showInDock, Key.showInDock) }
+    }
+
+    /// The face drawn for the Dock tile when `showInDock` is on.
+    var dockIconStyle: DockIconStyle {
+        didSet { persist(dockIconStyle.rawValue, Key.dockIconStyle) }
+    }
+
     init(defaults: UserDefaults) {
         self.defaults = defaults
         columns = Self.valid(
@@ -169,6 +183,10 @@ final class LaunchpadSettings {
         tapOnChassisEnabled = defaults.object(forKey: Key.tapOnChassisEnabled) as? Bool ?? false
         suppressDesktopSwipe = defaults.object(forKey: Key.suppressDesktopSwipe) as? Bool ?? true
         showMenuBarIcon = defaults.object(forKey: Key.showMenuBarIcon) as? Bool ?? true
+        showInDock = defaults.object(forKey: Key.showInDock) as? Bool ?? false
+        dockIconStyle = DockIconStyle(
+            rawValue: defaults.string(forKey: Key.dockIconStyle) ?? ""
+        ) ?? .classic
     }
 
     /// Restores every value to its first-run default.
@@ -187,6 +205,8 @@ final class LaunchpadSettings {
         tapOnChassisEnabled = false
         suppressDesktopSwipe = true
         showMenuBarIcon = true
+        showInDock = false
+        dockIconStyle = .classic
     }
 
     private func persist(_ value: Any, _ key: String) {

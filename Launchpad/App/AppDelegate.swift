@@ -20,6 +20,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var hotKey: GlobalHotKey?
     private var hotKeyWanted: Bool?
     private var hotCornerMonitor: HotCornerMonitor?
+    /// The bundle's own icon, kept so the Classic Dock choice can restore it
+    /// after another treatment has been applied.
+    private var bundleIcon: NSImage?
     private var resignObserver: NSObjectProtocol?
     private var settingsObserver: NSObjectProtocol?
     /// Polls Accessibility while the Apps pinch is taken over, so the Dock is
@@ -37,6 +40,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             settings: settings,
             onGrantPermissions: { [weak self] in
                 self?.showSettings(focusAccessibility: true)
+            },
+            onOpenSettings: { [weak self] in
+                self?.showSettings()
             }
         )
         panelController = controller
@@ -65,6 +71,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         hotCornerMonitor = HotCornerMonitor()
         configureHotCorner()
         configurePinch()
+        applyDockPresence()
 
         // If the app was killed while it owned the system pinch, the override
         // flag is still set. Reconcile it at launch: keep macOS's Apps view off
@@ -136,9 +143,43 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         configureHotKey()
         configureHotCorner()
         configurePinch()
+        applyDockPresence()
         refreshSystemGestureOwnership()
         model.apply(settings: settings)
         panelController?.applySettings()
+    }
+
+    /// Switches between a menu-bar-only accessory app and a regular Dock app,
+    /// then paints the chosen icon face. Both are runtime changes, so a toggle
+    /// in Settings lands without a relaunch.
+    private func applyDockPresence() {
+        let policy: NSApplication.ActivationPolicy = settings.showInDock ? .regular : .accessory
+        if NSApp.activationPolicy() != policy {
+            _ = NSApp.setActivationPolicy(policy)
+        }
+
+        guard settings.showInDock else { return }
+        if bundleIcon == nil {
+            bundleIcon = NSApp.applicationIconImage ?? DockIconArt.image(for: .classic)
+        }
+        NSApp.applicationIconImage = settings.dockIconStyle == .classic
+            ? bundleIcon
+            : DockIconArt.image(for: settings.dockIconStyle)
+    }
+
+    /// A Dock click reopens the launcher when no window is visible. Settings
+    /// windows keep their own focus instead of being replaced by the panel.
+    func applicationShouldHandleReopen(
+        _ sender: NSApplication,
+        hasVisibleWindows flag: Bool
+    ) -> Bool {
+        if let settingsWindow = settingsWindowController?.window, settingsWindow.isVisible {
+            settingsWindow.makeKeyAndOrderFront(nil)
+            return true
+        }
+        guard !flag, let panelController, !panelController.isVisible else { return true }
+        panelController.show()
+        return false
     }
 
     private func configureHotKey() {

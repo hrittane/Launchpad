@@ -2,6 +2,15 @@ import Foundation
 import Observation
 import SwiftUI
 
+/// Errors surfaced by the Advanced layout import.
+enum LayoutTransferError: LocalizedError {
+    case invalidFile
+
+    var errorDescription: String? {
+        "The selected file is not a Launchpad layout."
+    }
+}
+
 /// Shared, observable application state.
 @MainActor
 @Observable
@@ -375,6 +384,41 @@ final class AppModel {
         layout = next
         refreshPageCount()
         clampCurrentPage()
+        store.save(layout)
+    }
+
+    /// Writes the current pages, folders and order as pretty-printed JSON.
+    func exportLayout(to url: URL) throws {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+        try encoder.encode(layout).write(to: url, options: .atomic)
+    }
+
+    /// Replaces the grid with a layout read from disk. Apps that are not
+    /// installed are dropped and new apps are appended, exactly like the
+    /// startup reconciliation, so an old export cannot leave dead icons behind.
+    func importLayout(from url: URL) throws {
+        let data = try Data(contentsOf: url)
+        let decoded: LauncherLayout
+        do {
+            decoded = try JSONDecoder().decode(LauncherLayout.self, from: data)
+        } catch {
+            throw LayoutTransferError.invalidFile
+        }
+
+        var next = decoded
+        next.setCapacity(pageCapacity)
+        if !catalog.apps.isEmpty {
+            next.reconcile(with: catalog.apps)
+        }
+
+        layout = next
+        draggingID = nil
+        endEditing()
+        closeFolder()
+        clearSearch()
+        refreshPageCount()
+        goToPage(0)
         store.save(layout)
     }
 
