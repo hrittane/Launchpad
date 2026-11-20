@@ -507,6 +507,8 @@ clicks/keys), not only in unit tests. Release build: `x86_64 arm64`, no Swift wa
 | Reorder | Drag an icon straight from the resting grid: the page switches to jiggle mode and the icons slide aside live to open the gap under the pointer. Dropping on an empty slot reorders (persisted); dropping on an icon creates a folder or adds to one. A long-press without moving also enters jiggle mode |
 | Page from edit mode | Dragging into the outer **5 %** bands for **0.55 s** turns one page; a timer drives the dwell, so a pointer that arrives and stops still flips. Holding at the right edge of the last page creates one new page per drag, even if that page will hold a single icon |
 | Uninstall badge | White translucent “×” only on apps the catalog marks removable; system apps have none |
+| Dock pin | Releasing an app over the Dock bar appends a `file-tile` entry to the Dock's `persistent-apps` (URL, label, bundle identifier, fresh GUID) and restarts the Dock once; an app that is already pinned is left alone. The Dock's own window rect comes from `CGWindowListCopyWindowInfo`; its reserved strip is the fallback |
+| Trash drop | Releasing over the Trash tile (Accessibility subrole `AXTrashDockItem`, else the trailing tile of the bar) opens the same uninstall panel as the “×”. The floating tile is dismissed before the modal appears |
 | Confirmation | White 420 × 300 panel (frames 065–066): the app’s icon, name and total footprint, then checkable **Application Files / Application Support / Caches / Preferences / Saved State / Containers / Other Data** rows with per-item sizes, an **All** switch and Cancel / Move to Trash. Sizes are measured recursively off the main thread while the panel shows the reference spinner |
 | Delete | `FileManager.trashItem` on every checked component; the app is removed from the catalog **and** `layout.json` only when its bundle was trashed, and failures are reported in a follow-up alert |
 
@@ -691,6 +693,12 @@ monitor is the source of truth for typing:
   moment; the scan runs on a detached task, so the panel still responds and can be cancelled.
 - The uninstall panel is drawn in the light appearance even when the launcher is dark, because
   frame 065 is a white dialog; the rest of the UI keeps Liquid Glass.
+- Pinning uses the Dock's private preference (`persistent-apps`) because macOS has no public
+  “add to Dock” API; the Dock is restarted with `killall Dock` to pick it up. A release over the
+  reserved Dock strip still works when Accessibility is missing, but then the Trash is inferred
+  from the bar's trailing tile instead of its accessibility frame.
+- A folder dragged to the Dock is not pinned; only app tiles can leave the grid. Dropping a
+  system app on the Trash does nothing because it cannot be uninstalled.
 
 ### 8.7 Deliberate deviations from the reference (user requests)
 

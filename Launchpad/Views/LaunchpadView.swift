@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 /// Flags that only exist for the development snapshot mode.
@@ -571,6 +572,20 @@ struct LaunchpadView: View {
             createdPageWhileDragging = false
         }
         guard let session = dragSession else { return }
+
+        // The Dock is outside the grid, so this check has to happen before
+        // looking for a slot. A release over it either pins the app or hands
+        // it to the uninstall flow. Only app tiles can leave the grid.
+        if case .app(let appID) = model.item(withID: session.itemID),
+           let app = model.app(appID),
+           let dockTarget = DockDrop.target(at: NSEvent.mouseLocation) {
+            // Drop the dragged tile before the modal uninstall panel opens.
+            dragSession = nil
+            model.draggingID = nil
+            handleDockDrop(app: app, target: dockTarget)
+            return
+        }
+
         guard let target = dropSlot(at: location, metrics: metrics, page: model.currentPage) else {
             model.trimEmptyPages()
             return
@@ -582,6 +597,18 @@ struct LaunchpadView: View {
             ontoIcon: target.ontoIcon
         )
         model.trimEmptyPages()
+    }
+
+    /// A tile released over the Dock leaves the grid: the Dock bar pins the
+    /// app, the Trash opens the same uninstall panel as the edit-mode badge.
+    private func handleDockDrop(app: AppItem, target: DockDropTarget) {
+        switch target {
+        case .addToDock:
+            DockPinning.addToDock(app)
+        case .trash:
+            model.uninstall(appID: app.id)
+            model.trimEmptyPages()
+        }
     }
 
     /// Ends a drag that started inside the open folder. Dropping back on the
@@ -596,6 +623,12 @@ struct LaunchpadView: View {
         defer {
             folderDrag = nil
             model.draggingID = nil
+        }
+        if let dockTarget = DockDrop.target(at: NSEvent.mouseLocation) {
+            folderDrag = nil
+            model.draggingID = nil
+            handleDockDrop(app: app, target: dockTarget)
+            return
         }
         guard folderPanelFrame != .zero else { return }
 

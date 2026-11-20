@@ -12,7 +12,7 @@ for what that means for users.
 ## Quick start
 
 ```sh
-# Debug build + full test suite (132 tests in 17 suites)
+# Debug build + full test suite (145 tests in 19 suites)
 xcodebuild -project Launchpad.xcodeproj -scheme Launchpad -configuration Debug \
   -derivedDataPath /tmp/launchpad-debug test
 
@@ -54,6 +54,9 @@ human on a real Mac — the test suite covers logic, not gestures.
   and the matching folders under `~/Library` (Application Support, Caches, Preferences, Saved
   State, Containers, WebKit, HTTP storage, LaunchAgents, Logs), shows each item with its size,
   and moves only the checked items to the Trash.
+- Drag an app out of the grid and drop it on the Dock to pin it there. Drop it on the Trash
+  instead and the same uninstall list opens, so leftover files can be reviewed before the app
+  leaves.
 - `⌥Space` toggles the panel (configurable), plus an optional screen-corner trigger.
 - The Dock stays visible; the menu bar is painted over rather than hidden, because hiding it
   hides the Dock as well.
@@ -75,6 +78,7 @@ human on a real Mac — the test suite covers logic, not gestures.
 | `Launchpad/Services/TrackpadGestureBlocker.swift` | Session event taps and the swallow policy |
 | `Launchpad/Services/AccessibilityAccess.swift` | Permission prompt, stale-grant repair, installer helpers |
 | `Launchpad/Services/UninstallInventory.swift`, `AppUninstaller.swift` | App-footprint scan, sizes and the trash flow |
+| `Launchpad/Services/DockDrop.swift` | Dock/Trash hit testing and app pinning |
 | `Launchpad/Views/UninstallDialog.swift` | White uninstall panel from frames 065–066 |
 | `LaunchpadTests/` | Swift Testing suites (layout, settings, gestures, policy, geometry) |
 
