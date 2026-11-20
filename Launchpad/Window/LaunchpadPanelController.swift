@@ -1,5 +1,8 @@
 import AppKit
 import SwiftUI
+import os
+
+private let gestureGateLog = Logger(subsystem: "com.example.Launchpad", category: "gesture")
 
 /// Hosts the blurred backdrop and the SwiftUI interface.
 final class LaunchpadContentView: NSView {
@@ -131,7 +134,10 @@ final class LaunchpadPanelController {
     private var previousApp: NSRunningApplication?
     private var escapeMonitor: Any?
     private var hideTask: Task<Void, Never>?
-    private var gestureReleaseTask: Task<Void, Never>?
+    /// The Dock is only switched on or off at a trackpad contact boundary, so
+    /// it never receives half a gesture; see `GestureBlockGate`.
+    private var gestureGate = GestureBlockGate()
+    private var gestureGateTask: Task<Void, Never>?
     /// Polls Accessibility while the panel is visible so the permission banner
     /// appears or disappears without a relaunch.
     private var accessibilityWatch: Task<Void, Never>?
@@ -160,6 +166,14 @@ final class LaunchpadPanelController {
             }
             return self.handleScrollWheel(event) ? nil : event
         }
+
+        // The block follows raw contacts, not just the panel's visibility:
+        // switching it while the Dock is in the middle of a gesture is what
+        // made the first desktop swipe or spread after closing do nothing.
+        PinchGestureMonitor.shared.setContactHandlers(
+            onBegan: { [weak self] in self?.trackpadContactsBegan() },
+            onEnded: { [weak self] in self?.trackpadContactsEnded() }
+        )
     }
 
     private func handleKeyDown(_ event: NSEvent) -> NSEvent? {
@@ -439,7 +453,6 @@ final class LaunchpadPanelController {
         if blocksGestures, !TrackpadGestureBlocker.shared.installIfTrusted() {
             TrackpadGestureBlocker.shared.requestAccessIfNeeded()
         }
-        TrackpadGestureBlocker.shared.setBlocking(blocksGestures)
         model.setAccessibilityGrantNeeded(
             blocksGestures && !TrackpadGestureBlocker.shared.isTrusted
         )
@@ -447,6 +460,100 @@ final class LaunchpadPanelController {
             startAccessibilityWatch()
         } else {
             stopAccessibilityWatch()
+        }
+        requestGestureBlock(blocksGestures && isVisible)
+    }
+
+    /// Asks for a new block state. The change lands immediately only when the
+    /// trackpad is clear; otherwise it waits for the contact boundary, because
+    /// the Dock must never see half a gesture.
+    private func requestGestureBlock(_ wanted: Bool) {
+        let previousWanted = gestureGate.wanted
+        let next = gestureGate.request(
+            wanted,
+            contactsActive: PinchGestureMonitor.shared.hasActiveContacts
+        )
+        if let next {
+            gestureGateTask?.cancel()
+            gestureGateTask = nil
+            TrackpadGestureBlocker.shared.setBlocking(next)
+        } else if gestureGate.isDeferred {
+            if previousWanted != gestureGate.wanted || gestureGateTask == nil {
+                scheduleGestureBlockSettle()
+            }
+        } else {
+            gestureGateTask?.cancel()
+            gestureGateTask = nil
+        }
+    }
+
+    /// A new contact sequence is the one safe moment to settle a waiting
+    /// change: everything the Dock saw of the previous sequence is already
+    /// behind it, and this sequence then lands wholly on one side of the switch.
+    private func trackpadContactsBegan() {
+        guard gestureGate.isDeferred else { return }
+        gestureGateTask?.cancel()
+        gestureGateTask = nil
+        guard let next = gestureGate.applyPendingChange() else { return }
+        gestureGateLog.notice(
+            "gesture block \(next, privacy: .public) at contact start"
+        )
+        TrackpadGestureBlocker.shared.setBlocking(next)
+    }
+
+    /// The fingers are up. Let the Dock's own end-of-gesture events through
+    /// before the switch moves, then settle.
+    private func trackpadContactsEnded() {
+        guard gestureGate.isDeferred else { return }
+        scheduleGestureBlockSettle()
+    }
+
+    /// Settles a waiting change once the trackpad has been clear long enough
+    /// for the Dock to finish the sequence. If the user starts another gesture
+    /// in the meantime, `trackpadContactsBegan` takes over at its first frame.
+    /// A finger resting on the trackpad cannot hold the block open forever, so
+    /// the wait is capped.
+    private func scheduleGestureBlockSettle() {
+        gestureGateTask?.cancel()
+        guard gestureGate.isDeferred else {
+            gestureGateTask = nil
+            return
+        }
+
+        // Releasing waits a little longer: the Dock resolves the closing
+        // spread a moment after the fingers lift. Enabling can go sooner: no
+        // gesture can start while the trackpad is clear, and the next contact
+        // settles it immediately anyway.
+        let settleDelay = gestureGate.wanted ? 140 : 260
+        gestureGateTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .milliseconds(settleDelay))
+            guard !Task.isCancelled, let self else { return }
+
+            var forced = false
+            if PinchGestureMonitor.shared.hasActiveContacts {
+                // A contact never ended (a resting finger). Wait for the
+                // boundary, but do not let it strand the block.
+                forced = true
+                let deadline = ContinuousClock.now + .milliseconds(1200)
+                while !Task.isCancelled, ContinuousClock.now < deadline {
+                    try? await Task.sleep(for: .milliseconds(100))
+                    guard !Task.isCancelled else { return }
+                    if !PinchGestureMonitor.shared.hasActiveContacts {
+                        forced = false
+                        break
+                    }
+                }
+            }
+
+            guard let next = self.gestureGate.applyPendingChange() else {
+                self.gestureGateTask = nil
+                return
+            }
+            gestureGateLog.notice(
+                "gesture block \(next, privacy: .public) \(forced ? "forced past a resting contact" : "after the contact boundary", privacy: .public)"
+            )
+            TrackpadGestureBlocker.shared.setBlocking(next)
+            self.gestureGateTask = nil
         }
     }
 
@@ -493,8 +600,8 @@ final class LaunchpadPanelController {
         guard let screen = screenUnderMouse() else { return }
         hideTask?.cancel()
         hideTask = nil
-        gestureReleaseTask?.cancel()
-        gestureReleaseTask = nil
+        gestureGateTask?.cancel()
+        gestureGateTask = nil
 
         if window == nil {
             window = makeWindow()
@@ -553,7 +660,7 @@ final class LaunchpadPanelController {
         // survives into the next presentation can repaint its old selection
         // over the search pill for a frame.
         _ = window.makeFirstResponder(nil)
-        scheduleGestureRelease()
+        requestGestureBlock(false)
         stopAccessibilityWatch()
         model.setAccessibilityGrantNeeded(false)
         model.cancelPageGesture()
@@ -583,22 +690,6 @@ final class LaunchpadPanelController {
             if shouldRestore, let previous, !previous.isTerminated {
                 Self.takeFocus(previous)
             }
-        }
-    }
-
-    /// Stops blocking once the close has finished.
-    ///
-    /// The spread that closes Launchpad is the same one the Dock recognises as
-    /// Show Desktop, and the Dock resolves it a moment after the fingers lift.
-    /// Releasing the block immediately would let that late decision through,
-    /// so the block outlives the panel by a short, invisible margin.
-    private func scheduleGestureRelease() {
-        gestureReleaseTask?.cancel()
-        gestureReleaseTask = Task { @MainActor [weak self] in
-            try? await Task.sleep(for: .milliseconds(450))
-            guard !Task.isCancelled, let self, !self.isVisible else { return }
-            TrackpadGestureBlocker.shared.setBlocking(false)
-            self.gestureReleaseTask = nil
         }
     }
 

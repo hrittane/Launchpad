@@ -12,7 +12,7 @@ for what that means for users.
 ## Quick start
 
 ```sh
-# Debug build + full test suite (145 tests in 19 suites)
+# Debug build + full test suite (151 tests in 20 suites)
 xcodebuild -project Launchpad.xcodeproj -scheme Launchpad -configuration Debug \
   -derivedDataPath /tmp/launchpad-debug test
 
@@ -98,8 +98,13 @@ Native four-finger gestures (desktop swipe, Mission Control, Show Desktop and th
 pinch) belong to the Dock, not to the frontmost app. Launchpad cannot pause them with a public
 API, so `TrackpadGestureBlocker` installs head-insert event taps on **both** the session and
 annotated-session streams for private CGEvent types **29 (`gesture`)** and **30 (`dockControl`)**.
-While the panel is visible, every event of those types is dropped; blocking outlives the panel by
-**450 ms** so the Dock's late decision for the closing spread cannot slip through.
+While the panel is visible, every event of those types is dropped. The switch itself only moves at
+a trackpad **contact boundary** (`GestureBlockGate`): turning it on or off in the middle of a
+gesture gave the Dock half a sequence — it kept waiting for the missing end and consumed the next
+swipe or spread, which is why the first desktop gesture after closing Launchpad did nothing. A
+change now waits for the fingers to lift, and a sequence that starts while a change is waiting
+settles it on its first frame, so each gesture is either wholly blocked or wholly passed through.
+A resting finger cannot strand the block: waiting is capped.
 
 Two-finger paging arrives as scroll-wheel events (type 22) and is never blocked. Pinch, spread
 and the three-, four- and five-finger page swipe are read directly from the trackpad's

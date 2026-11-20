@@ -475,10 +475,38 @@ final class PinchGestureMonitor: @unchecked Sendable {
     private var onPinch: (@MainActor @Sendable () -> Void)?
     private var onSpread: (@MainActor @Sendable () -> Void)?
     private var onSwipe: (@MainActor @Sendable (TrackpadSwipeEvent) -> Void)?
+    private var onContactsBegan: (@MainActor @Sendable () -> Void)?
+    private var onContactsEnded: (@MainActor @Sendable () -> Void)?
+    /// True between the first frame with contacts and the frame where the
+    /// trackpad reports none. The gesture blocker switches only at that
+    /// boundary; see `GestureBlockGate`.
+    private var contactsActive = false
 
     private init() {}
 
     var isAvailable: Bool { Multitouch.isAvailable }
+
+    /// Whether any finger is currently on the trackpad. Contacts from one-
+    /// and two-finger touches count as well: a change that lands while the
+    /// user is still touching would split whatever gesture that touch starts.
+    var hasActiveContacts: Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return contactsActive
+    }
+
+    /// Reports the start and end of each trackpad contact sequence. The
+    /// callbacks run on the main actor and are used to let the Dock finish a
+    /// gesture before the block changes state.
+    func setContactHandlers(
+        onBegan: (@MainActor @Sendable () -> Void)?,
+        onEnded: (@MainActor @Sendable () -> Void)?
+    ) {
+        lock.lock()
+        onContactsBegan = onBegan
+        onContactsEnded = onEnded
+        lock.unlock()
+    }
 
     func start(
         onPinch: @escaping @MainActor @Sendable () -> Void,
@@ -500,21 +528,30 @@ final class PinchGestureMonitor: @unchecked Sendable {
 
     fileprivate func endContactSequence(timestamp: Double) {
         lock.lock()
+        let wasTouching = contactsActive
+        contactsActive = false
         recognizer.reset()
         let events = swipeTracker.finish(timestamp: timestamp)
         let handler = onSwipe
+        let endedHandler = wasTouching ? onContactsEnded : nil
         lock.unlock()
 
-        guard !events.isEmpty, let handler else { return }
+        guard endedHandler != nil || (!events.isEmpty && handler != nil) else { return }
         Task { @MainActor in
-            for event in events {
-                handler(event)
+            if let handler {
+                for event in events {
+                    handler(event)
+                }
             }
+            endedHandler?()
         }
     }
 
     fileprivate func process(touches: UnsafeMutableRawPointer, count: Int, timestamp: Double) {
         lock.lock()
+
+        let beganContacts = !contactsActive
+        contactsActive = true
 
         let rawTouches = touches.bindMemory(to: MTTouch.self, capacity: count)
         var points: [PinchPoint] = []
@@ -545,10 +582,12 @@ final class PinchGestureMonitor: @unchecked Sendable {
         let pinchHandler = onPinch
         let spreadHandler = onSpread
         let swipeHandler = onSwipe
+        let beganHandler = beganContacts ? onContactsBegan : nil
         lock.unlock()
 
-        guard gesture != nil || !swipeEvents.isEmpty else { return }
+        guard beganHandler != nil || gesture != nil || !swipeEvents.isEmpty else { return }
         Task { @MainActor in
+            beganHandler?()
             for event in swipeEvents {
                 switch event {
                 case .began:

@@ -803,9 +803,17 @@ The gesture reaches the session as a private `dockControl` event (CGEvent type 3
 `gesture` events (type 29); the same pair carries Mission Control, App Exposé and Show Desktop.
 `TrackpadGestureBlocker` installs head-insert taps for exactly those two event types on both the
 session and the annotated session stream, because the Dock does not use one location exclusively.
-While the panel is visible every event of those types is dropped before the Dock sees it, and the
-block outlives the panel by 450 ms so the Dock's late decision for the closing spread cannot slip
-through. Two-finger paging arrives as scroll-wheel events (type 22) and is untouched, and the raw
+While the panel is visible every event of those types is dropped before the Dock sees it.
+
+The block itself only changes at a trackpad contact boundary. Switching it in the middle of a
+gesture gave the Dock an incomplete sequence: it saw the beginning of the pinch that opened
+Launchpad but never its end, stayed armed, and spent the next gesture finishing it. The visible
+symptom was that the first spread or desktop swipe after closing Launchpad did nothing and the
+second one worked. `GestureBlockGate` now holds a change while any finger is down and applies it
+when the contact ends; a sequence that starts while a change is waiting settles it on its first
+frame, so a gesture is either wholly blocked or wholly passed through. Waiting is capped so a
+resting finger or a missing end frame cannot leave the block on. Two-finger paging arrives as
+scroll-wheel events (type 22) and is untouched, and the raw
 contacts behind pinch, spread and the three-, four- and five-finger page swipes are read straight
 from the trackpad, so they keep working while their system equivalents stand down. A multi-finger
 sideways swipe is recognised from those contacts and pages the grid instead of switching desktops
