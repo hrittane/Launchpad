@@ -95,10 +95,53 @@ struct LaunchpadView: View {
             let currentPage = min(model.currentPage, max(pageCount - 1, 0))
 
             ZStack(alignment: .topLeading) {
-                content(metrics: metrics, currentPage: currentPage)
-                    .blur(radius: isFolderObscuringGrid ? 26 : 0)
-                    .opacity(isFolderObscuringGrid ? 0.82 : 1)
-                    .animation(.easeOut(duration: 0.2), value: isFolderObscuringGrid)
+                // The search pill is deliberately kept out of the open
+                // zoom/fade: its Liquid Glass and native field editor do not
+                // take an animated scale/opacity cleanly and can flash while
+                // the window is still fading in. It fades with the window.
+                ZStack(alignment: .topLeading) {
+                    content(metrics: metrics, currentPage: currentPage)
+                        .blur(radius: isFolderObscuringGrid ? 26 : 0)
+                        .opacity(isFolderObscuringGrid ? 0.82 : 1)
+                        .animation(.easeOut(duration: 0.2), value: isFolderObscuringGrid)
+
+                    if model.needsAccessibilityGrant, model.openFolder == nil {
+                        AccessibilityBanner(metrics: metrics) {
+                            AccessibilityAccess.grant()
+                        }
+                        .padding(.top, metrics.searchTop)
+                        .padding(.trailing, 28)
+                        .frame(
+                            maxWidth: .infinity,
+                            maxHeight: .infinity,
+                            alignment: .topTrailing
+                        )
+                        .transition(.opacity)
+                        .zIndex(2)
+                    }
+
+                    if model.openFolder == nil && !model.isSearching {
+                        PageDotsView(
+                            pageCount: pageCount,
+                            currentPage: currentPage,
+                            metrics: metrics,
+                            onSelect: { page in
+                                withAnimation(.spring(duration: 0.34, bounce: 0.08)) {
+                                    model.goToPage(page)
+                                }
+                            }
+                        )
+                        .position(x: proxy.size.width / 2, y: metrics.dotsCenterY)
+                    }
+                }
+                .frame(
+                    width: proxy.size.width,
+                    height: proxy.size.height,
+                    alignment: .topLeading
+                )
+                .scaleEffect(appeared ? 1 : 1.04)
+                .opacity(appeared ? 1 : 0)
+                .animation(.easeOut(duration: 0.2), value: model.needsAccessibilityGrant)
 
                 SearchPillView(
                     metrics: metrics,
@@ -112,21 +155,6 @@ struct LaunchpadView: View {
                     y: metrics.searchTop + metrics.searchHeight / 2
                 )
 
-                if model.needsAccessibilityGrant, model.openFolder == nil {
-                    AccessibilityBanner(metrics: metrics) {
-                        AccessibilityAccess.grant()
-                    }
-                    .padding(.top, metrics.searchTop)
-                    .padding(.trailing, 28)
-                    .frame(
-                        maxWidth: .infinity,
-                        maxHeight: .infinity,
-                        alignment: .topTrailing
-                    )
-                    .transition(.opacity)
-                    .zIndex(2)
-                }
-
                 // Folder dim. It sits above the grid content (icons included)
                 // and below the sheet, and is animated by `FolderDim` in the
                 // same animation group as the menu-bar cover's share of it, so
@@ -135,20 +163,6 @@ struct LaunchpadView: View {
                     .allowsHitTesting(false)
                     .accessibilityHidden(true)
                     .zIndex(1)
-
-                if model.openFolder == nil && !model.isSearching {
-                    PageDotsView(
-                        pageCount: pageCount,
-                        currentPage: currentPage,
-                        metrics: metrics,
-                        onSelect: { page in
-                            withAnimation(.spring(duration: 0.34, bounce: 0.08)) {
-                                model.goToPage(page)
-                            }
-                        }
-                    )
-                    .position(x: proxy.size.width / 2, y: metrics.dotsCenterY)
-                }
 
                 if let folder = model.openFolder {
                     FolderView(
@@ -199,9 +213,6 @@ struct LaunchpadView: View {
             }
             .frame(width: proxy.size.width, height: proxy.size.height, alignment: .topLeading)
             .coordinateSpace(.named(LaunchpadCanvas.space))
-            .scaleEffect(appeared ? 1 : 1.04)
-            .opacity(appeared ? 1 : 0)
-            .animation(.easeOut(duration: 0.2), value: model.needsAccessibilityGrant)
             .onAppear {
                 model.apply(settings: settings)
                 if !model.catalog.apps.isEmpty { model.reconcile() }

@@ -20,15 +20,16 @@ struct SearchPillView: View {
             ZStack(alignment: .leading) {
                 // A custom placeholder: the native prompt is drawn by the field
                 // editor with the system's secondary label colour, which turns
-                // black in light mode on top of the glass.
-                if text.isEmpty {
-                    Text("Search Applications")
-                        .font(.system(size: metrics.searchFontSize, weight: .regular))
-                        .foregroundStyle(.white.opacity(0.55))
-                        .lineLimit(1)
-                        .allowsHitTesting(false)
-                        .accessibilityHidden(true)
-                }
+                // black in light mode on top of the glass. It stays in the
+                // hierarchy and only fades, so clearing the query on the next
+                // presentation does not rebuild its sibling field editor.
+                Text("Search Applications")
+                    .font(.system(size: metrics.searchFontSize, weight: .regular))
+                    .foregroundStyle(.white.opacity(0.55))
+                    .lineLimit(1)
+                    .opacity(text.isEmpty ? 1 : 0)
+                    .allowsHitTesting(false)
+                    .accessibilityHidden(true)
 
                 TextField("", text: $text)
                     .textFieldStyle(.plain)

@@ -549,6 +549,10 @@ final class LaunchpadPanelController {
 
     func hide(restoreFocus: Bool = true) {
         guard let window, window.isVisible else { return }
+        // End text editing before the panel fades: a shared field editor that
+        // survives into the next presentation can repaint its old selection
+        // over the search pill for a frame.
+        _ = window.makeFirstResponder(nil)
         scheduleGestureRelease()
         stopAccessibilityWatch()
         model.setAccessibilityGrantNeeded(false)

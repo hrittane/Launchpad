@@ -129,6 +129,12 @@ i.e. it is an overlay, not a grid row.
 > edge at 37 px (5.14 % H). Implemented as 16.35 % W × 4.25 % H, top 5.14 % H; a window-server capture
 > reproduces 181 × 29 px at 1107 W with the same left/right edges (463…643 vs 463…643).
 
+The pill is the one surface excluded from the panel's open zoom/fade (`scaleEffect` 1.04 → 1 plus
+opacity). Its Liquid Glass layer and the native field editor do not inherit an animated scale/opacity
+cleanly and flashed for a frame while the window alpha was still rising. The pill now fades with the
+window alone. Closing the panel also resigns first responder, so a shared field editor cannot survive
+into the next presentation and repaint a stale selection over the field.
+
 ### 2.3 Page indicator (frames 003 / 021 / 016)
 
 | Metric | Value |
