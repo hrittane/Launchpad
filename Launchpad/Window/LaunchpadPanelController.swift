@@ -13,6 +13,7 @@ final class LaunchpadContentView: NSView {
     private let settings: LaunchpadSettings
     private let onDismiss: () -> Void
     private let onLaunch: (AppItem) -> Void
+    private let onGrantPermissions: () -> Void
     private let onFolderObscured: (Bool) -> Void
     private let folderDim: FolderDim
 
@@ -31,6 +32,7 @@ final class LaunchpadContentView: NSView {
         folderDim: FolderDim,
         onDismiss: @escaping () -> Void,
         onLaunch: @escaping (AppItem) -> Void,
+        onGrantPermissions: @escaping () -> Void,
         onFolderObscured: @escaping (Bool) -> Void
     ) {
         self.model = model
@@ -38,6 +40,7 @@ final class LaunchpadContentView: NSView {
         self.folderDim = folderDim
         self.onDismiss = onDismiss
         self.onLaunch = onLaunch
+        self.onGrantPermissions = onGrantPermissions
         self.onFolderObscured = onFolderObscured
         hosting = NSHostingView(
             rootView: LaunchpadView(
@@ -45,6 +48,7 @@ final class LaunchpadContentView: NSView {
                 settings: settings,
                 onDismiss: onDismiss,
                 onLaunch: onLaunch,
+                onGrantPermissions: onGrantPermissions,
                 onFolderObscured: onFolderObscured,
                 folderDim: folderDim
             )
@@ -109,6 +113,7 @@ final class LaunchpadContentView: NSView {
             settings: settings,
             onDismiss: onDismiss,
             onLaunch: onLaunch,
+            onGrantPermissions: onGrantPermissions,
             onFolderObscured: onFolderObscured,
             folderDim: folderDim
         )
@@ -129,6 +134,7 @@ final class LaunchpadPanelController {
 
     private let model: AppModel
     private let settings: LaunchpadSettings
+    private let onGrantPermissions: () -> Void
     private var window: LaunchpadWindow?
     private var coverWindow: MenuBarCoverWindow?
     private var previousApp: NSRunningApplication?
@@ -147,9 +153,14 @@ final class LaunchpadPanelController {
     private var scrollSamples: [(time: TimeInterval, delta: CGFloat)] = []
     private let folderDim = FolderDim()
 
-    init(model: AppModel, settings: LaunchpadSettings) {
+    init(
+        model: AppModel,
+        settings: LaunchpadSettings,
+        onGrantPermissions: @escaping () -> Void
+    ) {
         self.model = model
         self.settings = settings
+        self.onGrantPermissions = onGrantPermissions
 
         escapeMonitor = NSEvent.addLocalMonitorForEvents(
             matching: [.keyDown, .scrollWheel, .leftMouseDragged]
@@ -742,6 +753,7 @@ final class LaunchpadPanelController {
             folderDim: folderDim,
             onDismiss: { [weak self] in self?.hide() },
             onLaunch: { [weak self] item in self?.launch(item) },
+            onGrantPermissions: onGrantPermissions,
             onFolderObscured: { [weak self] obscured in
                 self?.folderDim.setDimmed(obscured)
             }

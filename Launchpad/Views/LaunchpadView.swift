@@ -20,6 +20,9 @@ struct LaunchpadView: View {
     let settings: LaunchpadSettings
     let onDismiss: () -> Void
     let onLaunch: (AppItem) -> Void
+    /// Opens Settings on the Accessibility row when the permission banner's
+    /// button is clicked.
+    let onGrantPermissions: () -> Void
     /// Called when the folder sheet starts or stops dimming the grid. The dim
     /// object animates the grid layer and the menu-bar cover together.
     let onFolderObscured: (Bool) -> Void
@@ -106,9 +109,7 @@ struct LaunchpadView: View {
                         .animation(.easeOut(duration: 0.2), value: isFolderObscuringGrid)
 
                     if model.needsAccessibilityGrant, model.openFolder == nil {
-                        AccessibilityBanner(metrics: metrics) {
-                            AccessibilityAccess.grant()
-                        }
+                        AccessibilityBanner(metrics: metrics, onFix: onGrantPermissions)
                         .padding(.top, metrics.searchTop)
                         .padding(.trailing, 28)
                         .frame(

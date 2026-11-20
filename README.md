@@ -144,8 +144,11 @@ rebuild or an update:
 This is not a bug in the blocker; it is how TCC identifies ad-hoc code. Two mechanisms handle it:
 
 1. **The banner.** While the panel is visible and blocking is enabled but the grant is missing,
-   a glass capsule appears next to the search field: **Allow gesture blocking → Grant Access**.
-2. **Grant Access** in *Settings → General → Trackpad*, and in the banner, calls
+   a glass capsule appears next to the search field:
+   **Allow gesture blocking → Grant Permissions in Settings**. It opens Launchpad Settings on
+   General with the Accessibility row outlined in red. The outline stays until that row is
+   clicked (or access is granted).
+2. **Grant Access** in *Settings → General → Accessibility* calls
    `AccessibilityAccess.grant()`. It runs `tccutil reset Accessibility com.example.Launchpad` to
    remove the stale entry, asks the system for access again, and opens the Accessibility pane.
    The status row turns green live when the user enables it.

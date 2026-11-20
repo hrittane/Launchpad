@@ -24,7 +24,7 @@ struct AccessibilityBanner: View {
                 .foregroundStyle(.white.opacity(0.85))
                 .lineLimit(1)
 
-            Button("Grant Access", action: onFix)
+            Button("Grant Permissions in Settings", action: onFix)
                 .buttonStyle(.plain)
                 .font(.system(size: max(11, metrics.searchFontSize - 1), weight: .semibold))
                 .foregroundStyle(.white)
@@ -44,8 +44,8 @@ struct AccessibilityBanner: View {
                 .strokeBorder(.white.opacity(0.20), lineWidth: 1)
         }
         .help(
-            "macOS needs Accessibility access for this build, usually after an update. "
-                + "Grant Access re-approves it."
+            "Opens Settings on the Accessibility row, highlighted in red, where "
+                + "this build can be granted access."
         )
         .accessibilityElement(children: .combine)
         .accessibilityLabel(Text("Gesture blocking needs Accessibility access"))

@@ -1,11 +1,25 @@
 import AppKit
+import Observation
 import SwiftUI
+
+/// Navigation state shared by the settings window and the launcher's
+/// permission banner. The banner can ask the window to open on General and
+/// flag the Accessibility row, which keeps that row highlighted in red until
+/// the user clicks it.
+@MainActor
+@Observable
+final class SettingsNavigation {
+    var tab: SettingsTab = .general
+    var highlightsAccessibility = false
+}
 
 /// The floating settings panel. It is a borderless window with its own tab
 /// strip and red close button, matching the reference frames rather than the
 /// standard macOS Settings window.
 @MainActor
 final class SettingsWindowController: NSWindowController {
+    private let navigation = SettingsNavigation()
+
     init(
         model: AppModel,
         settings: LaunchpadSettings
@@ -14,6 +28,7 @@ final class SettingsWindowController: NSWindowController {
         let view = SettingsView(
             model: model,
             settings: settings,
+            navigation: navigation,
             onClose: { [weak window] in window?.close() }
         )
         let hosting = NSHostingController(rootView: view)
@@ -37,8 +52,14 @@ final class SettingsWindowController: NSWindowController {
         fatalError("SettingsWindowController is created programmatically")
     }
 
-    func present() {
+    /// - Parameter focusAccessibility: opens General with the Accessibility row
+    ///   highlighted, used by the launcher's permission banner.
+    func present(focusAccessibility: Bool = false) {
         guard let window else { return }
+        if focusAccessibility {
+            navigation.tab = .general
+            navigation.highlightsAccessibility = true
+        }
         showWindow(nil)
         window.makeKeyAndOrderFront(nil)
         NSApp.activate()
@@ -55,9 +76,9 @@ final class SettingsPanelWindow: NSWindow {
 struct SettingsView: View {
     let model: AppModel
     @Bindable var settings: LaunchpadSettings
+    let navigation: SettingsNavigation
     let onClose: () -> Void
 
-    @State private var tab: SettingsTab = .general
     @State private var isTrusted = false
     @State private var hasInstalledCopy = false
     @State private var installError: String?
@@ -91,6 +112,9 @@ struct SettingsView: View {
             }
         }
         .onChange(of: isTrusted) { _, trusted in
+            if trusted {
+                navigation.highlightsAccessibility = false
+            }
             guard trusted, settings.suppressDesktopSwipe else { return }
             _ = TrackpadGestureBlocker.shared.installIfTrusted()
         }
@@ -136,7 +160,7 @@ struct SettingsView: View {
             ForEach(SettingsTab.allCases) { item in
                 Button {
                     withAnimation(.snappy(duration: 0.18)) {
-                        tab = item
+                        navigation.tab = item
                     }
                 } label: {
                     VStack(spacing: 5) {
@@ -145,11 +169,11 @@ struct SettingsView: View {
                         Text(item.title)
                             .font(.system(size: 10, weight: .medium))
                     }
-                    .foregroundStyle(tab == item ? Color.accentColor : Color.secondary)
+                    .foregroundStyle(navigation.tab == item ? Color.accentColor : Color.secondary)
                     .frame(maxWidth: .infinity)
                     .frame(height: 52)
                     .background {
-                        if tab == item {
+                        if navigation.tab == item {
                             RoundedRectangle(cornerRadius: 10, style: .continuous)
                                 .fill(Color(nsColor: .controlBackgroundColor))
                                 .shadow(color: .black.opacity(0.10), radius: 4, y: 1)
@@ -172,7 +196,7 @@ struct SettingsView: View {
 
     @ViewBuilder
     private var tabContent: some View {
-        switch tab {
+        switch navigation.tab {
         case .general:
             generalTab
         case .interface:
@@ -356,6 +380,7 @@ struct SettingsView: View {
 
                 if isTrusted {
                     Button("Open Settings") {
+                        navigation.highlightsAccessibility = false
                         AccessibilityAccess.openSettings()
                     }
                     .controlSize(.small)
@@ -395,6 +420,23 @@ struct SettingsView: View {
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 9)
+        .background {
+            RoundedRectangle(cornerRadius: 9, style: .continuous)
+                .fill(navigation.highlightsAccessibility ? Color.red.opacity(0.10) : Color.clear)
+        }
+        .overlay {
+            RoundedRectangle(cornerRadius: 9, style: .continuous)
+                .strokeBorder(
+                    Color.red,
+                    lineWidth: navigation.highlightsAccessibility ? 2 : 0
+                )
+        }
+        .contentShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
+        .simultaneousGesture(
+            TapGesture().onEnded {
+                navigation.highlightsAccessibility = false
+            }
+        )
     }
 
     /// The instructions depend on where the app is running from: the list only
@@ -555,6 +597,7 @@ struct SettingsView: View {
     }
 
     private func grantAccess() {
+        navigation.highlightsAccessibility = false
         AccessibilityAccess.grant()
     }
 
@@ -569,7 +612,7 @@ struct SettingsView: View {
     }
 }
 
-private enum SettingsTab: CaseIterable, Identifiable {
+enum SettingsTab: CaseIterable, Identifiable {
     case general
     case interface
     case advanced

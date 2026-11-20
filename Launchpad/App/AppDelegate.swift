@@ -32,7 +32,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         model.catalog.scanIfNeeded()
         model.apply(settings: settings)
 
-        let controller = LaunchpadPanelController(model: model, settings: settings)
+        let controller = LaunchpadPanelController(
+            model: model,
+            settings: settings,
+            onGrantPermissions: { [weak self] in
+                self?.showSettings(focusAccessibility: true)
+            }
+        )
         panelController = controller
 
         // Like the real Launchpad, the panel is modal in spirit: switching to
@@ -110,7 +116,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     // MARK: - Settings
 
-    private func showSettings() {
+    /// - Parameter focusAccessibility: opens Settings on General with the
+    ///   Accessibility row highlighted, as requested by the launcher's
+    ///   permission banner.
+    private func showSettings(focusAccessibility: Bool = false) {
         panelController?.hide(restoreFocus: false)
         if settingsWindowController == nil {
             settingsWindowController = SettingsWindowController(
@@ -118,7 +127,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 settings: settings
             )
         }
-        settingsWindowController?.present()
+        settingsWindowController?.present(focusAccessibility: focusAccessibility)
     }
 
     /// Re-applies every setting that has an AppKit side effect.

@@ -829,7 +829,9 @@ remains on `⌘Space`. Turning the pinch switch off hands the Dock's Apps pinch 
 setting still keeps system gestures from interrupting an open Launchpad. Spread and multi-finger
 paging need the block setting and grant without the pinch switch. Without the grant the Dock would
 still act, so Launchpad would race it instead of replacing it; the banner asks for the grant
-instead. The Apps override is restored as soon as the switch or the block setting is turned off or
+instead. Its **Grant Permissions in Settings** button opens Settings on General and highlights the
+Accessibility row in red until it is clicked (or the grant arrives), so the next step is not lost
+among the other rows. The Apps override is restored as soon as the switch or the block setting is turned off or
 the grant is missing, which a small trust poll in `AppDelegate` notices even while Launchpad is
 hidden.
 
