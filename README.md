@@ -148,10 +148,14 @@ This is not a bug in the blocker; it is how TCC identifies ad-hoc code. Two mech
    **Allow gesture blocking → Grant Permissions in Settings**. It opens Launchpad Settings on
    General with the Accessibility row outlined in red. The outline stays until that row is
    clicked (or access is granted).
-2. **Grant Access** in *Settings → General → Accessibility* calls
+2. **Enable** in *Settings → General → Accessibility* calls
    `AccessibilityAccess.grant()`. It runs `tccutil reset Accessibility com.example.Launchpad` to
    remove the stale entry, asks the system for access again, and opens the Accessibility pane.
    The status row turns green live when the user enables it.
+
+Nothing asks for Accessibility while the app launches or while the panel is presented: the system
+prompt belongs to that Enable button alone, so a first run never raises a consent dialog the user
+did not request.
 
 Consequence for released builds: **users must re-approve Accessibility once after every update.**
 Batch releases accordingly. A Developer ID signature would make the grant survive updates — that
@@ -189,7 +193,7 @@ Also consider:
 
 There is intentionally no certificate, trust-setting or keychain setup in the repository. If a
 Developer ID becomes available later, replace the ad-hoc re-sign in the scripts with that
-identity, notarize and staple the DMG; the banner and Grant Access flow can stay as a fallback.
+identity, notarize and staple the DMG; the banner and Enable flow can stay as a fallback.
 
 ## Known limitations
 

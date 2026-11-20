@@ -461,8 +461,12 @@ final class LaunchpadPanelController {
     /// gestures simply stay enabled and the settings panel explains the grant.
     private func applyGestureBlocking() {
         let blocksGestures = settings.suppressDesktopSwipe
-        if blocksGestures, !TrackpadGestureBlocker.shared.installIfTrusted() {
-            TrackpadGestureBlocker.shared.requestAccessIfNeeded()
+        if blocksGestures {
+            // Installing is silent: it only succeeds when the grant already
+            // exists. Launching the app must never raise the system consent
+            // dialog on its own — the Settings button asks for access when the
+            // user chooses to enable it.
+            _ = TrackpadGestureBlocker.shared.installIfTrusted()
         }
         model.setAccessibilityGrantNeeded(
             blocksGestures && !TrackpadGestureBlocker.shared.isTrusted

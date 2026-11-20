@@ -66,7 +66,6 @@ final class TrackpadGestureBlocker: @unchecked Sendable {
     private let lock = NSLock()
     private var policy = DockGesturePolicy()
     private var taps: [TapHandle] = []
-    private var didRequestAccess = false
     private var swallowedCount = 0
 
     private init() {}
@@ -155,29 +154,10 @@ final class TrackpadGestureBlocker: @unchecked Sendable {
         return true
     }
 
-    /// Asks for Accessibility access once per launch. The system shows its own
-    /// alert and points at System Settings; granting it is enough for the next
-    /// presentation to install the tap.
-    func requestAccessIfNeeded() {
-        guard !isInstalled else { return }
-
-        lock.lock()
-        let alreadyAsked = didRequestAccess
-        didRequestAccess = true
-        lock.unlock()
-
-        guard !alreadyAsked, !AXIsProcessTrusted() else { return }
-        requestAccess()
-    }
-
-    /// Asks the system for Accessibility access now. The alert only appears
-    /// while the app is not already trusted; macOS remembers a previous denial,
-    /// so the settings window also offers a direct link to System Settings.
-    func requestAccess() {
-        guard !AXIsProcessTrusted() else { return }
-        let options = ["AXTrustedCheckOptionPrompt": true] as CFDictionary
-        _ = AXIsProcessTrustedWithOptions(options)
-    }
+    // Accessibility is requested only from Settings, never while the panel is
+    // being presented or the app is launching. The system's consent dialog is
+    // owned by `AccessibilityAccess.grant()`, which runs when the user clicks
+    // Enable on the Accessibility row.
 
     fileprivate func handle(type: CGEventType, event: CGEvent) -> Unmanaged<CGEvent>? {
         let pass = Unmanaged.passUnretained(event)

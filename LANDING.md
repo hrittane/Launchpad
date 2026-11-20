@@ -60,15 +60,16 @@ macOS sends four-finger swipes, Mission Control and Show Desktop to the Dock. If
 those gestures through, paging the grid would slide your desktop away, and the spread that closes
 Launchpad would also reveal the desktop.
 
-To prevent that, Launchpad asks for **Accessibility** access and temporarily intercepts those
-gesture events while the grid is on screen. Nothing is recorded and nothing is sent anywhere:
-the app contains no analytics or network code. In **Settings → General → Trackpad** you can turn
-this off at any time.
+To prevent that, Launchpad can ask for **Accessibility** access and temporarily intercept those
+gesture events while the grid is on screen. It never prompts on launch: the system dialog appears
+only when you choose **Enable** on the Accessibility row in **Settings → General**. Nothing is
+recorded and nothing is sent anywhere: the app contains no analytics or network code. In
+**Settings → General → Trackpad** you can turn this off at any time.
 
 After an update, macOS may show the Accessibility switch as on while it no longer applies to the
 new build. If the desktop starts sliding behind the grid, open Launchpad and click **Allow gesture
-blocking → Grant Access** in the banner next to the search field, then switch Launchpad on in
-System Settings. That is a one-time step for each new version.
+blocking → Grant Permissions in Settings** in the banner next to the search field, then click
+**Enable** and switch Launchpad on in System Settings. That is a one-time step for each new version.
 
 ### FAQ
 

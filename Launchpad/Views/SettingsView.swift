@@ -385,7 +385,7 @@ struct SettingsView: View {
                     }
                     .controlSize(.small)
                 } else {
-                    Button("Grant Access") {
+                    Button("Enable") {
                         grantAccess()
                     }
                     .controlSize(.small)
@@ -450,8 +450,8 @@ struct SettingsView: View {
             return "Launchpad is installed in Applications. Use Relaunch from Applications, "
                 + "then grant access to that copy."
         }
-        return "Grant Access opens System Settings and turns on Launchpad under Accessibility. "
-            + "If the switch already looks on but blocking does nothing, Grant Access refreshes it."
+        return "Enable opens System Settings and turns on Launchpad under Accessibility. "
+            + "If the switch already looks on but blocking does nothing, Enable refreshes it."
     }
 
     private func toggleRow(_ title: String, isOn: Binding<Bool>) -> some View {

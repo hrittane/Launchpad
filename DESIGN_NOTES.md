@@ -831,7 +831,8 @@ paging need the block setting and grant without the pinch switch. Without the gr
 still act, so Launchpad would race it instead of replacing it; the banner asks for the grant
 instead. Its **Grant Permissions in Settings** button opens Settings on General and highlights the
 Accessibility row in red until it is clicked (or the grant arrives), so the next step is not lost
-among the other rows. The Apps override is restored as soon as the switch or the block setting is turned off or
+among the other rows. The system consent dialog itself is raised only by the **Enable** button on
+that row — never at launch or when the panel appears. The Apps override is restored as soon as the switch or the block setting is turned off or
 the grant is missing, which a small trust poll in `AppDelegate` notices even while Launchpad is
 hidden.
 
@@ -849,7 +850,9 @@ The taps need Accessibility access. macOS keys an ad-hoc signature's grant to th
 hash, so a new install leaves System Settings showing an enabled switch that no longer applies to
 the running binary — the silent failure that made both the spread and the desktop swipe still
 fire. `AccessibilityAccess.grant()` clears that stale entry and requests access again, which is
-what the Settings button does; it has to be clicked once after each install. A certificate-based
+what the Settings **Enable** button does; it has to be clicked once after each install. Launching
+the app never invokes that path on its own, so the first run stays free of an unrequested consent
+dialog. A certificate-based
 signature would keep the grant across rebuilds, but it requires a trusted signing identity and is
 not used here.
 
