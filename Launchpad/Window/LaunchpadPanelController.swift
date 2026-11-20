@@ -670,6 +670,11 @@ final class LaunchpadPanelController {
         previousApp = nil
         let cover = coverWindow
 
+        // Start the SwiftUI half of the close before the window alpha runs:
+        // `appeared` returns to its pre-open scale, so the grid recedes the
+        // same way it arrived instead of just fading on its own.
+        model.noteDismissing()
+
         NSAnimationContext.runAnimationGroup { context in
             context.duration = 0.22
             context.timingFunction = CAMediaTimingFunction(name: .easeIn)

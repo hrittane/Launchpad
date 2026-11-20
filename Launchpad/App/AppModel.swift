@@ -26,6 +26,10 @@ final class AppModel {
     /// entrance animation even though the hosting view is long-lived.
     private(set) var showCount = 0
 
+    /// Incremented when a visible panel starts to close, so the view can play
+    /// the entrance animation in reverse while the window fades out.
+    private(set) var dismissCount = 0
+
     /// True when gesture blocking is enabled but macOS has not granted
     /// Accessibility for this build — normally right after an update, because
     /// an ad-hoc signature is identified by the build's code hash. The panel
@@ -171,6 +175,12 @@ final class AppModel {
         endEditing()
         closeFolder()
         clearSearch()
+    }
+
+    /// Records the start of a close without tearing down any state: the caller
+    /// still uses the current page while the panel fades, mirroring presentation.
+    func noteDismissing() {
+        dismissCount += 1
     }
 
     /// Starts a finger-following page swipe. The strip moves with every scroll

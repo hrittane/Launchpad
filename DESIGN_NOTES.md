@@ -132,8 +132,9 @@ i.e. it is an overlay, not a grid row.
 The pill is the one surface excluded from the panel's open zoom/fade (`scaleEffect` 1.04 → 1 plus
 opacity). Its Liquid Glass layer and the native field editor do not inherit an animated scale/opacity
 cleanly and flashed for a frame while the window alpha was still rising. The pill now fades with the
-window alone. Closing the panel also resigns first responder, so a shared field editor cannot survive
-into the next presentation and repaint a stale selection over the field.
+window alone. The close mirrors the open on the grid — it scales back out to 1.04 while the window
+fades — and the pill still only fades. Closing the panel also resigns first responder, so a shared
+field editor cannot survive into the next presentation and repaint a stale selection over the field.
 
 ### 2.3 Page indicator (frames 003 / 021 / 016)
 
@@ -260,7 +261,8 @@ overlay (~35–45 % white) + adjustable material slider**; wallpaper still faint
    on hover.
 10. **Settings**: live reflow when the column count changes (7 → 8 → 9) and when the background
     type changes (blurred wallpaper ↔ frosted glass), with the grid staying interactive behind.
-11. **Closing**: no frames; task default reverse of opening.
+11. **Closing**: reverse of opening — the grid scales back out to its pre-open 1.04 and fades
+    with the window (0.22 s).
 
 All animation **durations are unknown** (frame extraction rate not provided; frame gaps are
 irregular because the video is cut). Use task defaults: open 0.30 s spring, close 0.22 s,
@@ -289,7 +291,7 @@ page 0.35 s, folder morph 0.40 s, hover 0.12 s, badge pop 0.20 s.
 
 | Missing state | Default |
 |---|---|
-| Open/close transition | icons 1.10 → 1.0 + fade, backdrop blur 0 → full, 0.30 s spring; close 0.95 + fade 0.22 s |
+| Open/close transition | grid 1.04 → 1 + fade, backdrop blur 0 → full, 0.30 s alpha with a 0.42 s spring on the grid; close reverses the grid to 1.04 under the 0.22 s fade |
 | Typed search + results | the pages are replaced by a single results grid; ranking = exact → prefix → word-prefix → substring → initials; Return launches the selected tile, arrows move a 2 pt white ring |
 | Page swipe mid-animation | horizontal slide with rubber band + spring snap, 0.35 s |
 | Folder morph animation | `glassEffectID` + `@Namespace` matched geometry from icon to panel, 0.40 s |

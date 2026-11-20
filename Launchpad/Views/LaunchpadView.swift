@@ -229,6 +229,14 @@ struct LaunchpadView: View {
             .onChange(of: model.showCount) { _, _ in
                 isSearchFocused = false
             }
+            .onChange(of: model.dismissCount) { _, _ in
+                // Mirror the entrance on the way out: the window alpha fades
+                // at the same time, so the grid recedes instead of blinking
+                // out while the panel has already gone.
+                withAnimation(.easeIn(duration: 0.2)) {
+                    appeared = false
+                }
+            }
             .onChange(of: model.searchFocusRequest) { _, _ in
                 isSearchFocused = true
             }
