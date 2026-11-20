@@ -25,25 +25,28 @@ enum FourFingerGesture: Equatable {
     case spread
 }
 
-/// A live four-finger horizontal swipe.
+/// A live multi-finger horizontal swipe.
 ///
 /// `deltaX` and `velocityX` are normalized to the trackpad width, so the panel
 /// can map a full-pad swipe onto one page width.
-enum FourFingerSwipeEvent: Equatable {
+enum TrackpadSwipeEvent: Equatable {
     case began
     case changed(deltaX: Float)
     case ended(velocityX: Float)
     case cancelled
 }
 
-/// Turns raw four-finger horizontal travel into a live page swipe.
+/// Turns raw three-, four- or five-finger horizontal travel into a live page
+/// swipe.
 ///
-/// The system's own four-finger swipe switches desktops, which is exactly what
-/// Launchpad does not want. Reading the contacts directly lets the panel page
-/// its grid with the same fingers, and the direction matches two-finger paging:
-/// fingers moving right bring the previous page back.
-struct FourFingerSwipeTracker {
-    private static let minimumFingerCount = 4
+/// The system's own multi-finger swipe switches desktops or full-screen apps,
+/// which is exactly what Launchpad does not want. Reading the contacts directly
+/// lets the panel page its grid with the same fingers, and the direction matches
+/// two-finger paging: fingers moving right bring the previous page back. Two
+/// fingers stay on the scroll-event path, so this tracker deliberately needs at
+/// least three contacts.
+struct TrackpadSwipeTracker {
+    private static let minimumFingerCount = 3
 
     /// Travel needed before a gesture counts, in trackpad widths. Small enough
     /// to feel immediate, large enough to ignore a resting hand.
@@ -77,7 +80,7 @@ struct FourFingerSwipeTracker {
     mutating func process(
         points: [PinchPoint],
         timestamp: Double
-    ) -> [FourFingerSwipeEvent] {
+    ) -> [TrackpadSwipeEvent] {
         if let lastTimestamp, timestamp - lastTimestamp > Self.pauseInterval {
             return finish()
         }
@@ -141,14 +144,14 @@ struct FourFingerSwipeTracker {
     }
 
     /// Ends the swipe and reports the release velocity.
-    mutating func finish(timestamp: Double? = nil) -> [FourFingerSwipeEvent] {
+    mutating func finish(timestamp: Double? = nil) -> [TrackpadSwipeEvent] {
         defer { reset() }
         guard isActive else { return [] }
         return [.ended(velocityX: velocity(at: timestamp ?? lastTimestamp ?? 0))]
     }
 
     /// Ends the swipe without a velocity, for a gesture that was taken over.
-    mutating func cancel() -> [FourFingerSwipeEvent] {
+    mutating func cancel() -> [TrackpadSwipeEvent] {
         let wasActive = isActive
         reset()
         return wasActive ? [.cancelled] : []
@@ -451,7 +454,8 @@ nonisolated(unsafe) private let pinchContactCallback: MTContactCallback = {
 }
 
 /// Observes raw trackpad contacts and turns them into the launcher's gestures:
-/// pinch opens, spread closes and a horizontal four-finger swipe pages the grid.
+/// a four-finger pinch opens, a four-finger spread closes and a horizontal
+/// three-, four- or five-finger swipe pages the grid.
 ///
 /// The callback stays registered for the process lifetime so toggling the
 /// setting never races the private framework's start/stop. Recognition always
@@ -467,10 +471,10 @@ final class PinchGestureMonitor: @unchecked Sendable {
     private var deviceList: CFArray?
     private var hasStarted = false
     private var recognizer = FourFingerGestureRecognizer()
-    private var swipeTracker = FourFingerSwipeTracker()
+    private var swipeTracker = TrackpadSwipeTracker()
     private var onPinch: (@MainActor @Sendable () -> Void)?
     private var onSpread: (@MainActor @Sendable () -> Void)?
-    private var onSwipe: (@MainActor @Sendable (FourFingerSwipeEvent) -> Void)?
+    private var onSwipe: (@MainActor @Sendable (TrackpadSwipeEvent) -> Void)?
 
     private init() {}
 
@@ -479,7 +483,7 @@ final class PinchGestureMonitor: @unchecked Sendable {
     func start(
         onPinch: @escaping @MainActor @Sendable () -> Void,
         onSpread: @escaping @MainActor @Sendable () -> Void,
-        onSwipe: @escaping @MainActor @Sendable (FourFingerSwipeEvent) -> Void
+        onSwipe: @escaping @MainActor @Sendable (TrackpadSwipeEvent) -> Void
     ) {
         lock.lock()
         self.onPinch = onPinch
@@ -548,9 +552,9 @@ final class PinchGestureMonitor: @unchecked Sendable {
             for event in swipeEvents {
                 switch event {
                 case .began:
-                    gestureMonitorLog.notice("four-finger swipe began")
+                    gestureMonitorLog.notice("multi-finger swipe began")
                 case .ended:
-                    gestureMonitorLog.notice("four-finger swipe ended")
+                    gestureMonitorLog.notice("multi-finger swipe ended")
                 case .changed, .cancelled:
                     break
                 }

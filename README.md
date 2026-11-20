@@ -43,10 +43,13 @@ human on a real Mac — the test suite covers logic, not gestures.
 - Live search, keyboard navigation, jiggle mode and drag reordering with a transient new page
   created after an edge dwell.
 - Finger-following paging: two-finger swipes translate the strip live and commit by distance or
-  projected velocity. A four-finger sideways swipe pages the grid too, instead of switching
-  desktops.
-- Four-finger **pinch** opens the launcher, **spread** closes it. Each contact sequence fires at
-  most one gesture, so relaxing the fingers after a pinch cannot immediately close it.
+  projected velocity. Three-, four- and five-finger sideways swipes page the grid too, instead of
+  switching desktops or full-screen apps.
+- With the trackpad take-over enabled, Accessibility granted and **Pinch with four fingers** on, a
+  four-finger **pinch** opens the launcher and a **spread** closes it. Each contact sequence fires
+  at most one gesture, so relaxing the fingers after a pinch cannot immediately close it. The
+  gesture pair is shared with macOS's Show Desktop, so the pinch that restores the windows does not
+  also open Launchpad.
 - `⌥Space` toggles the panel (configurable), plus an optional screen-corner trigger.
 - The Dock stays visible; the menu bar is painted over rather than hidden, because hiding it
   hides the Dock as well.
@@ -87,9 +90,20 @@ While the panel is visible, every event of those types is dropped; blocking outl
 **450 ms** so the Dock's late decision for the closing spread cannot slip through.
 
 Two-finger paging arrives as scroll-wheel events (type 22) and is never blocked. Pinch, spread
-and the four-finger page swipe are read directly from the trackpad's `MultitouchSupport` contacts,
-so they keep working while the Dock's versions stand down. The private symbols are resolved at
-runtime; if unavailable, monitoring is simply inactive rather than crashing.
+and the three-, four- and five-finger page swipe are read directly from the trackpad's
+`MultitouchSupport` contacts, so they keep working while the Dock's versions stand down. The
+private symbols are resolved at runtime; if unavailable, monitoring is simply inactive rather than
+crashing.
+
+Spread-to-close and multi-finger paging are gated on **Block system gestures while open** plus
+Accessibility; pinch-to-open additionally needs the **Pinch with four fingers** switch. Without
+Accessibility the Dock's own gestures still run, so Launchpad would race them rather than replace
+them; the banner asks for the grant instead. While pinch-to-open is on, macOS's own Apps view is
+switched off (via the Dock's `showSpotlightGestureEnabled` and the legacy
+`showLaunchpadGestureEnabled`) so its pinch cannot open it instead of Launchpad. Turning that
+switch off restores the Dock's Apps pinch; the block setting still keeps system gestures from
+interrupting an open Launchpad. Spotlight itself is untouched and stays on `⌘Space`. The override
+is restored as soon as the switch or the block setting is turned off, or the grant goes missing.
 
 macOS uses the same four-finger gestures for **Show Desktop**: a spread reveals the desktop and the
 following pinch restores the windows. `DesktopRevealState` remembers a spread seen while no panel
@@ -125,11 +139,13 @@ is its main advantage here beyond Gatekeeper — but no Apple developer account 
 this project, so the app ships ad-hoc. Do **not** substitute a self-signed certificate: other
 Macs do not trust it, and asking users to trust a local root certificate is worse than ad-hoc.
 
-The macOS Apps pinch is disabled while pinch-to-open is enabled by setting the Dock keys
-`showSpotlightGestureEnabled` and legacy `showLaunchpadGestureEnabled` to `0`; they are restored
-when the option is switched off. `TrackpadFourFingerPinchGesture` is left alone so the native
-spread still works when Launchpad is hidden. Show Desktop is never permanently disabled; an old
-build that stranded `showDesktopGestureEnabled = 0` is repaired once at launch.
+The macOS Apps pinch is disabled while pinch-to-open is active — **Pinch with four fingers** on,
+the block setting on and Accessibility granted — by setting the Dock keys
+`showSpotlightGestureEnabled` and legacy `showLaunchpadGestureEnabled` to `0`. They are restored
+when the pinch switch or the block setting is turned off, or Accessibility is missing.
+`TrackpadFourFingerPinchGesture` is left alone so the native spread still works when Launchpad is
+hidden. Show Desktop is never permanently disabled; an old build that stranded
+`showDesktopGestureEnabled = 0` is repaired once at launch.
 
 ## Distribution without a Developer ID
 

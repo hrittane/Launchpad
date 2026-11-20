@@ -3,12 +3,13 @@ import Foundation
 /// Temporarily turns off macOS's own Launchpad / Spotlight Apps pinch while
 /// Launchpad owns the four-finger gesture.
 ///
-/// On macOS 26 the former Launchpad pinch opens the Spotlight-based Apps view.
-/// The Dock gates that gesture with `showSpotlightGestureEnabled`; older systems
-/// use `showLaunchpadGestureEnabled`. Both are private but stable, and they are
-/// the only switches that stop the system app-launcher pinch without breaking
-/// the separate spread-to-show-desktop gesture. Spotlight's ⌘Space shortcut is
-/// unaffected.
+/// This follows the **Pinch with four fingers** switch: turning it off lets the
+/// Dock's own Apps pinch return. On macOS 26 the former Launchpad pinch opens
+/// the Spotlight-based Apps view. The Dock gates that gesture with
+/// `showSpotlightGestureEnabled`; older systems use `showLaunchpadGestureEnabled`.
+/// Both are private but stable, and they are the only switches that stop the
+/// system app-launcher pinch without breaking the separate spread-to-show-desktop
+/// gesture. Spotlight's ⌘Space shortcut is unaffected.
 @MainActor
 final class SystemLaunchpadGesture {
     static let shared = SystemLaunchpadGesture()

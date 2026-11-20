@@ -22,6 +22,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var hotCornerMonitor: HotCornerMonitor?
     private var resignObserver: NSObjectProtocol?
     private var settingsObserver: NSObjectProtocol?
+    /// Polls Accessibility while the Apps pinch is taken over, so the Dock is
+    /// overridden as soon as the user grants access and restored if it goes.
+    private var trustWatch: Task<Void, Never>?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         _ = NSApp.setActivationPolicy(.accessory)
@@ -58,8 +61,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         configurePinch()
 
         // If the app was killed while it owned the system pinch, the override
-        // flag is still set; restoring at launch puts the Dock back.
-        SystemLaunchpadGesture.shared.setEnabled(settings.pinchEnabled)
+        // flag is still set. Reconcile it at launch: keep macOS's Apps view off
+        // when the take-over still applies, and put the Dock back otherwise.
+        refreshSystemGestureOwnership()
         SystemLaunchpadGesture.shared.restoreShowDesktopGestureOnce()
 
         // Every persisted change re-applies the settings. The handlers are all
@@ -99,6 +103,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         hotKey?.unregister()
         hotKey = nil
+        stopTrustWatch()
         TrackpadGestureBlocker.shared.uninstall()
         SystemLaunchpadGesture.shared.setEnabled(false)
     }
@@ -122,7 +127,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         configureHotKey()
         configureHotCorner()
         configurePinch()
-        SystemLaunchpadGesture.shared.setEnabled(settings.pinchEnabled)
+        refreshSystemGestureOwnership()
         model.apply(settings: settings)
         panelController?.applySettings()
     }
@@ -168,15 +173,76 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
+    /// Pinch, spread and the multi-finger page swipe belong to Launchpad only
+    /// while the take-over is enabled and macOS actually lets it block the
+    /// Dock. Without Accessibility the system pinch stays in charge, so opening
+    /// on our recognizer as well would race it.
+    private var trackpadTakeoverActive: Bool {
+        settings.suppressDesktopSwipe && TrackpadGestureBlocker.shared.isTrusted
+    }
+
+    /// macOS's Apps pinch is only taken over when Launchpad's own four-finger
+    /// pinch is wanted. Switching that off hands the gesture back, so the Dock
+    /// can open the native Apps view again.
+    private var wantsSystemAppsGestureSuppressed: Bool {
+        settings.pinchEnabled && settings.suppressDesktopSwipe
+    }
+
+    /// The Dock is only overridden once the take-over can actually run; without
+    /// Accessibility the native Apps view stays available.
+    private var systemAppsGestureSuppressed: Bool {
+        wantsSystemAppsGestureSuppressed && TrackpadGestureBlocker.shared.isTrusted
+    }
+
+    /// Keeps macOS's own Apps view switched off exactly while Launchpad owns
+    /// the pinch, and gives it back otherwise. The Dock only re-reads the
+    /// preference at launch, so a value change restarts it once; re-applying
+    /// the same value is a no-op.
+    private func refreshSystemGestureOwnership() {
+        setSystemGestureOverride(systemAppsGestureSuppressed)
+        if wantsSystemAppsGestureSuppressed {
+            startTrustWatchIfNeeded()
+        } else {
+            stopTrustWatch()
+        }
+    }
+
+    private func setSystemGestureOverride(_ enabled: Bool) {
+        guard SystemLaunchpadGesture.shared.isOverrideActive != enabled else { return }
+        SystemLaunchpadGesture.shared.setEnabled(enabled)
+    }
+
+    /// Accessibility can be granted or revoked while Launchpad is hidden, and
+    /// there is no notification for either. Poll gently while the pinch is
+    /// taken over, so the system Apps view is handed over the moment access
+    /// arrives and comes back when it is revoked.
+    private func startTrustWatchIfNeeded() {
+        guard wantsSystemAppsGestureSuppressed, trustWatch == nil else { return }
+        trustWatch = Task { @MainActor [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(1.5))
+                guard let self, self.wantsSystemAppsGestureSuppressed else { break }
+                self.setSystemGestureOverride(self.systemAppsGestureSuppressed)
+            }
+            self?.trustWatch = nil
+        }
+    }
+
+    private func stopTrustWatch() {
+        trustWatch?.cancel()
+        trustWatch = nil
+    }
+
     private func configurePinch() {
-        // The monitor is started once and stays on: pinch-to-open is optional,
-        // but spread-to-close and four-finger paging should work whenever the
-        // panel is visible, even when it was opened with ⌥Space.
+        // The monitor is started once and stays on; the AppKit side decides
+        // whether the take-over is currently allowed. Spread-to-close and
+        // multi-finger paging should work whenever the panel is visible, even
+        // when it was opened with ⌥Space.
         PinchGestureMonitor.shared.start(
             onPinch: { [weak self] in
-                guard let self else { return }
-                // Consume a pending desktop restore even when pinch-to-open is
-                // switched off, so enabling it later cannot inherit a stale one.
+                guard let self, self.trackpadTakeoverActive else { return }
+                // Consume a pending Show Desktop restore first, whether or not
+                // pinch-to-open is enabled, so it cannot go stale.
                 let opensLauncher = self.desktopReveal.shouldOpenLaunchpadOnPinch()
                 guard opensLauncher else {
                     desktopGestureLog.notice(
@@ -188,13 +254,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 self.panelController?.show()
             },
             onSpread: { [weak self] in
-                guard let self else { return }
+                guard let self, self.trackpadTakeoverActive else { return }
                 let panelWasVisible = self.panelController?.isVisible == true
                 self.desktopReveal.noteSpread(panelWasVisible: panelWasVisible)
                 if panelWasVisible { self.panelController?.hide() }
             },
             onSwipe: { [weak self] event in
-                self?.panelController?.handleFourFingerSwipe(event)
+                self?.panelController?.handleTrackpadSwipe(event)
             }
         )
     }

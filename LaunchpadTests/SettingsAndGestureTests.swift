@@ -39,6 +39,7 @@ struct LaunchpadSettingsTests {
         #expect(!settings.hotCornerEnabled)
         #expect(settings.hotCorner == .topLeft)
         #expect(!settings.pinchEnabled)
+        #expect(!settings.tapOnChassisEnabled)
         #expect(settings.suppressDesktopSwipe)
         #expect(settings.showMenuBarIcon)
     }
@@ -58,6 +59,7 @@ struct LaunchpadSettingsTests {
         first.hotCornerEnabled = true
         first.hotCorner = .bottomRight
         first.pinchEnabled = true
+        first.tapOnChassisEnabled = true
         first.backgroundDim = 0.4
 
         let second = LaunchpadSettings(defaults: defaults)
@@ -68,6 +70,7 @@ struct LaunchpadSettingsTests {
         #expect(second.hotCornerEnabled)
         #expect(second.hotCorner == .bottomRight)
         #expect(second.pinchEnabled)
+        #expect(second.tapOnChassisEnabled)
         #expect(second.backgroundDim == 0.4)
     }
 
@@ -100,6 +103,7 @@ struct LaunchpadSettingsTests {
         settings.showMenuBarIcon = false
         settings.suppressDesktopSwipe = false
         settings.pinchEnabled = true
+        settings.tapOnChassisEnabled = true
 
         settings.resetToDefaults()
 
@@ -107,6 +111,7 @@ struct LaunchpadSettingsTests {
         #expect(settings.showMenuBarIcon)
         #expect(settings.suppressDesktopSwipe)
         #expect(!settings.pinchEnabled)
+        #expect(!settings.tapOnChassisEnabled)
     }
 }
 
@@ -335,39 +340,42 @@ struct FourFingerGestureRecognizerTests {
     }
 }
 
-struct FourFingerSwipeTrackerTests {
+struct TrackpadSwipeTrackerTests {
     /// Four contacts on a square of radius `radius` around `center`.
     private func points(
         radius: Float = 0.1,
-        center: PinchPoint = PinchPoint(x: 0.5, y: 0.5)
+        center: PinchPoint = PinchPoint(x: 0.5, y: 0.5),
+        fingerCount: Int = 4
     ) -> [PinchPoint] {
-        [
-            PinchPoint(x: center.x - radius, y: center.y - radius),
-            PinchPoint(x: center.x + radius, y: center.y - radius),
-            PinchPoint(x: center.x - radius, y: center.y + radius),
-            PinchPoint(x: center.x + radius, y: center.y + radius)
-        ]
+        (0..<fingerCount).map { index in
+            let angle = Float(index) / Float(fingerCount) * 2 * .pi
+            return PinchPoint(
+                x: center.x + radius * cos(angle),
+                y: center.y + radius * sin(angle)
+            )
+        }
     }
 
     private func horizontalSwipe(
-        through tracker: inout FourFingerSwipeTracker,
+        through tracker: inout TrackpadSwipeTracker,
         from start: Float = 0.25,
         step: Float = 0.03,
         steps: Int = 8,
+        fingerCount: Int = 4,
         timestamp: Double = 1.0
-    ) -> [FourFingerSwipeEvent] {
-        var events: [FourFingerSwipeEvent] = []
+    ) -> [TrackpadSwipeEvent] {
+        var events: [TrackpadSwipeEvent] = []
         for index in 0...steps {
             let center = PinchPoint(x: start + Float(index) * step, y: 0.5)
             events += tracker.process(
-                points: points(center: center),
+                points: points(center: center, fingerCount: fingerCount),
                 timestamp: timestamp + Double(index) * 0.01
             )
         }
         return events
     }
 
-    private func horizontalTravel(_ events: [FourFingerSwipeEvent]) -> Float {
+    private func horizontalTravel(_ events: [TrackpadSwipeEvent]) -> Float {
         events.reduce(Float(0)) { total, event in
             if case .changed(let delta) = event { return total + delta }
             return total
@@ -376,7 +384,7 @@ struct FourFingerSwipeTrackerTests {
 
     @Test
     func rightwardSwipePagesBackward() {
-        var tracker = FourFingerSwipeTracker()
+        var tracker = TrackpadSwipeTracker()
         let events = horizontalSwipe(through: &tracker)
 
         #expect(tracker.isActive)
@@ -386,7 +394,7 @@ struct FourFingerSwipeTrackerTests {
 
     @Test
     func leftwardSwipePagesForward() {
-        var tracker = FourFingerSwipeTracker()
+        var tracker = TrackpadSwipeTracker()
         let events = horizontalSwipe(through: &tracker, from: 0.8, step: -0.03)
 
         #expect(tracker.isActive)
@@ -394,8 +402,39 @@ struct FourFingerSwipeTrackerTests {
     }
 
     @Test
+    func threeFingerSwipePagesToo() {
+        var tracker = TrackpadSwipeTracker()
+        let events = horizontalSwipe(through: &tracker, fingerCount: 3)
+
+        #expect(tracker.isActive)
+        #expect(events.contains(.began))
+        #expect(horizontalTravel(events) > 0.2)
+    }
+
+    @Test
+    func fiveFingerSwipePagesToo() {
+        var tracker = TrackpadSwipeTracker()
+        let events = horizontalSwipe(through: &tracker, fingerCount: 5)
+
+        #expect(tracker.isActive)
+        #expect(events.contains(.began))
+        #expect(horizontalTravel(events) > 0.2)
+    }
+
+    @Test
+    func twoFingersStayOnTheScrollPath() {
+        var tracker = TrackpadSwipeTracker()
+        let events = horizontalSwipe(through: &tracker, fingerCount: 2)
+
+        // Two-finger paging arrives as scroll-wheel events; the contact-based
+        // tracker must ignore it or the page would move twice.
+        #expect(!tracker.isActive)
+        #expect(events.isEmpty)
+    }
+
+    @Test
     func liftingEndsTheSwipeWithVelocity() {
-        var tracker = FourFingerSwipeTracker()
+        var tracker = TrackpadSwipeTracker()
         _ = horizontalSwipe(through: &tracker)
 
         let events = tracker.finish(timestamp: 1.1)
@@ -410,8 +449,8 @@ struct FourFingerSwipeTrackerTests {
 
     @Test
     func verticalSwipeIsNotAPageSwipe() {
-        var tracker = FourFingerSwipeTracker()
-        var events: [FourFingerSwipeEvent] = []
+        var tracker = TrackpadSwipeTracker()
+        var events: [TrackpadSwipeEvent] = []
 
         for index in 0...8 {
             let center = PinchPoint(x: 0.5, y: 0.3 + Float(index) * 0.03)
@@ -427,8 +466,8 @@ struct FourFingerSwipeTrackerTests {
 
     @Test
     func restingFingersDoNotSwipe() {
-        var tracker = FourFingerSwipeTracker()
-        var events: [FourFingerSwipeEvent] = []
+        var tracker = TrackpadSwipeTracker()
+        var events: [TrackpadSwipeEvent] = []
 
         for index in 0...10 {
             events += tracker.process(points: points(), timestamp: 3.0 + Double(index) * 0.01)
@@ -440,8 +479,8 @@ struct FourFingerSwipeTrackerTests {
 
     @Test
     func pinchIsNotASwipe() {
-        var tracker = FourFingerSwipeTracker()
-        var events: [FourFingerSwipeEvent] = []
+        var tracker = TrackpadSwipeTracker()
+        var events: [TrackpadSwipeEvent] = []
 
         for index in 0...8 {
             let radius = 0.2 - Float(index) * 0.015
@@ -457,7 +496,7 @@ struct FourFingerSwipeTrackerTests {
 
     @Test
     func aNewSwipeWorksAfterLifting() {
-        var tracker = FourFingerSwipeTracker()
+        var tracker = TrackpadSwipeTracker()
         _ = horizontalSwipe(through: &tracker)
         _ = tracker.finish(timestamp: 1.1)
 
@@ -471,7 +510,7 @@ struct FourFingerSwipeTrackerTests {
 
     @Test
     func cancelReportsOnceAndResets() {
-        var tracker = FourFingerSwipeTracker()
+        var tracker = TrackpadSwipeTracker()
         _ = horizontalSwipe(through: &tracker)
 
         let events = tracker.cancel()

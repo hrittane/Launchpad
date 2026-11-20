@@ -197,10 +197,14 @@ struct SettingsView: View {
                     }
                 }
                 toggleRow("Pinch with four fingers", isOn: $settings.pinchEnabled)
+                toggleRow("Tap on chassis", isOn: $settings.tapOnChassisEnabled)
+                    .disabled(true)
+                    .opacity(0.5)
+                    .help("Coming in a later update")
                 caption(
-                    "Pinch opens Launchpad; spreading four fingers closes it, and a four-finger "
-                        + "sideways swipe pages the grid. While opening is on, macOS's own "
-                        + "Launchpad/Apps pinch is disabled. ⌘Space still opens Spotlight."
+                    "Pinch needs Accessibility and “Block system gestures while open”. "
+                        + "Turning it off hands macOS's Apps pinch back to the system. "
+                        + "Tapping the chassis is coming in a later update."
                 )
             }
 
@@ -210,8 +214,11 @@ struct SettingsView: View {
                     isOn: $settings.suppressDesktopSwipe
                 )
                 caption(
-                    "Stops the desktop swipe, Mission Control and Show Desktop while Launchpad is open, "
-                        + "so the four-finger spread only closes Launchpad and the four-finger swipe pages it."
+                    "While Launchpad is open, two-, three-, four- and five-finger swipes page "
+                        + "the grid, and the desktop swipe, Mission Control and Show Desktop stand "
+                        + "down. With “Pinch with four fingers” on, macOS's own Apps view is also "
+                        + "disabled so it cannot open instead of Launchpad; turning that off gives "
+                        + "its pinch back. Spotlight stays available on ⌘Space. Requires Accessibility."
                 )
             }
 

@@ -296,12 +296,17 @@ final class LaunchpadPanelController {
         return abs(deltaX) >= abs(deltaY)
     }
 
-    /// Four fingers travelling sideways page the grid, the way the system
-    /// gesture would switch desktops. The delta is a fraction of the trackpad
-    /// width, so a full-width swipe covers one page.
-    func handleFourFingerSwipe(_ event: FourFingerSwipeEvent) {
+    /// Three, four or five fingers travelling sideways page the grid, the way
+    /// the system gesture would switch desktops. The delta is a fraction of the
+    /// trackpad width, so a full-width swipe covers one page.
+    ///
+    /// Accessibility has to be granted as well: without it the Dock's own swipe
+    /// keeps running, so paging here would fight the desktop switch instead of
+    /// replacing it.
+    func handleTrackpadSwipe(_ event: TrackpadSwipeEvent) {
         guard isVisible,
               settings.suppressDesktopSwipe,
+              TrackpadGestureBlocker.shared.isTrusted,
               model.pageCount > 1,
               model.openFolderID == nil,
               !model.isSearching,

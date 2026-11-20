@@ -17,8 +17,8 @@ jiggle and drag-to-reorder — over your real desktop wallpaper. Runs on Intel a
 
 - **Familiar grid** — 7×5 by default, with optional 7/8/9 × 4/5/6 layouts.
 - **Folders** — drag apps together to create one, drag between folders to reorganise.
-- **Trackpad gestures** — four-finger pinch to open, spread to close, sideways swipe to turn a
-  page. Two-finger swipes work too, and follow your fingers.
+- **Trackpad gestures** — four-finger pinch to open, spread to close, and two-, three-, four- or
+  five-finger sideways swipes to turn a page. Pages follow your fingers.
 - **Quick find** — start typing to search every app.
 - **Your wallpaper** — the real desktop picture, blurred and dimmed behind the grid.
 - **Keyboard first** — `⌥Space` toggles Launchpad from anywhere; arrow keys and Return launch.

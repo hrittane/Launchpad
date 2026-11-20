@@ -783,10 +783,22 @@ session and the annotated session stream, because the Dock does not use one loca
 While the panel is visible every event of those types is dropped before the Dock sees it, and the
 block outlives the panel by 450 ms so the Dock's late decision for the closing spread cannot slip
 through. Two-finger paging arrives as scroll-wheel events (type 22) and is untouched, and the raw
-contacts behind pinch, spread and the four-finger page swipe are read straight from the trackpad,
-so they keep working while their system equivalents stand down. A four-finger sideways swipe is
-recognised from those contacts and pages the grid instead of switching desktops. The tap also
-survives the system disabling it (timeout / user input) by re-enabling itself.
+contacts behind pinch, spread and the three-, four- and five-finger page swipes are read straight
+from the trackpad, so they keep working while their system equivalents stand down. A multi-finger
+sideways swipe is recognised from those contacts and pages the grid instead of switching desktops
+or full-screen apps; two fingers deliberately stay on the scroll path so a page cannot move twice.
+The tap also survives the system disabling it (timeout / user input) by re-enabling itself.
+
+While **Pinch with four fingers** is on, together with **Block system gestures while open** and
+Accessibility, the Dock's own Apps pinch is disabled through `showSpotlightGestureEnabled` (plus
+the legacy launchpad key), so macOS's Apps view cannot open instead of Launchpad; Spotlight itself
+remains on `⌘Space`. Turning the pinch switch off hands the Dock's Apps pinch back — the block
+setting still keeps system gestures from interrupting an open Launchpad. Spread and multi-finger
+paging need the block setting and grant without the pinch switch. Without the grant the Dock would
+still act, so Launchpad would race it instead of replacing it; the banner asks for the grant
+instead. The Apps override is restored as soon as the switch or the block setting is turned off or
+the grant is missing, which a small trust poll in `AppDelegate` notices even while Launchpad is
+hidden.
 
 The same gestures belong to macOS's **Show Desktop**: a spread reveals the desktop, and the next
 pinch restores the windows. Without care, that restoring pinch also opened Launchpad. The

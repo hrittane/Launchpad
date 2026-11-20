@@ -49,6 +49,7 @@ final class LaunchpadSettings {
         static let hotCornerEnabled = "Launchpad.hotCornerEnabled"
         static let hotCorner = "Launchpad.hotCorner"
         static let pinchEnabled = "Launchpad.pinchEnabled"
+        static let tapOnChassisEnabled = "Launchpad.tapOnChassisEnabled"
         static let suppressDesktopSwipe = "Launchpad.suppressDesktopSwipe"
         static let showMenuBarIcon = "Launchpad.showMenuBarIcon"
     }
@@ -104,16 +105,24 @@ final class LaunchpadSettings {
         didSet { persist(hotCorner.rawValue, Key.hotCorner) }
     }
 
-    /// Four-finger pinch opens Launchpad. Enabling it also disables the system
-    /// Launchpad/Spotlight Apps pinch so the two cannot race.
+    /// A four-finger pinch opens Launchpad. Turning it off hands the Dock's own
+    /// Apps pinch back, so the system launcher can open again.
     var pinchEnabled: Bool {
         didSet { persist(pinchEnabled, Key.pinchEnabled) }
     }
 
+    /// Reserved for opening Launchpad by tapping the Mac's chassis. The row is
+    /// present in Settings but the sensor hook is not implemented yet.
+    var tapOnChassisEnabled: Bool {
+        didSet { persist(tapOnChassisEnabled, Key.tapOnChassisEnabled) }
+    }
+
     // MARK: System
 
-    /// Blocks the Dock's trackpad gestures (desktop swipe, Mission Control,
-    /// Show Desktop) while the panel is on screen. Needs Accessibility.
+    /// Hands the trackpad to Launchpad while it is on screen: a spread closes
+    /// it (and, with the pinch switch on, a pinch opens it), multi-finger swipes
+    /// page the grid, and the Dock's desktop swipe, Mission Control, Show
+    /// Desktop and Apps pinch stand down. Blocking the Dock needs Accessibility.
     var suppressDesktopSwipe: Bool {
         didSet { persist(suppressDesktopSwipe, Key.suppressDesktopSwipe) }
     }
@@ -157,6 +166,7 @@ final class LaunchpadSettings {
             rawValue: defaults.string(forKey: Key.hotCorner) ?? ""
         ) ?? .topLeft
         pinchEnabled = defaults.object(forKey: Key.pinchEnabled) as? Bool ?? false
+        tapOnChassisEnabled = defaults.object(forKey: Key.tapOnChassisEnabled) as? Bool ?? false
         suppressDesktopSwipe = defaults.object(forKey: Key.suppressDesktopSwipe) as? Bool ?? true
         showMenuBarIcon = defaults.object(forKey: Key.showMenuBarIcon) as? Bool ?? true
     }
@@ -174,6 +184,7 @@ final class LaunchpadSettings {
         hotCornerEnabled = false
         hotCorner = .topLeft
         pinchEnabled = false
+        tapOnChassisEnabled = false
         suppressDesktopSwipe = true
         showMenuBarIcon = true
     }
