@@ -119,6 +119,11 @@ final class LaunchpadContentView: NSView {
 /// hides it and restores focus to the previously active application.
 @MainActor
 final class LaunchpadPanelController {
+    /// The most recent left-drag event the panel received. A native Dock drag
+    /// has to be started from a real mouse-dragged event, and a SwiftUI
+    /// gesture callback cannot always guarantee `NSApp.currentEvent` is it.
+    static private(set) var latestDragEvent: NSEvent?
+
     private let model: AppModel
     private let settings: LaunchpadSettings
     private var window: LaunchpadWindow?
@@ -140,8 +145,14 @@ final class LaunchpadPanelController {
         self.model = model
         self.settings = settings
 
-        escapeMonitor = NSEvent.addLocalMonitorForEvents(matching: [.keyDown, .scrollWheel]) { [weak self] event in
+        escapeMonitor = NSEvent.addLocalMonitorForEvents(
+            matching: [.keyDown, .scrollWheel, .leftMouseDragged]
+        ) { [weak self] event in
             guard let self, self.isVisible, self.window?.isKeyWindow == true else {
+                return event
+            }
+            if event.type == .leftMouseDragged {
+                Self.latestDragEvent = event
                 return event
             }
             if event.type == .keyDown {

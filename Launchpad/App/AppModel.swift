@@ -372,6 +372,13 @@ final class AppModel {
         guard let app = appsByID[appID], app.isRemovable else { return }
         guard AppUninstaller.confirmAndTrash(app) else { return }
 
+        forget(appID: appID)
+    }
+
+    /// Drops an app that is already gone from disk (for example, moved to the
+    /// Trash by the Dock itself) from the catalog, the grid and the saved
+    /// layout.
+    func forget(appID: String) {
         catalog.remove(id: appID)
         appsByID[appID] = nil
         layout.remove(appID: appID)

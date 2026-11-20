@@ -14,7 +14,28 @@ enum AppUninstaller {
 
         let controller = UninstallDialogController(app: app)
         guard let selection = controller.run(), !selection.isEmpty else { return false }
+        return trash(selection, appName: app.name)
+    }
 
+    /// The Dock moved the bundle to the Trash before Launchpad could intercept
+    /// it. Offer to remove whatever the app left behind; the catalog has
+    /// already dropped the app by the time this runs.
+    static func cleanUpAfterNativeTrash(_ app: AppItem) {
+        guard app.isRemovable,
+              !UninstallScanner.components(for: app).isEmpty else {
+            return
+        }
+
+        let controller = UninstallDialogController(app: app)
+        guard let selection = controller.run(), !selection.isEmpty else { return }
+        _ = trash(selection, appName: app.name)
+    }
+
+    @discardableResult
+    private static func trash(
+        _ selection: [UninstallComponent],
+        appName: String
+    ) -> Bool {
         var failures: [String] = []
         var trashedApp = false
         for component in selection {
@@ -33,7 +54,7 @@ enum AppUninstaller {
         }
 
         if !failures.isEmpty {
-            presentFailureAlert(appName: app.name, failures: failures)
+            presentFailureAlert(appName: appName, failures: failures)
         }
 
         return trashedApp

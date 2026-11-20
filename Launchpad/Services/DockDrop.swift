@@ -1,7 +1,6 @@
 import AppKit
 import ApplicationServices
 import Foundation
-import os
 
 /// Where a drag released over the Dock should land.
 enum DockDropTarget: Equatable, Sendable {
@@ -52,18 +51,27 @@ struct DockGeometry {
         return nil
     }
 
+    /// The Dock's interactive bar, or the reserved strip when the window list
+    /// did not yield the bar.
+    var effectiveBarRect: CGRect? { barRect ?? strip }
+
+    /// The exact Trash tile, or the trailing tile of the bar when
+    /// Accessibility did not supply one.
+    var effectiveTrashRect: CGRect? {
+        if let trashRect { return trashRect }
+        guard let barRect else { return nil }
+        return fallbackTrash(in: barRect)
+    }
+
     func target(at point: CGPoint) -> DockDropTarget? {
-        if let trashRect, trashRect.insetBy(dx: -3, dy: -3).contains(point) {
+        if let trash = effectiveTrashRect,
+           trash.insetBy(dx: -3, dy: -3).contains(point) {
             return .trash
         }
 
-        guard let bar = barRect ?? strip,
+        guard let bar = effectiveBarRect,
               bar.insetBy(dx: -3, dy: -3).contains(point) else {
             return nil
-        }
-
-        if let barRect, let fallback = fallbackTrash(in: barRect), fallback.contains(point) {
-            return .trash
         }
         return .addToDock
     }
@@ -106,26 +114,55 @@ enum DockDrop {
         .target(at: point)
     }
 
-    /// Cheap pre-check used to avoid walking the Dock's accessibility tree on
-    /// every pointer event. Returns true near the reserved strip or a screen
-    /// edge, where an auto-hidden Dock appears.
-    static func isNearDock(_ point: CGPoint) -> Bool {
+    /// True once the pointer is over the Dock (or the edge where an auto-hidden
+    /// Dock lives). This is the cheap per-event check that decides when the
+    /// custom grid drag should become a real file drag.
+    static func shouldHandOff(at point: CGPoint) -> Bool {
         guard let screen = screen(containing: point) else { return false }
-        if let strip = DockGeometry(
+        let geometry = DockGeometry(
             screenFrame: screen.frame,
             visibleFrame: screen.visibleFrame,
             barRect: nil,
             trashRect: nil,
             tileSize: 64
-        ).strip,
-           strip.insetBy(dx: -24, dy: -24).contains(point) {
-            return true
+        )
+        if let strip = geometry.strip {
+            return strip.insetBy(dx: -4, dy: -4).contains(point)
         }
 
-        let edgeBand: CGFloat = 30
-        return point.y <= screen.frame.minY + edgeBand
-            || point.x <= screen.frame.minX + edgeBand
-            || point.x >= screen.frame.maxX - edgeBand
+        // Auto-hidden Dock: only the configured edge reveals it.
+        let edge: CGFloat = 4
+        switch orientation {
+        case "left":
+            return point.x <= screen.frame.minX + edge
+        case "right":
+            return point.x >= screen.frame.maxX - edge
+        default:
+            return point.y <= screen.frame.minY + edge
+        }
+    }
+
+    /// The Trash tile where a real file drag should be intercepted so the
+    /// app's leftover files can be listed before anything is deleted.
+    static func trashFrame(at point: CGPoint) -> CGRect? {
+        guard let screen = screen(containing: point) else { return nil }
+        let mainHeight = mainScreenHeight
+        return DockGeometry(
+            screenFrame: screen.frame,
+            visibleFrame: screen.visibleFrame,
+            barRect: dockBarRect(containing: point, mainScreenHeight: mainHeight),
+            trashRect: DockAccessibility.trashFrame(mainScreenHeight: mainHeight),
+            tileSize: tileSize
+        )
+        .effectiveTrashRect
+    }
+
+    static func isOverTrash(_ point: CGPoint) -> Bool {
+        target(at: point) == .trash
+    }
+
+    private static var orientation: String {
+        UserDefaults(suiteName: "com.apple.dock")?.string(forKey: "orientation") ?? "bottom"
     }
 
     static func screen(containing point: CGPoint) -> NSScreen? {
@@ -276,101 +313,5 @@ private enum DockAccessibility {
             return nil
         }
         return CGRect(origin: position, size: size)
-    }
-}
-
-/// Pins an app by appending it to the Dock's `persistent-apps`.
-///
-/// There is no public “add to Dock” API. The Dock reads this preference at
-/// launch, so it is restarted once after the write. Duplicate entries are
-/// ignored and nothing is restarted when the app is already pinned.
-enum DockPinning {
-    private static let domain = "com.apple.dock"
-    private static let logger = Logger(
-        subsystem: "com.example.Launchpad",
-        category: "dock"
-    )
-
-    static func entry(for app: AppItem) -> [String: Any] {
-        let url = URL(fileURLWithPath: app.url.path, isDirectory: true)
-        var tileData: [String: Any] = [
-            "file-data": [
-                "_CFURLString": url.absoluteString,
-                "_CFURLStringType": 15
-            ],
-            "file-label": app.name,
-            "file-type": 41,
-            "dock-extra": 0,
-            "is-beta": 0
-        ]
-        if let bundleIdentifier = app.bundleIdentifier {
-            tileData["bundle-identifier"] = bundleIdentifier
-        }
-        return [
-            "GUID": Int.random(in: 1_000_000_000...9_999_999_999),
-            "tile-data": tileData,
-            "tile-type": "file-tile"
-        ]
-    }
-
-    static func isPinned(_ app: AppItem, among apps: [[String: Any]]) -> Bool {
-        let wanted = app.url.standardizedFileURL.path
-        return apps.contains { entry in
-            guard let tile = entry["tile-data"] as? [String: Any] else {
-                return false
-            }
-            if let bundleIdentifier = app.bundleIdentifier,
-               tile["bundle-identifier"] as? String == bundleIdentifier {
-                return true
-            }
-            guard let fileData = tile["file-data"] as? [String: Any],
-                  let string = fileData["_CFURLString"] as? String,
-                  let url = URL(string: string),
-                  url.isFileURL else {
-                return false
-            }
-            return URL(fileURLWithPath: url.path).standardizedFileURL.path == wanted
-        }
-    }
-
-    static func adding(
-        _ app: AppItem,
-        to apps: [[String: Any]]
-    ) -> [[String: Any]]? {
-        guard !isPinned(app, among: apps) else { return nil }
-        return apps + [entry(for: app)]
-    }
-
-    @discardableResult
-    static func addToDock(_ app: AppItem) -> Bool {
-        // Read the raw array so an unexpected value can never wipe the
-        // existing Dock entries: unknown objects are carried over untouched.
-        let current = (CFPreferencesCopyAppValue(
-            "persistent-apps" as CFString,
-            domain as CFString
-        ) as? [Any]) ?? []
-        let pinned = current.compactMap { $0 as? [String: Any] }
-        guard !isPinned(app, among: pinned) else { return false }
-
-        let updated = current + [entry(for: app)]
-        CFPreferencesSetAppValue(
-            "persistent-apps" as CFString,
-            updated as NSArray,
-            domain as CFString
-        )
-        CFPreferencesAppSynchronize(domain as CFString)
-        restartDock()
-        return true
-    }
-
-    private static func restartDock() {
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/killall")
-        process.arguments = ["Dock"]
-        do {
-            try process.run()
-        } catch {
-            logger.error("Could not restart the Dock: \(error.localizedDescription)")
-        }
     }
 }

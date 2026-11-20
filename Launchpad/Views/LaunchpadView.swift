@@ -39,6 +39,13 @@ struct LaunchpadView: View {
     @State private var edgeDwell: Task<Void, Never>?
     /// True while a drag is panning the pages instead of moving an icon.
     @State private var isPageDragging = false
+    /// The system drag that took over when the pointer reached the Dock.
+    @State private var dockDrag: DockDragSession?
+    /// The SwiftUI gesture must stay idle while the system owns the drag.
+    @State private var isNativeDragging = false
+    /// The app whose tile is currently riding a native Dock drag. Kept until
+    /// the system session ends so no icon pops back before the mouse-up.
+    @State private var handoffAppID: String?
     /// One new page per drag: waiting at the right edge adds it once, so a
     /// pointer parked in the margin cannot trail empty pages behind it.
     @State private var createdPageWhileDragging = false
@@ -149,7 +156,7 @@ struct LaunchpadView: View {
                         apps: folderPreview(metrics: metrics)?.apps ?? model.apps(in: folder),
                         metrics: metrics,
                         isEditing: model.isEditing,
-                        draggingAppID: folderDrag?.app.id,
+                        draggingAppID: folderDrag?.app.id ?? handoffAppID,
                         isDraggingOut: isDraggingOutOfFolder,
                         promptsForName: model.isPromptingFolderName,
                         onLaunch: onLaunch,
@@ -157,6 +164,7 @@ struct LaunchpadView: View {
                         onRename: { model.renameFolder(folder.id, to: $0) },
                         onNamePromptShown: { model.clearFolderNamePrompt() },
                         onAppDragChanged: { app, location in
+                            guard !isNativeDragging else { return }
                             // Pulling an icon inside the folder switches to
                             // jiggle mode exactly like a grid drag does.
                             if !model.isEditing { model.beginEditing() }
@@ -166,6 +174,7 @@ struct LaunchpadView: View {
                             // bundle id, and the preview matches on that.
                             model.draggingID = LauncherItem.app(app.id).id
                             folderDrag = FolderDrag(app: app, location: location)
+                            _ = handOffToDockIfNeeded(app: app)
                         },
                         onAppDragEnded: { app, location in
                             handleFolderDragEnded(
@@ -473,6 +482,7 @@ struct LaunchpadView: View {
     private func canvasGesture(metrics: LaunchpadMetrics) -> some Gesture {
         DragGesture(minimumDistance: 5, coordinateSpace: .named(LaunchpadCanvas.space))
             .onChanged { value in
+                guard !isNativeDragging else { return }
                 if dragSession == nil, !isPageDragging {
                     if let itemID = draggableItemID(at: value.startLocation, metrics: metrics) {
                         beginGridDrag(itemID: itemID, at: value.location, metrics: metrics)
@@ -561,6 +571,14 @@ struct LaunchpadView: View {
         dragSession = session
         model.draggingID = session.itemID
         handleEdgeDrag(at: location, metrics: metrics)
+
+        // Crossing into the Dock hands the drag to the window server, where
+        // the Dock can slide its own icons aside and pin the app natively.
+        if case .app(let appID) = model.item(withID: session.itemID),
+           let app = model.app(appID),
+           handOffToDockIfNeeded(app: app) {
+            return
+        }
     }
 
     private func finishGridDrag(at location: CGPoint, metrics: LaunchpadMetrics) {
@@ -574,15 +592,18 @@ struct LaunchpadView: View {
         guard let session = dragSession else { return }
 
         // The Dock is outside the grid, so this check has to happen before
-        // looking for a slot. A release over it either pins the app or hands
-        // it to the uninstall flow. Only app tiles can leave the grid.
+        // looking for a slot. A release that reached the Dock without a native
+        // handoff is only useful over the Trash; pinning is handled by the
+        // real drag the Dock already sees.
         if case .app(let appID) = model.item(withID: session.itemID),
            let app = model.app(appID),
+           DockDrop.shouldHandOff(at: NSEvent.mouseLocation),
            let dockTarget = DockDrop.target(at: NSEvent.mouseLocation) {
-            // Drop the dragged tile before the modal uninstall panel opens.
             dragSession = nil
             model.draggingID = nil
-            handleDockDrop(app: app, target: dockTarget)
+            if dockTarget == .trash {
+                handleDockTrash(app)
+            }
             return
         }
 
@@ -599,16 +620,91 @@ struct LaunchpadView: View {
         model.trimEmptyPages()
     }
 
-    /// A tile released over the Dock leaves the grid: the Dock bar pins the
-    /// app, the Trash opens the same uninstall panel as the edit-mode badge.
-    private func handleDockDrop(app: AppItem, target: DockDropTarget) {
-        switch target {
-        case .addToDock:
-            DockPinning.addToDock(app)
-        case .trash:
-            model.uninstall(appID: app.id)
-            model.trimEmptyPages()
+    /// Hands the current grid drag to the window server once the pointer is
+    /// over the Dock. From that point the Dock owns the interaction: its icons
+    /// slide aside and the app is pinned by the Dock itself, with no preference
+    /// write and no Dock restart.
+    private func handOffToDockIfNeeded(app: AppItem) -> Bool {
+        guard !isNativeDragging else { return false }
+        let point = NSEvent.mouseLocation
+        guard DockDrop.shouldHandOff(at: point),
+              let window = NSApp.keyWindow,
+              let view = window.contentView else {
+            return false
         }
+
+        let event: NSEvent
+        if let current = NSApp.currentEvent,
+           current.type == .leftMouseDragged,
+           current.window === window {
+            event = current
+        } else if let recent = LaunchpadPanelController.latestDragEvent,
+                  recent.window === window {
+            event = recent
+        } else if let synthesized = Self.syntheticDragEvent(at: point, window: window) {
+            event = synthesized
+        } else {
+            return false
+        }
+
+        // The system drag starts inside this gesture callback. Leave the
+        // SwiftUI transaction completely before AppKit takes the mouse. The
+        // grid tile stays hidden (`model.draggingID` is deliberately kept)
+        // until the native session ends, so the icon does not pop back into
+        // its slot while the pointer is still down.
+        dragSession = nil
+        folderDrag = nil
+        handoffAppID = app.id
+        edgeDirection = 0
+        cancelEdgeDwell()
+        createdPageWhileDragging = false
+        isPageDragging = false
+        isNativeDragging = true
+
+        let session = DockDragSession(app: app, view: view, event: event) { droppedOnTrash in
+            dockDrag = nil
+            isNativeDragging = false
+            if droppedOnTrash {
+                handleDockTrash(app)
+            }
+            // Release restores the tile: after a pin the app is still in the
+            // grid, and after a confirmed uninstall it is already gone.
+            model.draggingID = nil
+            handoffAppID = nil
+        }
+        dockDrag = session
+        session.start()
+        return true
+    }
+
+    @MainActor
+    private static func syntheticDragEvent(at point: CGPoint, window: NSWindow) -> NSEvent? {
+        NSEvent.mouseEvent(
+            with: .leftMouseDragged,
+            location: point,
+            modifierFlags: [],
+            timestamp: ProcessInfo.processInfo.systemUptime,
+            windowNumber: window.windowNumber,
+            context: nil,
+            eventNumber: 0,
+            clickCount: 1,
+            pressure: 1
+        )
+    }
+
+    /// The app was dropped on the Trash. Usually the guard intercepted the
+    /// drag and the bundle is still in place, so the normal uninstall panel
+    /// runs. If the Dock got the drop anyway, the bundle is already in the
+    /// Trash: drop it from the catalog and offer to clean up what it left.
+    private func handleDockTrash(_ app: AppItem) {
+        guard app.isRemovable else { return }
+        if FileManager.default.fileExists(atPath: app.url.path) {
+            model.uninstall(appID: app.id)
+        } else {
+            model.forget(appID: app.id)
+            AppUninstaller.cleanUpAfterNativeTrash(app)
+        }
+        model.trimEmptyPages()
     }
 
     /// Ends a drag that started inside the open folder. Dropping back on the
@@ -620,14 +716,22 @@ struct LaunchpadView: View {
         at location: CGPoint,
         metrics: LaunchpadMetrics
     ) {
+        // A handoff cleared the folder drag and gave the interaction to the
+        // window server. The mouse-up that ends that native session must not
+        // run this SwiftUI path a second time (it would open the uninstall
+        // panel twice or reorder a folder that is already gone).
+        guard folderDrag != nil else { return }
         defer {
             folderDrag = nil
             model.draggingID = nil
         }
-        if let dockTarget = DockDrop.target(at: NSEvent.mouseLocation) {
+        if DockDrop.shouldHandOff(at: NSEvent.mouseLocation),
+           let dockTarget = DockDrop.target(at: NSEvent.mouseLocation) {
             folderDrag = nil
             model.draggingID = nil
-            handleDockDrop(app: app, target: dockTarget)
+            if dockTarget == .trash {
+                handleDockTrash(app)
+            }
             return
         }
         guard folderPanelFrame != .zero else { return }
